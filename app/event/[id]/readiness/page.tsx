@@ -1,0 +1,267 @@
+'use client'
+
+import { useState } from 'react'
+import { useRouter, useParams } from 'next/navigation'
+import Link from 'next/link'
+import type {
+  AccessibilityNeed,
+  GroupType,
+  ReadinessPrefs,
+  TransportMode,
+} from '@/lib/types'
+import { saveReadiness } from '@/lib/store'
+
+type OptionCardProps = {
+  selected: boolean
+  onClick: () => void
+  emoji: string
+  title: string
+  subtitle?: string
+}
+
+function OptionCard({ selected, onClick, emoji, title, subtitle }: OptionCardProps) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`w-full text-left min-h-[64px] p-4 rounded-2xl border transition flex items-center gap-3 active:scale-[0.99] ${
+        selected
+          ? 'border-violet-600 bg-violet-50'
+          : 'border-slate-200 bg-white hover:border-slate-300 active:bg-slate-50'
+      }`}
+    >
+      <span className="text-2xl leading-none flex-shrink-0">{emoji}</span>
+      <span className="flex-1 min-w-0">
+        <span className="block font-semibold text-slate-900 text-base">{title}</span>
+        {subtitle && <span className="block text-sm text-slate-600 mt-0.5">{subtitle}</span>}
+      </span>
+      {selected && (
+        <span className="text-white bg-violet-600 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0">
+          ✓
+        </span>
+      )}
+    </button>
+  )
+}
+
+const TRANSPORT_OPTIONS: { value: TransportMode; emoji: string; title: string; subtitle: string }[] = [
+  { value: 'transit', emoji: '🚆', title: 'Public transit', subtitle: 'Train, bus, subway' },
+  { value: 'driving', emoji: '🚗', title: 'Driving', subtitle: 'Parking onsite or nearby' },
+  { value: 'rideshare', emoji: '🚕', title: 'Rideshare', subtitle: 'Uber, Lyft, taxi' },
+  { value: 'walking', emoji: '🚶', title: 'Walking', subtitle: 'Local to the venue' },
+]
+
+const GROUP_OPTIONS: { value: GroupType; emoji: string; title: string; subtitle: string }[] = [
+  { value: 'solo', emoji: '🧍', title: 'Just me', subtitle: 'Solo entry' },
+  { value: 'couple', emoji: '👥', title: 'Two of us', subtitle: 'With one other adult' },
+  { value: 'family_young_kids', emoji: '👨‍👩‍👧', title: 'Family with young kids', subtitle: 'Children under 12' },
+  { value: 'family_teens', emoji: '👨‍👩‍👦', title: 'Family with older kids', subtitle: 'Teens or older' },
+  { value: 'large_group', emoji: '👫👬', title: 'Larger group', subtitle: '4+ people' },
+]
+
+const NEED_OPTIONS: { value: AccessibilityNeed; emoji: string; title: string }[] = [
+  { value: 'wheelchair', emoji: '♿', title: 'Wheelchair / step-free entry' },
+  { value: 'stroller', emoji: '🍼', title: 'Stroller-friendly entry' },
+  { value: 'hearing', emoji: '🦻', title: 'Hearing assistance' },
+  { value: 'visual', emoji: '👁️', title: 'Visual assistance' },
+  { value: 'sensory_sensitive', emoji: '🧩', title: 'Sensory-sensitive (quieter route)' },
+]
+
+export default function ReadinessPage() {
+  const router = useRouter()
+  const params = useParams<{ id: string }>()
+  const eventId = params?.id ?? 'wc2026-final'
+
+  const [step, setStep] = useState(0)
+  const [transport, setTransport] = useState<TransportMode | null>(null)
+  const [group, setGroup] = useState<GroupType | null>(null)
+  const [needs, setNeeds] = useState<AccessibilityNeed[]>([])
+  const [notes, setNotes] = useState('')
+
+  const totalSteps = 4
+  const progress = ((step + 1) / totalSteps) * 100
+
+  const toggleNeed = (n: AccessibilityNeed) => {
+    setNeeds((prev) => (prev.includes(n) ? prev.filter((x) => x !== n) : [...prev, n]))
+  }
+
+  const canAdvance = () => {
+    if (step === 0) return transport !== null
+    if (step === 1) return group !== null
+    return true
+  }
+
+  const finish = () => {
+    const prefs: ReadinessPrefs = {
+      transport: transport ?? 'transit',
+      group: group ?? 'solo',
+      needs: needs.length ? needs : ['none'],
+      notes: notes.trim() || undefined,
+      updated_at: new Date().toISOString(),
+    }
+    saveReadiness(prefs)
+    router.push(`/event/${eventId}/hub`)
+  }
+
+  return (
+    <div className="min-h-screen page-bg">
+      <div className="page-header px-4 h-14 flex items-center justify-between">
+        <h1 className="font-bold text-slate-900">Personalize your plan</h1>
+        <Link
+          href={`/event/${eventId}/hub`}
+          className="btn-ghost !min-h-[40px] text-sm text-slate-500"
+        >
+          Skip
+        </Link>
+      </div>
+
+      <div className="max-w-md mx-auto px-4 pt-3 pb-2">
+        <div className="h-2 bg-slate-200 rounded-full overflow-hidden">
+          <div
+            className="h-full bg-violet-600 transition-all duration-300 rounded-full"
+            style={{ width: `${progress}%` }}
+          />
+        </div>
+        <div className="text-xs text-slate-500 mt-2 font-medium">
+          Step {step + 1} of {totalSteps}
+        </div>
+      </div>
+
+      <div className="max-w-md mx-auto px-4 py-5 space-y-4 pb-40">
+        {step === 0 && (
+          <>
+            <div>
+              <h2 className="text-2xl font-bold text-slate-900">How are you getting there?</h2>
+              <p className="text-slate-600 mt-1">We'll time your leave-by and pick the right gate.</p>
+            </div>
+            <div className="space-y-2">
+              {TRANSPORT_OPTIONS.map((opt) => (
+                <OptionCard
+                  key={opt.value}
+                  selected={transport === opt.value}
+                  onClick={() => setTransport(opt.value)}
+                  emoji={opt.emoji}
+                  title={opt.title}
+                  subtitle={opt.subtitle}
+                />
+              ))}
+            </div>
+          </>
+        )}
+
+        {step === 1 && (
+          <>
+            <div>
+              <h2 className="text-2xl font-bold text-slate-900">Who's coming with you?</h2>
+              <p className="text-slate-600 mt-1">Group size shapes timing and gate choice.</p>
+            </div>
+            <div className="space-y-2">
+              {GROUP_OPTIONS.map((opt) => (
+                <OptionCard
+                  key={opt.value}
+                  selected={group === opt.value}
+                  onClick={() => setGroup(opt.value)}
+                  emoji={opt.emoji}
+                  title={opt.title}
+                  subtitle={opt.subtitle}
+                />
+              ))}
+            </div>
+          </>
+        )}
+
+        {step === 2 && (
+          <>
+            <div>
+              <h2 className="text-2xl font-bold text-slate-900">Any accessibility needs?</h2>
+              <p className="text-slate-600 mt-1">
+                Pick anything that applies. We'll route you to the right gate and support points.
+              </p>
+            </div>
+            <div className="space-y-2">
+              {NEED_OPTIONS.map((opt) => (
+                <OptionCard
+                  key={opt.value}
+                  selected={needs.includes(opt.value)}
+                  onClick={() => toggleNeed(opt.value)}
+                  emoji={opt.emoji}
+                  title={opt.title}
+                />
+              ))}
+            </div>
+            <p className="text-xs text-slate-500 px-1">You can change this anytime.</p>
+          </>
+        )}
+
+        {step === 3 && (
+          <>
+            <div>
+              <h2 className="text-2xl font-bold text-slate-900">Anything else we should know?</h2>
+              <p className="text-slate-600 mt-1">Optional. Free-form notes for the day.</p>
+            </div>
+            <textarea
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder="e.g. First MetLife visit. Traveling with a 6-year-old."
+              className="w-full rounded-2xl border-2 border-slate-200 focus:border-violet-600 focus:outline-none p-4 min-h-32 text-slate-900 text-base resize-none transition"
+              maxLength={300}
+            />
+            <div className="text-xs text-slate-500 text-right">{notes.length} / 300</div>
+
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 mt-4">
+              <div className="kicker mb-3">Your profile</div>
+              <dl className="space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <dt className="text-slate-600">Transport</dt>
+                  <dd className="font-semibold text-slate-900 capitalize">{transport}</dd>
+                </div>
+                <div className="flex justify-between">
+                  <dt className="text-slate-600">Group</dt>
+                  <dd className="font-semibold text-slate-900">
+                    {GROUP_OPTIONS.find((g) => g.value === group)?.title ?? '—'}
+                  </dd>
+                </div>
+                <div className="flex justify-between gap-3">
+                  <dt className="text-slate-600">Needs</dt>
+                  <dd className="font-semibold text-slate-900 text-right">
+                    {needs.length
+                      ? needs
+                          .map((n) => NEED_OPTIONS.find((o) => o.value === n)?.title ?? n)
+                          .join(', ')
+                      : 'None'}
+                  </dd>
+                </div>
+              </dl>
+            </div>
+          </>
+        )}
+      </div>
+
+      <div className="fixed bottom-0 inset-x-0 bg-white/95 backdrop-blur border-t border-slate-200 px-4 pt-3 safe-bottom">
+        <div className="max-w-md mx-auto flex gap-3">
+          {step > 0 && (
+            <button
+              onClick={() => setStep((s) => s - 1)}
+              className="btn-secondary flex-1"
+            >
+              Back
+            </button>
+          )}
+          {step < totalSteps - 1 ? (
+            <button
+              onClick={() => setStep((s) => s + 1)}
+              disabled={!canAdvance()}
+              className="btn-primary flex-1"
+            >
+              Continue →
+            </button>
+          ) : (
+            <button onClick={finish} className="btn-primary flex-1">
+              Finish & see my plan →
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}

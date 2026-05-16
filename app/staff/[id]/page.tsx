@@ -1,0 +1,401 @@
+'use client'
+
+import { useEffect, useState } from 'react'
+import Link from 'next/link'
+import { demoVenue } from '@/lib/seed'
+import {
+  clearPublishedSignals,
+  getAllSignals,
+  loadIncidents,
+  publishSignal,
+  updateIncident,
+} from '@/lib/store'
+import type { Incident, IncidentStatus, IncidentType, LiveSignal } from '@/lib/types'
+
+const INCIDENT_TYPE_LABEL: Record<IncidentType, string> = {
+  family_assistance: 'Family assistance',
+  long_line: 'Long line',
+  accessibility_question: 'Accessibility question',
+  lost_ticket: 'Ticket issue',
+  medical: 'Medical',
+  lost_person: 'Lost person',
+  other: 'Other',
+}
+
+const INCIDENT_STATUS_STYLE: Record<IncidentStatus, string> = {
+  open: 'bg-rose-500/20 text-rose-300 border-rose-500/40',
+  monitoring: 'bg-amber-500/20 text-amber-300 border-amber-500/40',
+  resolved: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40',
+}
+
+const SENTIMENTS: { value: LiveSignal['sentiment']; label: string; emoji: string; color: string }[] = [
+  { value: 'smooth', label: 'Smooth', emoji: '🟢', color: 'bg-emerald-600 hover:bg-emerald-500' },
+  { value: 'moderate', label: 'Moderate', emoji: '🟡', color: 'bg-amber-600 hover:bg-amber-500' },
+  { value: 'busy', label: 'Busy', emoji: '🟠', color: 'bg-orange-600 hover:bg-orange-500' },
+  { value: 'difficult', label: 'Difficult', emoji: '🔴', color: 'bg-rose-600 hover:bg-rose-500' },
+]
+
+function timeAgo(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime()
+  const mins = Math.floor(diff / 60000)
+  if (mins < 1) return 'just now'
+  if (mins < 60) return `${mins}m ago`
+  const hrs = Math.floor(mins / 60)
+  return `${hrs}h ago`
+}
+
+export default function StaffConsolePage() {
+  const [signals, setSignals] = useState<LiveSignal[]>([])
+  const [incidents, setIncidents] = useState<Incident[]>([])
+  const [incidentFilter, setIncidentFilter] = useState<'all' | 'open'>('all')
+  const [gateId, setGateId] = useState<string>(demoVenue.gates[0].id)
+  const [sentiment, setSentiment] = useState<LiveSignal['sentiment']>('smooth')
+  const [message, setMessage] = useState('')
+  const [toast, setToast] = useState<string | null>(null)
+
+  const refresh = () => {
+    setSignals(getAllSignals())
+    setIncidents(loadIncidents())
+  }
+
+  useEffect(() => {
+    refresh()
+    const onSignals = () => refresh()
+    const onIncidents = () => refresh()
+    window.addEventListener('fanflow:signals', onSignals)
+    window.addEventListener('fanflow:incidents', onIncidents)
+    return () => {
+      window.removeEventListener('fanflow:signals', onSignals)
+      window.removeEventListener('fanflow:incidents', onIncidents)
+    }
+  }, [])
+
+  const changeIncidentStatus = (id: string, status: IncidentStatus) => {
+    const inc = incidents.find((i) => i.id === id)
+    const action =
+      status === 'monitoring'
+        ? inc?.action ?? 'Marked as monitoring by staff'
+        : status === 'resolved'
+        ? inc?.action ?? 'Resolved by staff'
+        : inc?.action
+    updateIncident(id, { status, action })
+    setToast(`Incident ${status}`)
+    setTimeout(() => setToast(null), 1800)
+  }
+
+  const visibleIncidents = incidents
+    .filter((i) => (incidentFilter === 'all' ? true : i.status !== 'resolved'))
+    .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())
+
+  const openCount = incidents.filter((i) => i.status === 'open').length
+
+  const submit = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!message.trim()) return
+    publishSignal({
+      id: `staff-${Date.now()}`,
+      gate_id: gateId,
+      source: 'staff',
+      sentiment,
+      message: message.trim(),
+      created_at: new Date().toISOString(),
+    })
+    setMessage('')
+    setToast('Update published to fans')
+    setTimeout(() => setToast(null), 2200)
+  }
+
+  const gateSummary = demoVenue.gates.map((gate) => {
+    const recent = signals.filter(
+      (s) =>
+        s.gate_id === gate.id &&
+        Date.now() - new Date(s.created_at).getTime() < 30 * 60 * 1000,
+    )
+    const latest = recent[0]
+    return { gate, recent, latest }
+  })
+
+  return (
+    <div className="min-h-screen bg-slate-950 text-slate-100">
+      <div className="sticky top-0 z-40 bg-slate-950/90 backdrop-blur border-b border-slate-800 px-4 py-3 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 bg-gradient-to-br from-violet-500 to-violet-700 rounded-lg" />
+          <div>
+            <div className="font-bold text-white">Staff Console</div>
+            <div className="text-xs text-slate-400">MetLife Stadium · Operations</div>
+          </div>
+        </div>
+        <Link
+          href="/event/wc2026-final/hub"
+          className="text-sm text-slate-400 hover:text-white"
+        >
+          Fan view →
+        </Link>
+      </div>
+
+      <div className="max-w-5xl mx-auto px-4 py-6 grid gap-6 lg:grid-cols-3">
+        {/* Gate Panel */}
+        <section className="lg:col-span-2 space-y-4">
+          <div>
+            <h2 className="text-xl font-bold text-white">Gate status</h2>
+            <p className="text-sm text-slate-400">
+              Last 30 minutes of signals across each entrance.
+            </p>
+          </div>
+          <div className="grid sm:grid-cols-3 gap-3">
+            {gateSummary.map(({ gate, recent, latest }) => {
+              const tone =
+                latest?.sentiment === 'smooth'
+                  ? 'border-emerald-700 bg-emerald-950/40'
+                  : latest?.sentiment === 'moderate'
+                  ? 'border-amber-700 bg-amber-950/40'
+                  : latest?.sentiment === 'busy'
+                  ? 'border-orange-700 bg-orange-950/40'
+                  : latest?.sentiment === 'difficult'
+                  ? 'border-rose-700 bg-rose-950/40'
+                  : 'border-slate-800 bg-slate-900'
+              const emoji = latest
+                ? SENTIMENTS.find((s) => s.value === latest.sentiment)?.emoji ?? '⚪'
+                : '⚪'
+              return (
+                <div key={gate.id} className={`rounded-xl border p-4 ${tone}`}>
+                  <div className="text-xs text-slate-400 font-mono">{gate.id.toUpperCase()}</div>
+                  <div className="font-semibold text-white mt-1">{gate.name}</div>
+                  <div className="mt-3 text-2xl">{emoji}</div>
+                  <div className="text-xs text-slate-300 mt-1">
+                    {latest ? latest.sentiment : 'No recent signals'}
+                  </div>
+                  <div className="text-xs text-slate-500 mt-2">
+                    {recent.length} signal{recent.length === 1 ? '' : 's'} · ~
+                    {gate.typical_wait_minutes} min typical
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+
+          {/* Incident Log */}
+          <div className="rounded-2xl border border-slate-800 bg-slate-900">
+            <div className="flex items-center justify-between p-4 border-b border-slate-800">
+              <div className="flex items-center gap-2">
+                <h3 className="font-bold text-white">Incident log</h3>
+                {openCount > 0 && (
+                  <span className="inline-flex items-center justify-center text-[10px] font-bold bg-rose-500/20 text-rose-300 border border-rose-500/40 rounded-full min-w-[20px] h-5 px-1.5">
+                    {openCount} open
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setIncidentFilter('all')}
+                  className={`text-xs px-2.5 py-1 rounded-md transition ${
+                    incidentFilter === 'all'
+                      ? 'bg-slate-700 text-white'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  All
+                </button>
+                <button
+                  onClick={() => setIncidentFilter('open')}
+                  className={`text-xs px-2.5 py-1 rounded-md transition ${
+                    incidentFilter === 'open'
+                      ? 'bg-slate-700 text-white'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  Active only
+                </button>
+              </div>
+            </div>
+            <div className="divide-y divide-slate-800 max-h-[420px] overflow-y-auto">
+              {visibleIncidents.length === 0 ? (
+                <div className="p-6 text-sm text-slate-500 italic">No incidents to show.</div>
+              ) : (
+                visibleIncidents.map((inc) => {
+                  const gate = demoVenue.gates.find((g) => g.id === inc.gate_id)
+                  return (
+                    <div key={inc.id} className="p-4 space-y-2">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-semibold text-white text-sm">
+                              {INCIDENT_TYPE_LABEL[inc.type]}
+                            </span>
+                            <span
+                              className={`text-[10px] font-bold uppercase tracking-wide border px-2 py-0.5 rounded-full ${INCIDENT_STATUS_STYLE[inc.status]}`}
+                            >
+                              {inc.status}
+                            </span>
+                          </div>
+                          <div className="text-xs text-slate-400 mt-1">
+                            {gate?.name ?? inc.gate_id} ·{' '}
+                            {inc.source === 'staff' ? '👮 Staff' : '🙋 Fan'} · {timeAgo(inc.updated_at)}
+                          </div>
+                        </div>
+                      </div>
+                      <p className="text-sm text-slate-200">{inc.note}</p>
+                      {inc.action && (
+                        <p className="text-xs text-emerald-300 bg-emerald-500/10 border border-emerald-500/20 rounded-md px-2 py-1.5">
+                          ↳ {inc.action}
+                        </p>
+                      )}
+                      {inc.status !== 'resolved' && (
+                        <div className="flex flex-wrap gap-2 pt-1">
+                          {inc.status !== 'monitoring' && (
+                            <button
+                              onClick={() => changeIncidentStatus(inc.id, 'monitoring')}
+                              className="text-xs px-3 py-1.5 rounded-md bg-amber-600/30 hover:bg-amber-600/50 text-amber-200 font-semibold transition border border-amber-500/40"
+                            >
+                              Mark monitoring
+                            </button>
+                          )}
+                          <button
+                            onClick={() => changeIncidentStatus(inc.id, 'resolved')}
+                            className="text-xs px-3 py-1.5 rounded-md bg-emerald-600/30 hover:bg-emerald-600/50 text-emerald-200 font-semibold transition border border-emerald-500/40"
+                          >
+                            Mark resolved
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )
+                })
+              )}
+            </div>
+          </div>
+
+          {/* Feed */}
+          <div className="rounded-2xl border border-slate-800 bg-slate-900">
+            <div className="flex items-center justify-between p-4 border-b border-slate-800">
+              <h3 className="font-bold text-white">Live signal feed</h3>
+              <button
+                onClick={() => {
+                  if (confirm('Clear all published staff signals? Seeded fan signals remain.')) {
+                    clearPublishedSignals()
+                  }
+                }}
+                className="text-xs text-slate-400 hover:text-rose-400"
+              >
+                Clear staff signals
+              </button>
+            </div>
+            <div className="divide-y divide-slate-800 max-h-[480px] overflow-y-auto">
+              {signals.length === 0 ? (
+                <div className="p-6 text-sm text-slate-500 italic">No signals yet.</div>
+              ) : (
+                signals.map((s) => {
+                  const meta = SENTIMENTS.find((x) => x.value === s.sentiment)
+                  const gate = demoVenue.gates.find((g) => g.id === s.gate_id)
+                  return (
+                    <div key={s.id} className="p-4 flex items-start gap-3">
+                      <div className="text-xl">{meta?.emoji ?? '⚪'}</div>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm text-white">{s.message}</div>
+                        <div className="text-xs text-slate-400 mt-1">
+                          {gate?.name ?? s.gate_id} ·{' '}
+                          {s.source === 'staff' ? '👮 Staff' : '🙋 Fan'} · {timeAgo(s.created_at)}
+                        </div>
+                      </div>
+                      <span className="text-xs uppercase tracking-wide text-slate-400">
+                        {s.sentiment}
+                      </span>
+                    </div>
+                  )
+                })
+              )}
+            </div>
+          </div>
+        </section>
+
+        {/* Publish form */}
+        <aside className="space-y-4">
+          <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
+            <h3 className="font-bold text-white">Publish update</h3>
+            <p className="text-sm text-slate-400 mt-1">
+              Updates appear in fans' Event Day Hub within seconds.
+            </p>
+
+            <form onSubmit={submit} className="mt-4 space-y-4">
+              <div>
+                <label className="text-xs font-semibold text-slate-300 uppercase tracking-wide">
+                  Gate
+                </label>
+                <select
+                  value={gateId}
+                  onChange={(e) => setGateId(e.target.value)}
+                  className="mt-2 w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-white focus:border-violet-500 focus:outline-none"
+                >
+                  {demoVenue.gates.map((g) => (
+                    <option key={g.id} value={g.id}>
+                      {g.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-slate-300 uppercase tracking-wide">
+                  Condition
+                </label>
+                <div className="mt-2 grid grid-cols-2 gap-2">
+                  {SENTIMENTS.map((s) => (
+                    <button
+                      type="button"
+                      key={s.value}
+                      onClick={() => setSentiment(s.value)}
+                      className={`px-3 py-2 rounded-lg text-sm font-semibold border transition ${
+                        sentiment === s.value
+                          ? `${s.color} text-white border-transparent`
+                          : 'bg-slate-950 border-slate-700 text-slate-300 hover:border-slate-500'
+                      }`}
+                    >
+                      {s.emoji} {s.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-slate-300 uppercase tracking-wide">
+                  Message
+                </label>
+                <textarea
+                  value={message}
+                  onChange={(e) => setMessage(e.target.value)}
+                  placeholder="e.g. Family entrance clear, moving smoothly"
+                  className="mt-2 w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-white focus:border-violet-500 focus:outline-none min-h-24"
+                  maxLength={140}
+                />
+                <div className="text-xs text-slate-500 text-right mt-1">{message.length} / 140</div>
+              </div>
+
+              <button
+                type="submit"
+                disabled={!message.trim()}
+                className="w-full py-3 rounded-lg bg-violet-600 hover:bg-violet-500 disabled:bg-slate-700 disabled:cursor-not-allowed text-white font-bold transition"
+              >
+                Publish to fans
+              </button>
+            </form>
+          </div>
+
+          <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
+            <h3 className="font-bold text-white text-sm">Reminders</h3>
+            <ul className="mt-2 space-y-1.5 text-xs text-slate-400 list-disc list-inside">
+              <li>Keep messages factual and brief.</li>
+              <li>Use "Difficult" only for safety issues.</li>
+              <li>Fan-submitted signals appear here too — verify before acting.</li>
+            </ul>
+          </div>
+        </aside>
+      </div>
+
+      {toast && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-emerald-600 text-white px-4 py-2 rounded-lg shadow-lg text-sm font-semibold">
+          ✓ {toast}
+        </div>
+      )}
+    </div>
+  )
+}
