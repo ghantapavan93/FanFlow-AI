@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import { deriveArrivalPlan, demoEvent, demoTicket, demoVenue } from '@/lib/seed'
-import { getAllSignals, loadReadiness } from '@/lib/store'
+import { getAllSignals, loadReadiness, subscribeToFanflowChanges } from '@/lib/store'
 import type { LiveSignal, ReadinessPrefs } from '@/lib/types'
 import { HelpSheet } from '@/components/shared/HelpSheet'
 
@@ -12,6 +12,7 @@ type ExplainResponse = {
   explanation: string
   source: 'template' | 'groq' | 'gemini'
   generatedAt: string
+  latencyMs?: number
 }
 
 export default function ArrivalGuidePage() {
@@ -23,6 +24,7 @@ export default function ArrivalGuidePage() {
   const [explanation, setExplanation] = useState<ExplainResponse | null>(null)
   const [explainLoading, setExplainLoading] = useState(false)
   const [helpOpen, setHelpOpen] = useState(false)
+  const [scoreOpen, setScoreOpen] = useState(false)
   const lastReqKey = useRef<string>('')
 
   useEffect(() => {
@@ -31,12 +33,10 @@ export default function ArrivalGuidePage() {
       setSignals(getAllSignals())
     }
     refresh()
-    window.addEventListener('fanflow:readiness', refresh)
-    window.addEventListener('fanflow:signals', refresh)
-    return () => {
-      window.removeEventListener('fanflow:readiness', refresh)
-      window.removeEventListener('fanflow:signals', refresh)
-    }
+    return subscribeToFanflowChanges(
+      ['fanflow:readiness', 'fanflow:signals'],
+      refresh,
+    )
   }, [])
 
   const plan = useMemo(
@@ -104,7 +104,6 @@ export default function ArrivalGuidePage() {
 
     const key = JSON.stringify(body)
     if (key === lastReqKey.current) return
-    lastReqKey.current = key
 
     setExplainLoading(true)
     let cancelled = false
@@ -115,7 +114,12 @@ export default function ArrivalGuidePage() {
     })
       .then((r) => (r.ok ? r.json() : null))
       .then((json: ExplainResponse | null) => {
-        if (cancelled || !json) return
+        if (cancelled) return
+        if (!json) return
+        // Only cache the key on a successful response. This means a transient
+        // failure does NOT freeze the UI on the Template fallback — the next
+        // refresh (or the same inputs re-rendering) will retry.
+        lastReqKey.current = key
         setExplanation(json)
       })
       .catch(() => {})
@@ -209,15 +213,17 @@ export default function ArrivalGuidePage() {
             <h3 className="font-bold text-slate-900">Why this recommendation?</h3>
             {explanation && (
               <span
-                className={`text-[10px] font-semibold uppercase tracking-wide px-2 py-1 rounded-full ${
+                className={`text-[10px] font-semibold uppercase tracking-wide px-2 py-1 rounded-full cursor-help ${
                   explanation.source === 'template'
                     ? 'bg-slate-200 text-slate-700'
                     : 'bg-violet-100 text-violet-700'
                 }`}
                 title={
                   explanation.source === 'template'
-                    ? 'Deterministic template — no LLM available'
-                    : `Rewritten in a warmer tone by ${explanation.source.toUpperCase()}, facts unchanged`
+                    ? 'Template = deterministic explanation, always available.'
+                    : `AI = rewritten by ${explanation.source} and sanitized before display. Facts (gate, times, support) unchanged.${
+                        explanation.latencyMs ? ` Latency: ${explanation.latencyMs}ms.` : ''
+                      }`
                 }
               >
                 {explanation.source === 'template'
@@ -256,6 +262,91 @@ export default function ArrivalGuidePage() {
             Rules pick the gate and times. AI only rewords the explanation — it cannot change facts.
           </p>
         </div>
+
+        {/* Score Breakdown — collapsible details panel */}
+        {plan.gate_scores && plan.gate_scores.length > 0 && (
+          <details
+            open={scoreOpen}
+            onToggle={(e) => setScoreOpen((e.target as HTMLDetailsElement).open)}
+            className="rounded-2xl border border-slate-200 bg-white overflow-hidden"
+          >
+            <summary className="list-none cursor-pointer p-5 sm:p-6 flex items-center justify-between hover:bg-slate-50 transition">
+              <div>
+                <h3 className="font-bold text-slate-900">Why this gate?</h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  See the deterministic score for each gate.
+                </p>
+              </div>
+              <span className="text-slate-400 text-lg">{scoreOpen ? '−' : '+'}</span>
+            </summary>
+            <div className="border-t border-slate-200 p-5 sm:p-6 space-y-4 bg-slate-50/50">
+              {plan.gate_scores.map((g) => {
+                const c = g.components
+                const fmt = (n: number) =>
+                  (n > 0 ? '+' : '') + (Number.isInteger(n) ? n.toString() : n.toFixed(1))
+                const rows: { label: string; value: number }[] = [
+                  { label: 'Section proximity', value: c.section_proximity },
+                  { label: 'Accessibility match', value: c.accessibility_match },
+                  { label: 'Family-friendly match', value: c.family_match },
+                  { label: 'Sensory-sensitive match', value: c.sensory_match },
+                  { label: 'Typical wait penalty', value: c.wait_penalty },
+                  { label: 'Staff signals (×3)', value: c.staff_signal },
+                  { label: 'Fan signals (×1)', value: c.fan_signal },
+                ]
+                return (
+                  <div
+                    key={g.gate_id}
+                    className={`rounded-xl border bg-white p-4 ${
+                      g.is_recommended ? 'border-violet-300' : 'border-slate-200'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold text-slate-900 text-sm">
+                          {g.gate_name}
+                        </span>
+                        {g.is_recommended && (
+                          <span className="text-[10px] font-bold uppercase tracking-wide bg-violet-100 text-violet-700 px-2 py-0.5 rounded-full">
+                            ✨ Picked
+                          </span>
+                        )}
+                      </div>
+                      <div className="font-mono text-sm font-bold text-slate-900">
+                        {fmt(g.total)}
+                      </div>
+                    </div>
+                    <dl className="space-y-1 text-xs">
+                      {rows.map((row) => (
+                        <div
+                          key={row.label}
+                          className="flex justify-between items-center py-0.5"
+                        >
+                          <dt className="text-slate-600">{row.label}</dt>
+                          <dd
+                            className={`font-mono ${
+                              row.value > 0
+                                ? 'text-emerald-700'
+                                : row.value < 0
+                                ? 'text-rose-700'
+                                : 'text-slate-400'
+                            }`}
+                          >
+                            {fmt(row.value)}
+                          </dd>
+                        </div>
+                      ))}
+                    </dl>
+                  </div>
+                )
+              })}
+              <p className="text-[11px] text-slate-500 px-1 leading-relaxed">
+                The deterministic rule engine computes these scores from your readiness
+                preferences and recent live signals. Staff signals are weighted 3× over fan
+                signals.
+              </p>
+            </div>
+          </details>
+        )}
 
         {/* Route Details */}
         <div className="card-base p-5 sm:p-6">

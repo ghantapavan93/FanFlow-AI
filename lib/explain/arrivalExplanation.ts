@@ -63,6 +63,22 @@ const BANNED_PATTERNS: { pattern: RegExp; replacement: string }[] = [
   { pattern: /\bmedical advice\b/gi, replacement: 'medical assistance on site' },
 ]
 
+/**
+ * Returns true if the text mentions a "Gate N" different from the recommended gate.
+ * Used as a hallucination guardrail: if the LLM names the wrong gate, fall back to template.
+ */
+export function mentionsWrongGate(text: string, recommendedGateName: string): boolean {
+  const recMatch = recommendedGateName.match(/gate\s+(\d+)/i)
+  if (!recMatch) return false
+  const recNum = recMatch[1]
+  const found = text.match(/gate\s+(\d+)/gi)
+  if (!found) return false
+  return found.some((m) => {
+    const n = m.replace(/gate\s+/i, '').trim()
+    return n !== recNum
+  })
+}
+
 export function sanitizeExplanation(raw: string): string {
   let text = raw.trim()
 

@@ -7,6 +7,8 @@ import type {
   ReadinessPrefs,
   ArrivalPlan,
   Incident,
+  GateScoreBreakdown,
+  GateScoreComponents,
 } from './types'
 
 export const demoEvent: Event = {
@@ -227,31 +229,58 @@ function transitSummary(mode: ReadinessPrefs['transport'], gateName: string): st
   }
 }
 
-function scoreGate(
+function sectionProximityScore(gateSections: string[], ticketSection: string): number {
+  if (gateSections.includes(ticketSection)) return 10
+  const target = parseInt(ticketSection, 10)
+  if (Number.isNaN(target)) return 0
+  let minDist = Infinity
+  for (const s of gateSections) {
+    const n = parseInt(s, 10)
+    if (Number.isNaN(n)) continue
+    minDist = Math.min(minDist, Math.abs(n - target))
+  }
+  if (minDist <= 10) return 6
+  if (minDist <= 20) return 3
+  return 0
+}
+
+function scoreGateBreakdown(
   gate: Gate,
   ticket: Ticket,
   prefs: ReadinessPrefs | null,
   signals: LiveSignal[],
-): number {
-  let score = 0
+): { components: GateScoreComponents; total: number } {
+  const components: GateScoreComponents = {
+    section_proximity: 0,
+    accessibility_match: 0,
+    family_match: 0,
+    sensory_match: 0,
+    wait_penalty: 0,
+    staff_signal: 0,
+    fan_signal: 0,
+  }
 
-  if (gate.sections.includes(ticket.section)) score += 10
+  components.section_proximity = sectionProximityScore(gate.sections, ticket.section)
 
   if (prefs) {
-    if (prefs.needs.includes('wheelchair') && gate.accessibility) score += 6
-    if (prefs.needs.includes('stroller') && gate.family_friendly) score += 4
+    if (prefs.needs.includes('wheelchair') && gate.accessibility) {
+      components.accessibility_match += 6
+    }
+    if (prefs.needs.includes('stroller') && gate.family_friendly) {
+      components.family_match += 4
+    }
     if (
       (prefs.group === 'family_young_kids' || prefs.group === 'family_teens') &&
       gate.family_friendly
     ) {
-      score += 3
+      components.family_match += 3
     }
     if (prefs.needs.includes('sensory_sensitive') && gate.typical_wait_minutes <= 6) {
-      score += 2
+      components.sensory_match += 2
     }
   }
 
-  score -= gate.typical_wait_minutes / 3
+  components.wait_penalty = -gate.typical_wait_minutes / 3
 
   const recent = signals.filter(
     (s) =>
@@ -259,11 +288,33 @@ function scoreGate(
       Date.now() - new Date(s.created_at).getTime() < 2 * 60 * 60 * 1000,
   )
   for (const s of recent) {
-    const weight = s.source === 'staff' ? 3 : 1
-    score += SENTIMENT_SCORE[s.sentiment] * weight
+    const contribution = SENTIMENT_SCORE[s.sentiment]
+    if (s.source === 'staff') {
+      components.staff_signal += contribution * 3
+    } else {
+      components.fan_signal += contribution * 1
+    }
   }
 
-  return score
+  const total =
+    components.section_proximity +
+    components.accessibility_match +
+    components.family_match +
+    components.sensory_match +
+    components.wait_penalty +
+    components.staff_signal +
+    components.fan_signal
+
+  return { components, total }
+}
+
+function scoreGate(
+  gate: Gate,
+  ticket: Ticket,
+  prefs: ReadinessPrefs | null,
+  signals: LiveSignal[],
+): number {
+  return scoreGateBreakdown(gate, ticket, prefs, signals).total
 }
 
 function buildExplanation(
@@ -333,10 +384,21 @@ export function deriveArrivalPlan(
   )
 
   const ranked = [...demoVenue.gates]
-    .map((g) => ({ gate: g, score: scoreGate(g, demoTicket, prefs, signals) }))
-    .sort((a, b) => b.score - a.score)
+    .map((g) => {
+      const { components, total } = scoreGateBreakdown(g, demoTicket, prefs, signals)
+      return { gate: g, components, total }
+    })
+    .sort((a, b) => b.total - a.total)
 
   const recommendedGate = ranked[0].gate
+
+  const gate_scores: GateScoreBreakdown[] = ranked.map((r) => ({
+    gate_id: r.gate.id,
+    gate_name: r.gate.name,
+    components: r.components,
+    total: r.total,
+    is_recommended: r.gate.id === recommendedGate.id,
+  }))
 
   const supportPoints = (() => {
     const all = demoVenue.support_points
@@ -377,5 +439,16 @@ export function deriveArrivalPlan(
     confidence_reason,
     explanation_text: buildExplanation(recommendedGate, prefs, demoTicket),
     support_points: supportPoints,
+    gate_scores,
   }
 }
+
+/**
+ * Same function as deriveArrivalPlan — exported under a debug-friendly name
+ * so call sites that want the score breakdown read self-documentingly.
+ *
+ *   const { gate_scores, ...plan } = deriveArrivalPlanWithDebug(prefs, signals)
+ *
+ * The breakdown is always populated; the alias just makes the intent explicit.
+ */
+export const deriveArrivalPlanWithDebug = deriveArrivalPlan

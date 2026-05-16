@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import { demoTicket, demoVenue, deriveArrivalPlan } from '@/lib/seed'
-import { getAllSignals, loadReadiness } from '@/lib/store'
+import { getAllSignals, loadReadiness, subscribeToFanflowChanges } from '@/lib/store'
 import type {
   Gate,
   LiveSignal,
@@ -43,6 +43,7 @@ export default function VenueMapPage() {
   const [prefs, setPrefs] = useState<ReadinessPrefs | null>(null)
   const [signals, setSignals] = useState<LiveSignal[]>([])
   const [selected, setSelected] = useState<Marker | null>(null)
+  const [filter, setFilter] = useState<'all' | 'gates' | SupportType>('all')
 
   useEffect(() => {
     const refresh = () => {
@@ -50,12 +51,10 @@ export default function VenueMapPage() {
       setSignals(getAllSignals())
     }
     refresh()
-    window.addEventListener('fanflow:readiness', refresh)
-    window.addEventListener('fanflow:signals', refresh)
-    return () => {
-      window.removeEventListener('fanflow:readiness', refresh)
-      window.removeEventListener('fanflow:signals', refresh)
-    }
+    return subscribeToFanflowChanges(
+      ['fanflow:readiness', 'fanflow:signals'],
+      refresh,
+    )
   }, [])
 
   const plan = useMemo(
@@ -118,6 +117,30 @@ export default function VenueMapPage() {
             <div className="flex items-center justify-between mb-3">
               <h2 className="font-bold text-slate-900">MetLife Stadium</h2>
               <span className="text-xs text-slate-500">Tap a marker for details</span>
+            </div>
+
+            {/* Filter chips */}
+            <div className="flex gap-1.5 overflow-x-auto pb-2 mb-2 -mx-1 px-1 scrollbar-thin">
+              {(
+                [
+                  { id: 'all', label: 'All' },
+                  { id: 'gates', label: 'Gates' },
+                  { id: 'first_aid', label: 'First Aid' },
+                  { id: 'family_services', label: 'Family' },
+                  { id: 'accessibility', label: 'Accessibility' },
+                  { id: 'quiet_space', label: 'Quiet Space' },
+                  { id: 'restroom', label: 'Restrooms' },
+                  { id: 'guest_services', label: 'Guest Services' },
+                ] as const
+              ).map((f) => (
+                <button
+                  key={f.id}
+                  onClick={() => setFilter(f.id as typeof filter)}
+                  className={filter === f.id ? 'chip-active whitespace-nowrap' : 'chip whitespace-nowrap'}
+                >
+                  {f.label}
+                </button>
+              ))}
             </div>
 
             <div className="bg-slate-50 rounded-xl border border-slate-200 overflow-hidden">
@@ -193,8 +216,10 @@ export default function VenueMapPage() {
                   opacity="0.6"
                 />
 
-                {/* Support markers */}
-                {supportMarkers.map((m) => {
+                {/* Support markers — visible when filter is 'all' or matches type */}
+                {supportMarkers
+                  .filter((m) => filter === 'all' || filter === m.data.type)
+                  .map((m) => {
                   const meta = SUPPORT_META[m.data.type]
                   const x = m.data.map_x ?? 0
                   const y = m.data.map_y ?? 0
@@ -228,8 +253,10 @@ export default function VenueMapPage() {
                   )
                 })}
 
-                {/* Gate markers (drawn last to sit on top) */}
-                {gateMarkers.map((m) => {
+                {/* Gate markers (drawn last to sit on top) — visible when filter is 'all' or 'gates' */}
+                {gateMarkers
+                  .filter(() => filter === 'all' || filter === 'gates')
+                  .map((m) => {
                   const x = m.data.map_x ?? 0
                   const y = m.data.map_y ?? 0
                   const isActive = selected?.kind === 'gate' && selected.data.id === m.data.id

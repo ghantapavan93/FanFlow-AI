@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import './globals.css'
+import { DemoToolbar } from '@/components/debug/DemoToolbar'
 
 export const metadata: Metadata = {
   title: 'FanFlow AI | From Ticket Confirmed to Venue Ready',
@@ -19,6 +20,7 @@ export default function RootLayout({
     <html lang="en">
       <body>
         {children}
+        <DemoToolbar />
       </body>
     </html>
   )

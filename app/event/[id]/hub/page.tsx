@@ -10,9 +10,11 @@ import {
   loadReadiness,
   publishSignal,
   saveChecklist,
+  subscribeToFanflowChanges,
 } from '@/lib/store'
 import type { LiveSignal, ReadinessPrefs } from '@/lib/types'
 import { HelpSheet } from '@/components/shared/HelpSheet'
+import { ImpactCards } from '@/components/impact/ImpactCards'
 import type { SupportType } from '@/lib/types'
 
 const SUPPORT_TONE: Record<SupportType, string> = {
@@ -57,15 +59,10 @@ export default function EventHubPage() {
     setHydrated(true)
     refresh()
     setChecklist({ ...DEFAULT_CHECKLIST, ...loadChecklist() })
-
-    const onReadiness = () => refresh()
-    const onSignals = () => refresh()
-    window.addEventListener('fanflow:readiness', onReadiness)
-    window.addEventListener('fanflow:signals', onSignals)
-    return () => {
-      window.removeEventListener('fanflow:readiness', onReadiness)
-      window.removeEventListener('fanflow:signals', onSignals)
-    }
+    return subscribeToFanflowChanges(
+      ['fanflow:readiness', 'fanflow:signals'],
+      refresh,
+    )
   }, [refresh])
 
   useEffect(() => {
@@ -192,6 +189,9 @@ export default function EventHubPage() {
             </Link>
           </div>
         )}
+
+        {/* Impact cards — render only when there are reasons to show */}
+        {hydrated && <ImpactCards plan={plan} prefs={prefs} signals={signals} />}
 
         {/* Arrival Plan */}
         <div className="rounded-2xl border border-slate-200 p-5 sm:p-6 bg-white">

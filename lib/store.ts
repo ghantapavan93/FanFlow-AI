@@ -1,5 +1,17 @@
 'use client'
 
+/**
+ * Synchronous localStorage helpers — the convenience layer the UI uses today.
+ *
+ * Architecturally this is the body of localFanflowStore (see lib/data/).
+ * Each mutator writes to localStorage AND dispatches a custom window event so
+ * same-tab listeners refresh immediately. Cross-tab listeners get the same
+ * refresh via the native `storage` event — see subscribeToFanflowChanges().
+ *
+ * When the backend swaps to Supabase, this file is what changes — consumers
+ * keep their existing import paths.
+ */
+
 import type { Incident, IncidentStatus, LiveSignal, ReadinessPrefs } from './types'
 import { demoIncidents, demoLiveSignals } from './seed'
 
@@ -7,6 +19,54 @@ const READINESS_KEY = 'fanflow_readiness'
 const SIGNALS_KEY = 'fanflow_published_signals'
 const CHECKLIST_KEY = 'fanflow_checklist'
 const INCIDENTS_OVERRIDE_KEY = 'fanflow_incidents_overrides'
+
+export type FanflowEvent = 'fanflow:readiness' | 'fanflow:signals' | 'fanflow:incidents'
+
+const STORAGE_KEY_TO_EVENT: Record<string, FanflowEvent> = {
+  [READINESS_KEY]: 'fanflow:readiness',
+  [SIGNALS_KEY]: 'fanflow:signals',
+  [INCIDENTS_OVERRIDE_KEY]: 'fanflow:incidents',
+}
+
+/**
+ * Write a JSON value to localStorage with hardened error handling.
+ *
+ * localStorage.setItem can throw in multiple real situations:
+ *   - Safari private mode (always quota = 0)
+ *   - Firefox tracking protection
+ *   - Storage quota exceeded (browser limit, typically 5–10 MB)
+ *   - SecurityError when localStorage is disabled by browser/extension
+ *
+ * Reads have always been guarded; writes were not — that was a silent
+ * data-loss bug. This helper logs once and degrades to in-memory only.
+ */
+let warnedAboutStorage = false
+function safeSetItem(key: string, value: string): boolean {
+  if (typeof window === 'undefined') return false
+  try {
+    window.localStorage.setItem(key, value)
+    return true
+  } catch (err) {
+    if (!warnedAboutStorage) {
+      warnedAboutStorage = true
+      console.warn(
+        '[FanFlow] localStorage write failed — data will not persist across page loads. ' +
+          'Likely cause: private browsing, tracking protection, quota exceeded, or storage disabled. ' +
+          `Key: ${key}. Error: ${err instanceof Error ? err.message : String(err)}`,
+      )
+    }
+    return false
+  }
+}
+
+function safeRemoveItem(key: string): void {
+  if (typeof window === 'undefined') return
+  try {
+    window.localStorage.removeItem(key)
+  } catch {
+    // remove can also throw in restricted modes — silent fail is fine here
+  }
+}
 
 export function loadReadiness(): ReadinessPrefs | null {
   if (typeof window === 'undefined') return null
@@ -21,13 +81,13 @@ export function loadReadiness(): ReadinessPrefs | null {
 
 export function saveReadiness(prefs: ReadinessPrefs): void {
   if (typeof window === 'undefined') return
-  window.localStorage.setItem(READINESS_KEY, JSON.stringify(prefs))
+  safeSetItem(READINESS_KEY, JSON.stringify(prefs))
   window.dispatchEvent(new Event('fanflow:readiness'))
 }
 
 export function clearReadiness(): void {
   if (typeof window === 'undefined') return
-  window.localStorage.removeItem(READINESS_KEY)
+  safeRemoveItem(READINESS_KEY)
   window.dispatchEvent(new Event('fanflow:readiness'))
 }
 
@@ -46,13 +106,13 @@ export function publishSignal(signal: LiveSignal): void {
   if (typeof window === 'undefined') return
   const existing = loadPublishedSignals()
   const next = [signal, ...existing].slice(0, 30)
-  window.localStorage.setItem(SIGNALS_KEY, JSON.stringify(next))
+  safeSetItem(SIGNALS_KEY, JSON.stringify(next))
   window.dispatchEvent(new Event('fanflow:signals'))
 }
 
 export function clearPublishedSignals(): void {
   if (typeof window === 'undefined') return
-  window.localStorage.removeItem(SIGNALS_KEY)
+  safeRemoveItem(SIGNALS_KEY)
   window.dispatchEvent(new Event('fanflow:signals'))
 }
 
@@ -81,7 +141,7 @@ function loadIncidentOverrides(): Record<string, IncidentOverride> {
 
 function saveIncidentOverrides(map: Record<string, IncidentOverride>): void {
   if (typeof window === 'undefined') return
-  window.localStorage.setItem(INCIDENTS_OVERRIDE_KEY, JSON.stringify(map))
+  safeSetItem(INCIDENTS_OVERRIDE_KEY, JSON.stringify(map))
   window.dispatchEvent(new Event('fanflow:incidents'))
 }
 
@@ -115,7 +175,7 @@ export function updateIncident(
 
 export function clearIncidentOverrides(): void {
   if (typeof window === 'undefined') return
-  window.localStorage.removeItem(INCIDENTS_OVERRIDE_KEY)
+  safeRemoveItem(INCIDENTS_OVERRIDE_KEY)
   window.dispatchEvent(new Event('fanflow:incidents'))
 }
 
@@ -132,5 +192,43 @@ export function loadChecklist(): Record<string, boolean> {
 
 export function saveChecklist(state: Record<string, boolean>): void {
   if (typeof window === 'undefined') return
-  window.localStorage.setItem(CHECKLIST_KEY, JSON.stringify(state))
+  safeSetItem(CHECKLIST_KEY, JSON.stringify(state))
+}
+
+/**
+ * Subscribe to FanFlow data changes from BOTH the current tab and other tabs.
+ *
+ * Same-tab updates fire via the custom events dispatched by saveReadiness /
+ * publishSignal / updateIncident. Cross-tab updates fire via the native
+ * `storage` event, which only fires in OTHER tabs when a localStorage key
+ * changes — that's exactly the gap the storage listener closes.
+ *
+ * Returns an unsubscribe function for useEffect cleanup.
+ *
+ * Usage:
+ *   useEffect(() => subscribeToFanflowChanges(
+ *     ['fanflow:signals', 'fanflow:readiness'],
+ *     refresh,
+ *   ), [refresh])
+ */
+export function subscribeToFanflowChanges(
+  events: FanflowEvent[],
+  handler: () => void,
+): () => void {
+  if (typeof window === 'undefined') return () => {}
+
+  const onCustom = () => handler()
+  for (const evt of events) window.addEventListener(evt, onCustom)
+
+  const onStorage = (e: StorageEvent) => {
+    if (!e.key) return
+    const mapped = STORAGE_KEY_TO_EVENT[e.key]
+    if (mapped && events.includes(mapped)) handler()
+  }
+  window.addEventListener('storage', onStorage)
+
+  return () => {
+    for (const evt of events) window.removeEventListener(evt, onCustom)
+    window.removeEventListener('storage', onStorage)
+  }
 }

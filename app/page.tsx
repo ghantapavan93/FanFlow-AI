@@ -1,6 +1,22 @@
 'use client'
 
 import Link from 'next/link'
+import { motion, useReducedMotion } from 'framer-motion'
+
+const ANXIETIES: { text: string; top: string; left?: string; right?: string; rotate: number; size: string; delay: number }[] = [
+  { text: 'Where do I park?',          top: '2%',   left: '2%',   rotate: -7,  size: 'text-sm',  delay: 0.00 },
+  { text: 'Is Gate 3 accessible?',     top: '10%',  right: '2%',  rotate: 5,   size: 'text-sm',  delay: 0.06 },
+  { text: 'When does kickoff start?',  top: '20%',  left: '-2%',  rotate: -3,  size: 'text-xs',  delay: 0.12 },
+  { text: 'Will my stroller fit?',     top: '30%',  right: '-2%', rotate: 8,   size: 'text-base',delay: 0.18 },
+  { text: "Where's first aid?",        top: '44%',  left: '-4%',  rotate: -10, size: 'text-sm',  delay: 0.24 },
+  { text: 'Can I bring water?',        top: '56%',  right: '0%',  rotate: 4,   size: 'text-xs',  delay: 0.30 },
+  { text: 'How early should I leave?', top: '68%',  left: '0%',   rotate: -5,  size: 'text-sm',  delay: 0.36 },
+  { text: 'Where do families enter?',  top: '80%',  right: '2%',  rotate: 6,   size: 'text-xs',  delay: 0.42 },
+  { text: 'Is bag check fast?',        top: '90%',  left: '6%',   rotate: -2,  size: 'text-xs',  delay: 0.48 },
+  { text: "Where's the quiet space?",  top: '4%',   left: '38%',  rotate: 3,   size: 'text-xs',  delay: 0.54 },
+  { text: 'Will I miss kickoff?',      top: '94%',  right: '24%', rotate: -4,  size: 'text-sm',  delay: 0.60 },
+  { text: 'Which line is shortest?',   top: '38%',  left: '52%',  rotate: 7,   size: 'text-xs',  delay: 0.66 },
+]
 
 const PROBLEMS = [
   {
@@ -133,6 +149,77 @@ function PhonePreview() {
   )
 }
 
+function HeroPhoneStage() {
+  const reduced = useReducedMotion()
+
+  return (
+    <div className="relative mx-auto w-full max-w-[300px] sm:max-w-[320px]" aria-label="FanFlow Hub preview">
+      {/*
+        Anxiety phrases — desktop only, never on mobile (cramping risk).
+        Clipped to the stage via overflow-hidden so they can't bleed into the nav,
+        adjacent column, or sections below.
+        aria-hidden so screen readers skip the decorative storytelling.
+      */}
+      {!reduced && (
+        <div
+          className="hidden sm:block absolute inset-0 overflow-hidden pointer-events-none select-none rounded-[42px]"
+          aria-hidden="true"
+        >
+          {ANXIETIES.map((q, i) => (
+            <motion.span
+              key={i}
+              className={`absolute ${q.size} font-medium text-slate-400 italic whitespace-nowrap`}
+              style={{
+                top: q.top,
+                ...(q.left !== undefined ? { left: q.left } : {}),
+                ...(q.right !== undefined ? { right: q.right } : {}),
+                transformOrigin: 'center',
+                willChange: 'transform, opacity',
+              }}
+              initial={{ opacity: 0, scale: 0.92, rotate: q.rotate }}
+              animate={{
+                opacity: [0, 0.7, 0.65, 0],
+                scale: [0.92, 1, 1, 0.4],
+                rotate: [q.rotate, q.rotate * 0.6, q.rotate * 0.2, 0],
+                y: [0, -3, -1, 10],
+              }}
+              transition={{
+                duration: 2.8,
+                times: [0, 0.18, 0.7, 1],
+                delay: q.delay,
+                ease: 'easeInOut',
+              }}
+            >
+              &ldquo;{q.text}&rdquo;
+            </motion.span>
+          ))}
+        </div>
+      )}
+
+      {/*
+        Phone — always visible by default (no JS dependency / no flash on hydration).
+        On desktop with motion enabled, gets a gentle infinite float after the
+        chaos sequence completes. On mobile or with reduced motion, stays static.
+      */}
+      <motion.div
+        animate={reduced ? undefined : { y: [0, -8, 0] }}
+        transition={
+          reduced
+            ? undefined
+            : {
+                duration: 4.5,
+                repeat: Infinity,
+                ease: 'easeInOut',
+                delay: 3.0,
+              }
+        }
+      >
+        <PhonePreview />
+      </motion.div>
+    </div>
+  )
+}
+
 export default function Home() {
   return (
     <div className="min-h-screen bg-white">
@@ -215,9 +302,9 @@ export default function Home() {
             </div>
           </div>
 
-          {/* Right: phone preview */}
+          {/* Right: chaos → plan animation */}
           <div className="flex justify-center lg:justify-end">
-            <PhonePreview />
+            <HeroPhoneStage />
           </div>
         </div>
       </section>
@@ -347,6 +434,41 @@ export default function Home() {
                   </li>
                 ))}
               </ul>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Built for reliability */}
+      <section className="py-12 sm:py-14 px-4 bg-white">
+        <div className="max-w-4xl mx-auto">
+          <div className="rounded-2xl border border-slate-200 bg-white p-6 sm:p-8">
+            <div className="flex items-center gap-3 mb-5">
+              <span className="w-10 h-10 rounded-full bg-violet-600 text-white flex items-center justify-center text-base">
+                🛡️
+              </span>
+              <div>
+                <h2 className="font-bold text-slate-900 text-lg">Built for reliability</h2>
+                <p className="text-sm text-slate-500">
+                  Four principles the architecture is shaped around.
+                </p>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              {[
+                { title: 'Rules decide', body: 'Deterministic engine picks the gate and times.' },
+                { title: 'AI explains', body: 'LLM only rewords the explanation. Never the facts.' },
+                { title: 'Staff signals win', body: 'Staff updates weighted 3× over fan reports.' },
+                { title: 'Fallback first', body: 'Template floor — demo works with zero API keys.' },
+              ].map((p) => (
+                <div
+                  key={p.title}
+                  className="p-4 rounded-xl bg-slate-50 border border-slate-200"
+                >
+                  <div className="font-bold text-slate-900 text-sm">{p.title}</div>
+                  <p className="text-xs text-slate-600 mt-1 leading-relaxed">{p.body}</p>
+                </div>
+              ))}
             </div>
           </div>
         </div>

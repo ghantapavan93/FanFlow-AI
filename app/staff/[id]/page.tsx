@@ -8,6 +8,7 @@ import {
   getAllSignals,
   loadIncidents,
   publishSignal,
+  subscribeToFanflowChanges,
   updateIncident,
 } from '@/lib/store'
 import type { Incident, IncidentStatus, IncidentType, LiveSignal } from '@/lib/types'
@@ -60,14 +61,10 @@ export default function StaffConsolePage() {
 
   useEffect(() => {
     refresh()
-    const onSignals = () => refresh()
-    const onIncidents = () => refresh()
-    window.addEventListener('fanflow:signals', onSignals)
-    window.addEventListener('fanflow:incidents', onIncidents)
-    return () => {
-      window.removeEventListener('fanflow:signals', onSignals)
-      window.removeEventListener('fanflow:incidents', onIncidents)
-    }
+    return subscribeToFanflowChanges(
+      ['fanflow:signals', 'fanflow:incidents'],
+      refresh,
+    )
   }, [])
 
   const changeIncidentStatus = (id: string, status: IncidentStatus) => {

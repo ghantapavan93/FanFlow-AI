@@ -68,6 +68,24 @@ export interface ReadinessPrefs {
   updated_at: string
 }
 
+export interface GateScoreComponents {
+  section_proximity: number
+  accessibility_match: number
+  family_match: number
+  sensory_match: number
+  wait_penalty: number
+  staff_signal: number
+  fan_signal: number
+}
+
+export interface GateScoreBreakdown {
+  gate_id: string
+  gate_name: string
+  components: GateScoreComponents
+  total: number
+  is_recommended: boolean
+}
+
 export interface ArrivalPlan {
   recommended_gate: Gate
   leave_by_time: string
@@ -77,6 +95,7 @@ export interface ArrivalPlan {
   confidence_reason: string
   explanation_text?: string
   support_points: SupportPoint[]
+  gate_scores?: GateScoreBreakdown[]
 }
 
 export interface LiveSignal {
