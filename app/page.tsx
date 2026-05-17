@@ -3,19 +3,27 @@
 import Link from 'next/link'
 import { motion, useReducedMotion } from 'framer-motion'
 
+// Positions are tuned for the EXPANDED chaos overlay (extends ~128px each
+// side beyond the phone). Left-column phrases scatter to the left of the
+// phone; right-column phrases to the right. Some phrases also dip into the
+// top/bottom corners. Phrases at left/right 4–10% land 5–55px inside the
+// overlay's edge, well clear of the phone's center column.
 const ANXIETIES: { text: string; top: string; left?: string; right?: string; rotate: number; size: string; delay: number }[] = [
-  { text: 'Where do I park?',          top: '2%',   left: '2%',   rotate: -7,  size: 'text-sm',  delay: 0.00 },
-  { text: 'Is Gate 3 accessible?',     top: '10%',  right: '2%',  rotate: 5,   size: 'text-sm',  delay: 0.06 },
-  { text: 'When does kickoff start?',  top: '20%',  left: '-2%',  rotate: -3,  size: 'text-xs',  delay: 0.12 },
-  { text: 'Will my stroller fit?',     top: '30%',  right: '-2%', rotate: 8,   size: 'text-base',delay: 0.18 },
-  { text: "Where's first aid?",        top: '44%',  left: '-4%',  rotate: -10, size: 'text-sm',  delay: 0.24 },
-  { text: 'Can I bring water?',        top: '56%',  right: '0%',  rotate: 4,   size: 'text-xs',  delay: 0.30 },
-  { text: 'How early should I leave?', top: '68%',  left: '0%',   rotate: -5,  size: 'text-sm',  delay: 0.36 },
-  { text: 'Where do families enter?',  top: '80%',  right: '2%',  rotate: 6,   size: 'text-xs',  delay: 0.42 },
-  { text: 'Is bag check fast?',        top: '90%',  left: '6%',   rotate: -2,  size: 'text-xs',  delay: 0.48 },
-  { text: "Where's the quiet space?",  top: '4%',   left: '38%',  rotate: 3,   size: 'text-xs',  delay: 0.54 },
-  { text: 'Will I miss kickoff?',      top: '94%',  right: '24%', rotate: -4,  size: 'text-sm',  delay: 0.60 },
-  { text: 'Which line is shortest?',   top: '38%',  left: '52%',  rotate: 7,   size: 'text-xs',  delay: 0.66 },
+  // Left side
+  { text: 'Where do I park?',          top: '4%',   left: '4%',   rotate: -7,  size: 'text-sm',  delay: 0.00 },
+  { text: 'When does kickoff start?',  top: '22%',  left: '2%',   rotate: -3,  size: 'text-xs',  delay: 0.12 },
+  { text: "Where's first aid?",        top: '40%',  left: '5%',   rotate: -10, size: 'text-sm',  delay: 0.24 },
+  { text: 'How early should I leave?', top: '60%',  left: '3%',   rotate: -5,  size: 'text-sm',  delay: 0.36 },
+  { text: 'Is bag check fast?',        top: '80%',  left: '6%',   rotate: -2,  size: 'text-xs',  delay: 0.48 },
+  // Right side
+  { text: 'Is Gate 3 accessible?',     top: '8%',   right: '4%',  rotate: 5,   size: 'text-sm',  delay: 0.06 },
+  { text: 'Will my stroller fit?',     top: '28%',  right: '3%',  rotate: 8,   size: 'text-base',delay: 0.18 },
+  { text: 'Can I bring water?',        top: '48%',  right: '5%',  rotate: 4,   size: 'text-xs',  delay: 0.30 },
+  { text: 'Where do families enter?',  top: '68%',  right: '3%',  rotate: 6,   size: 'text-xs',  delay: 0.42 },
+  { text: 'Will I miss kickoff?',      top: '88%',  right: '6%',  rotate: -4,  size: 'text-sm',  delay: 0.54 },
+  // Top + bottom corner accents
+  { text: "Where's the quiet space?",  top: '-1%',  left: '38%',  rotate: 3,   size: 'text-xs',  delay: 0.30 },
+  { text: 'Which line is shortest?',   top: '96%',  left: '34%',  rotate: 7,   size: 'text-xs',  delay: 0.60 },
 ]
 
 const PROBLEMS = [
@@ -153,16 +161,22 @@ function HeroPhoneStage() {
   const reduced = useReducedMotion()
 
   return (
-    <div className="relative mx-auto w-full max-w-[300px] sm:max-w-[320px]" aria-label="FanFlow Hub preview">
+    <div
+      className="relative mx-auto w-full max-w-[300px] sm:max-w-[320px]"
+      aria-label="FanFlow Hub preview"
+    >
       {/*
         Anxiety phrases — desktop only, never on mobile (cramping risk).
-        Clipped to the stage via overflow-hidden so they can't bleed into the nav,
-        adjacent column, or sections below.
+        The overlay EXTENDS BEYOND the phone container so phrases scatter
+        AROUND the phone rather than being trapped inside its silhouette.
+        - inset-x: -8rem (128px) each side = ~556px total overlay width
+        - inset-y: -1rem (16px) each side for slight top/bottom breathing room
+        overflow-hidden contains everything within the column.
         aria-hidden so screen readers skip the decorative storytelling.
       */}
       {!reduced && (
         <div
-          className="hidden sm:block absolute inset-0 overflow-hidden pointer-events-none select-none rounded-[42px]"
+          className="hidden sm:block absolute -inset-x-32 -inset-y-4 overflow-hidden pointer-events-none select-none"
           aria-hidden="true"
         >
           {ANXIETIES.map((q, i) => (
