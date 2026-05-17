@@ -64,18 +64,45 @@ const BANNED_PATTERNS: { pattern: RegExp; replacement: string }[] = [
 ]
 
 /**
- * Returns true if the text mentions a "Gate N" different from the recommended gate.
- * Used as a hallucination guardrail: if the LLM names the wrong gate, fall back to template.
+ * Returns true if the text mentions a "Gate N" different from the recommended
+ * gate. Used as a hallucination guardrail: if the LLM names the wrong gate,
+ * the caller falls back to the deterministic template.
+ *
+ * Matches both numeric ("Gate 3") and written-out ("Gate three") forms, so
+ * a model that spells out the number can't bypass the guard.
  */
+const WORD_TO_DIGIT: Record<string, string> = {
+  zero: '0',
+  one: '1',
+  two: '2',
+  three: '3',
+  four: '4',
+  five: '5',
+  six: '6',
+  seven: '7',
+  eight: '8',
+  nine: '9',
+  ten: '10',
+}
+
+function normalizeGateToken(token: string): string {
+  const lower = token.toLowerCase().trim()
+  if (/^\d+$/.test(lower)) return lower
+  return WORD_TO_DIGIT[lower] ?? lower
+}
+
 export function mentionsWrongGate(text: string, recommendedGateName: string): boolean {
   const recMatch = recommendedGateName.match(/gate\s+(\d+)/i)
   if (!recMatch) return false
   const recNum = recMatch[1]
-  const found = text.match(/gate\s+(\d+)/gi)
+
+  // Capture either a digit or one of the spelled-out numbers zero..ten
+  const pattern = /gate\s+(\d+|zero|one|two|three|four|five|six|seven|eight|nine|ten)/gi
+  const found = text.match(pattern)
   if (!found) return false
   return found.some((m) => {
-    const n = m.replace(/gate\s+/i, '').trim()
-    return n !== recNum
+    const token = m.replace(/gate\s+/i, '').trim()
+    return normalizeGateToken(token) !== recNum
   })
 }
 
@@ -122,7 +149,10 @@ function describeTransport(t: ExplainRequest['user']['transport']): string {
     case 'walking':
       return 'foot'
     default:
-      return 'your chosen route'
+      // NOTE: The template prepends "your " before this string, so this must
+      // NOT start with "your". Previous bug: returned "your chosen route"
+      // which produced "your your chosen route" in the rendered explanation.
+      return 'chosen route'
   }
 }
 

@@ -223,17 +223,68 @@ export default function StaffConsolePage() {
               const emoji = latest
                 ? SENTIMENTS.find((s) => s.value === latest.sentiment)?.emoji ?? '⚪'
                 : '⚪'
+              // Per-gate intelligence detail — fan vs staff signal counts
+              // and a deterministic confidence pct derived from the latest
+              // sentiment + signal source.
+              const staffCount = recent.filter((s) => s.source === 'staff').length
+              const fanCount = recent.filter((s) => s.source === 'fan').length
+              const confidencePct = (() => {
+                if (!latest) return null
+                const base =
+                  latest.sentiment === 'smooth'
+                    ? 85
+                    : latest.sentiment === 'moderate'
+                    ? 65
+                    : latest.sentiment === 'busy'
+                    ? 45
+                    : 25
+                // Staff signals add confidence; fan-only knocks 10 off
+                return latest.source === 'staff' ? base : Math.max(20, base - 10)
+              })()
+              const latestAge = latest
+                ? (() => {
+                    const ageMs = Date.now() - new Date(latest.created_at).getTime()
+                    const m = Math.floor(ageMs / 60000)
+                    if (m < 1) return 'just now'
+                    if (m < 60) return `${m}m ago`
+                    return `${Math.floor(m / 60)}h ago`
+                  })()
+                : null
+
               return (
                 <div key={gate.id} className={`rounded-xl border p-4 ${tone}`}>
-                  <div className="text-xs text-slate-400 font-mono">{gate.id.toUpperCase()}</div>
-                  <div className="font-semibold text-white mt-1">{gate.name}</div>
-                  <div className="mt-3 text-2xl">{emoji}</div>
+                  <div className="text-xs text-slate-400 font-mono">
+                    {gate.id.toUpperCase()}
+                  </div>
+                  <div className="font-semibold text-white mt-1 truncate">{gate.name}</div>
+                  <div className="mt-3 flex items-center gap-2">
+                    <span className="text-2xl">{emoji}</span>
+                    {confidencePct !== null && (
+                      <span className="text-[10px] font-bold uppercase tracking-wider bg-slate-800 border border-slate-700 text-slate-200 px-2 py-0.5 rounded-full">
+                        {confidencePct}%
+                      </span>
+                    )}
+                  </div>
                   <div className="text-xs text-slate-300 mt-1">
                     {latest ? latest.sentiment : 'No recent signals'}
                   </div>
-                  <div className="text-xs text-slate-500 mt-2">
-                    {recent.length} signal{recent.length === 1 ? '' : 's'} · ~
-                    {gate.typical_wait_minutes} min typical
+                  <div className="mt-3 pt-3 border-t border-slate-800/70 grid grid-cols-2 gap-1 text-[10px]">
+                    <div>
+                      <span className="text-slate-500">Staff</span>{' '}
+                      <span className="font-semibold text-slate-200">{staffCount}</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-500">Fan</span>{' '}
+                      <span className="font-semibold text-slate-200">{fanCount}</span>
+                    </div>
+                  </div>
+                  {latestAge && (
+                    <div className="text-[10px] text-slate-500 mt-1">
+                      Updated {latestAge}
+                    </div>
+                  )}
+                  <div className="text-[10px] text-slate-500 mt-1.5">
+                    ~{gate.typical_wait_minutes} min typical wait
                   </div>
                 </div>
               )

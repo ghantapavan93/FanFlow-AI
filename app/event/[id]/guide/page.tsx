@@ -7,6 +7,7 @@ import { motion } from 'framer-motion'
 import { deriveArrivalPlan, demoEvent, demoTicket, demoVenue } from '@/lib/seed'
 import { getAllSignals, loadReadiness, subscribeToFanflowChanges } from '@/lib/store'
 import type { LiveSignal, ReadinessPrefs } from '@/lib/types'
+import { computeEventIntelligence } from '@/lib/intelligence'
 import { HelpSheet } from '@/components/shared/HelpSheet'
 
 type ExplainResponse = {
@@ -334,6 +335,94 @@ export default function ArrivalGuidePage() {
             </p>
           </div>
         </div>
+
+        {/* "Signals used in this plan" — shows the real inputs the rule
+            engine consumed. Proves the backend uses signals, not static copy. */}
+        {(() => {
+          const intel = computeEventIntelligence(plan, signals)
+          const items: { label: string; value: string; emoji: string }[] = []
+          items.push({
+            emoji: '🎟️',
+            label: 'Ticket section',
+            value: `Section ${demoTicket.section} · Row ${demoTicket.row}`,
+          })
+          if (prefs) {
+            items.push({
+              emoji: '👥',
+              label: 'Group + needs',
+              value: `${prefs.group.replace(/_/g, ' ')}${
+                prefs.needs.length && !prefs.needs.includes('none')
+                  ? ` · ${prefs.needs.join(', ')}`
+                  : ''
+              }`,
+            })
+          }
+          items.push({
+            emoji: '🚦',
+            label: 'Expected entry load',
+            value:
+              intel.expectedEntryLoad === 'unknown'
+                ? 'Awaiting signals'
+                : intel.expectedEntryLoad.charAt(0).toUpperCase() +
+                  intel.expectedEntryLoad.slice(1),
+          })
+          if (intel.latestStaffAtGate) {
+            items.push({
+              emoji: '👮',
+              label: 'Latest staff signal at your gate',
+              value: `"${intel.latestStaffAtGate.message}"`,
+            })
+          }
+          if (intel.fanPulse.total > 0) {
+            items.push({
+              emoji: '🙋',
+              label: 'Fan pulse near gate',
+              value: `${intel.fanPulse.smoothPct}% smooth · ${intel.fanPulse.total} report${
+                intel.fanPulse.total === 1 ? '' : 's'
+              }`,
+            })
+          }
+          items.push({
+            emoji: '⏱',
+            label: 'Typical gate wait',
+            value: `~${plan.recommended_gate.typical_wait_minutes} min`,
+          })
+
+          return (
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="kicker">Signals used in this plan</h3>
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-violet-700">
+                  {intel.confidencePct}% confidence
+                </span>
+              </div>
+              <ul className="space-y-2">
+                {items.map((it) => (
+                  <li
+                    key={it.label}
+                    className="flex items-start gap-2.5 text-sm py-1"
+                  >
+                    <span className="w-7 h-7 rounded-full bg-slate-50 border border-slate-100 flex items-center justify-center text-sm flex-shrink-0">
+                      {it.emoji}
+                    </span>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                        {it.label}
+                      </div>
+                      <div className="text-slate-800 leading-snug capitalize">
+                        {it.value}
+                      </div>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+              <p className="text-[11px] text-slate-500 mt-3 leading-relaxed border-t border-slate-100 pt-3">
+                Staff signals weighted 3× over fan reports. Based on current
+                information.
+              </p>
+            </div>
+          )
+        })()}
 
         {/* Score Breakdown — collapsible details panel */}
         {plan.gate_scores && plan.gate_scores.length > 0 && (

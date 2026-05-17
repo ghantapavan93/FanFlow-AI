@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import { demoEvent, demoTicket, demoVenue, deriveArrivalPlan } from '@/lib/seed'
@@ -15,7 +15,9 @@ import {
 import type { LiveSignal, ReadinessPrefs } from '@/lib/types'
 import { HelpSheet } from '@/components/shared/HelpSheet'
 import { ImpactCards } from '@/components/impact/ImpactCards'
-import { motion } from 'framer-motion'
+import { EventIntelligenceCard } from '@/components/intelligence/EventIntelligenceCard'
+import { computeEventIntelligence, computeFanPulse } from '@/lib/intelligence'
+import { motion, AnimatePresence } from 'framer-motion'
 import type { SupportType } from '@/lib/types'
 
 const SUPPORT_TONE: Record<SupportType, string> = {
@@ -50,6 +52,14 @@ export default function EventHubPage() {
   const [pulseCount, setPulseCount] = useState(0)
   const [hydrated, setHydrated] = useState(false)
   const [helpOpen, setHelpOpen] = useState(false)
+  const [staffToast, setStaffToast] = useState<{ message: string; sentiment: string } | null>(null)
+
+  // Track the most-recent staff-signal id we've already shown a toast for.
+  // The toast only fires when a NEW staff signal arrives (not on initial
+  // mount). Prevents the demo from greeting the user with a stale "staff
+  // update applied" the first time they open the Hub.
+  const lastStaffSignalIdRef = useRef<string | null>(null)
+  const hasInitializedStaffRef = useRef(false)
 
   const refresh = useCallback(() => {
     setPrefs(loadReadiness())
@@ -65,6 +75,34 @@ export default function EventHubPage() {
       refresh,
     )
   }, [refresh])
+
+  // Watch the signals array for newly-arrived STAFF signals. When one shows
+  // up, fire a toast so the user can SEE the cross-tab demo working —
+  // otherwise the live refresh is invisible.
+  useEffect(() => {
+    const staffSignals = signals.filter((s) => s.source === 'staff')
+    const newest = staffSignals[0] ?? null
+
+    // First time we see signals, just snapshot the latest staff id without
+    // toasting. Subsequent changes will toast if a NEW staff id appears.
+    if (!hasInitializedStaffRef.current) {
+      hasInitializedStaffRef.current = true
+      lastStaffSignalIdRef.current = newest?.id ?? null
+      return
+    }
+
+    if (newest && newest.id !== lastStaffSignalIdRef.current) {
+      lastStaffSignalIdRef.current = newest.id
+      setStaffToast({ message: newest.message, sentiment: newest.sentiment })
+    }
+  }, [signals])
+
+  // Auto-dismiss the staff toast after 3s
+  useEffect(() => {
+    if (!staffToast) return
+    const t = setTimeout(() => setStaffToast(null), 3000)
+    return () => clearTimeout(t)
+  }, [staffToast])
 
   useEffect(() => {
     const tick = () => {
@@ -327,6 +365,13 @@ export default function EventHubPage() {
 
         {/* Impact cards — render only when there are reasons to show */}
         {hydrated && <ImpactCards plan={plan} prefs={prefs} signals={signals} />}
+
+        {/* Event Intelligence — deterministic summary of signals */}
+        {hydrated && (
+          <EventIntelligenceCard
+            intelligence={computeEventIntelligence(plan, signals)}
+          />
+        )}
 
         {/* Arrival Plan — premium card with subtle accent and icon-prefixed rows */}
         <div className="relative rounded-2xl border border-slate-200 bg-white overflow-hidden">
@@ -638,6 +683,67 @@ export default function EventHubPage() {
               <span className="text-slate-400">({pulseCount} sent)</span>
             </p>
           )}
+
+          {/* Fan pulse breakdown — aggregates recent fan reports at the
+              recommended gate. Only renders when there are recent reports. */}
+          {(() => {
+            const fp = computeFanPulse(signals, plan.recommended_gate.id)
+            if (fp.total === 0) return null
+            return (
+              <div className="mt-4 pt-4 border-t border-slate-100">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                    Recent fan pulse · {plan.recommended_gate.name.replace(/\s*\(.*\)\s*$/, '')}
+                  </div>
+                  <span className="text-[11px] text-slate-500">
+                    {fp.total} report{fp.total === 1 ? '' : 's'}
+                  </span>
+                </div>
+                {/* Stacked bar */}
+                <div className="flex h-2 rounded-full overflow-hidden bg-slate-100">
+                  {fp.smoothPct > 0 && (
+                    <div
+                      className="bg-emerald-500"
+                      style={{ width: `${fp.smoothPct}%` }}
+                    />
+                  )}
+                  {fp.slowPct > 0 && (
+                    <div
+                      className="bg-amber-500"
+                      style={{ width: `${fp.slowPct}%` }}
+                    />
+                  )}
+                  {fp.needHelpPct > 0 && (
+                    <div
+                      className="bg-rose-500"
+                      style={{ width: `${fp.needHelpPct}%` }}
+                    />
+                  )}
+                </div>
+                <div className="grid grid-cols-3 gap-2 mt-2 text-[11px]">
+                  <div className="flex items-center gap-1">
+                    <span className="dot bg-emerald-500" />
+                    <span className="font-semibold text-slate-900">
+                      {fp.smoothPct}%
+                    </span>
+                    <span className="text-slate-500">smooth</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <span className="dot bg-amber-500" />
+                    <span className="font-semibold text-slate-900">{fp.slowPct}%</span>
+                    <span className="text-slate-500">slow</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <span className="dot bg-rose-500" />
+                    <span className="font-semibold text-slate-900">
+                      {fp.needHelpPct}%
+                    </span>
+                    <span className="text-slate-500">need help</span>
+                  </div>
+                </div>
+              </div>
+            )
+          })()}
         </div>
 
         {/* Support */}
@@ -729,6 +835,31 @@ export default function EventHubPage() {
         plan={plan}
         eventId={eventId}
       />
+
+      {/* Staff-signal-applied toast — fires when a fresh staff signal lands
+          via the cross-tab storage event. Makes the architecturally
+          impressive moment observable. */}
+      <AnimatePresence>
+        {staffToast && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 10 }}
+            transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+            className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[90] max-w-[90vw]"
+          >
+            <div className="bg-slate-900 text-white text-sm px-4 py-3 rounded-2xl shadow-2xl flex items-start gap-2.5 max-w-md">
+              <span className="text-emerald-400 flex-shrink-0 mt-0.5">🔄</span>
+              <div className="min-w-0">
+                <div className="font-semibold">Staff update applied</div>
+                <div className="text-slate-300 text-xs mt-0.5 leading-snug">
+                  &ldquo;{staffToast.message}&rdquo; · plan refreshed
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   )
 }

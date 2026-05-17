@@ -118,6 +118,21 @@ describe('mentionsWrongGate', () => {
     const text = 'Leave early. Follow venue signage and staff instructions.'
     expect(mentionsWrongGate(text, 'Gate 3 (Budweiser Plaza)')).toBe(false)
   })
+
+  it('catches spelled-out wrong-gate numbers ("gate seven")', () => {
+    const text = 'Try gate seven for a shorter walk.'
+    expect(mentionsWrongGate(text, 'Gate 3 (Budweiser Plaza)')).toBe(true)
+  })
+
+  it('accepts spelled-out recommended-gate number ("gate three")', () => {
+    const text = 'Gate three is recommended for your family.'
+    expect(mentionsWrongGate(text, 'Gate 3 (Budweiser Plaza)')).toBe(false)
+  })
+
+  it('catches mixed numeric/written wrong-gate mentions', () => {
+    const text = 'Gate 3 is recommended, but Gate one might be faster.'
+    expect(mentionsWrongGate(text, 'Gate 3 (Budweiser Plaza)')).toBe(true)
+  })
 })
 
 describe('buildTemplateExplanation', () => {

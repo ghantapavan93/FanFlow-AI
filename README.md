@@ -18,7 +18,7 @@ This is a 3-day prototype, not production. Each of the following is a **document
 | **No auth or StubHub account integration** | Maria is hardcoded in `lib/seed.ts`. | Production would gate access behind StubHub OAuth; the seed ticket would be replaced by a query against the user's purchases. |
 | **No real venue API** | All venue, gate, and support-point data is seeded. | The schema in `lib/types.ts` is already aligned with the Phase 2 Supabase tables in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). |
 | **No streaming AI, no retries, no agent loops** | Single `POST /api/explain-arrival-plan` endpoint, single LLM call per request, 2500ms timeout, fall back to template. | Streaming buys nothing under 450 chars. Agentic systems would add surface area without value here. |
-| **No tests** | Out of scope for a 3-day prototype. | The rule engine in `lib/seed.ts` is pure functions — trivial to add Vitest unit tests. The journey is straightforward to cover with Playwright. |
+| **No UI E2E tests yet** | Vitest already covers the load-bearing pure logic (rule engine + sanitizer + gate guard, 27 tests passing in ~750ms — see `npm test`). Playwright E2E for the full journey is Phase 2 polish. | `tests/rule-engine.test.ts` and `tests/explanation.test.ts` exist today. Run `npm test` or `npm run test:watch`. |
 
 **Every "no" above is the answer to a real engineering question, not laziness.** The pitch is *"I shipped one complete journey end-to-end, with every cut documented and every fallback verified"* — not *"I built StubHub 2.0."*
 
