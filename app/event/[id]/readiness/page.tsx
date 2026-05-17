@@ -152,7 +152,7 @@ export default function ReadinessPage() {
   }
 
   return (
-    <div className="min-h-screen page-bg">
+    <div className="min-h-screen page-bg page-enter">
       <div className="page-header px-4 h-14 flex items-center justify-between">
         <h1 className="font-bold text-slate-900">Personalize your plan</h1>
         <Link

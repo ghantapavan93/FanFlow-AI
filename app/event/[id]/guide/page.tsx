@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
+import { motion } from 'framer-motion'
 import { deriveArrivalPlan, demoEvent, demoTicket, demoVenue } from '@/lib/seed'
 import { getAllSignals, loadReadiness, subscribeToFanflowChanges } from '@/lib/store'
 import type { LiveSignal, ReadinessPrefs } from '@/lib/types'
@@ -133,7 +134,7 @@ export default function ArrivalGuidePage() {
   }, [plan, prefs, signals])
 
   return (
-    <div className="min-h-screen page-bg">
+    <div className="min-h-screen page-bg page-enter">
       <div className="page-header px-4 h-14 flex items-center justify-between">
         <h1 className="font-bold text-slate-900">Arrival Guide</h1>
         <Link
@@ -145,65 +146,91 @@ export default function ArrivalGuidePage() {
       </div>
 
       <div className="container-mobile px-4 py-5 sm:py-6 space-y-5 sm:space-y-6 safe-bottom">
-        {/* Timeline */}
+        {/* Timeline — refined with icons + staggered reveal */}
         <div className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
           <h2 className="font-bold text-slate-900 mb-5 sm:mb-6 text-lg">Your journey timeline</h2>
 
           <div className="space-y-6">
-            <div className="flex gap-4">
-              <div className="flex flex-col items-center">
-                <div className="w-12 h-12 rounded-full bg-violet-600 text-white flex items-center justify-center font-bold text-lg">
-                  1
-                </div>
-                <div className="w-1 h-12 bg-violet-200 my-2" />
-              </div>
-              <div className="flex-1 py-2">
-                <div className="font-bold text-slate-900">Leave Home</div>
-                <div className="text-2xl font-bold text-violet-600">{plan.leave_by_time}</div>
-                <p className="text-sm text-slate-600 mt-2">Depart with tickets and ID</p>
-              </div>
-            </div>
-
-            <div className="flex gap-4">
-              <div className="flex flex-col items-center">
-                <div className="w-12 h-12 rounded-full bg-violet-600 text-white flex items-center justify-center font-bold text-lg">
-                  2
-                </div>
-                <div className="w-1 h-12 bg-violet-200 my-2" />
-              </div>
-              <div className="flex-1 py-2">
-                <div className="font-bold text-slate-900">Transit to Venue</div>
-                <div className="text-lg text-slate-700">{plan.route_summary}</div>
-              </div>
-            </div>
-
-            <div className="flex gap-4">
-              <div className="flex flex-col items-center">
-                <div className="w-12 h-12 rounded-full bg-emerald-600 text-white flex items-center justify-center font-bold text-lg">
-                  3
-                </div>
-                <div className="w-1 h-12 bg-emerald-200 my-2" />
-              </div>
-              <div className="flex-1 py-2">
-                <div className="font-bold text-slate-900">Arrive at Gate</div>
-                <div className="text-2xl font-bold text-emerald-600">{plan.arrival_time}</div>
-                <p className="text-sm text-slate-600 mt-2">{plan.recommended_gate.name}</p>
-              </div>
-            </div>
-
-            <div className="flex gap-4">
-              <div className="flex flex-col items-center">
-                <div className="w-12 h-12 rounded-full bg-amber-500 text-white flex items-center justify-center font-bold text-lg">
-                  🎉
-                </div>
-              </div>
-              <div className="flex-1 py-2">
-                <div className="font-bold text-slate-900">Enjoy the Event!</div>
-                <div className="text-sm text-slate-600">
-                  Section {demoTicket.section}, Row {demoTicket.row}, Seat {demoTicket.seat}
-                </div>
-              </div>
-            </div>
+            {(() => {
+              const steps = [
+                {
+                  icon: '🏠',
+                  title: 'Leave Home',
+                  primary: plan.leave_by_time,
+                  primarySize: 'text-2xl font-bold text-violet-600',
+                  body: 'Depart with tickets and ID',
+                  iconBg: 'bg-violet-600',
+                  connectorColor: 'bg-violet-200',
+                  showConnector: true,
+                  destination: false,
+                },
+                {
+                  icon: '🚆',
+                  title: 'Transit to Venue',
+                  primary: null as string | null,
+                  primarySize: '',
+                  body: plan.route_summary,
+                  iconBg: 'bg-violet-600',
+                  connectorColor: 'bg-violet-200',
+                  showConnector: true,
+                  destination: false,
+                },
+                {
+                  icon: '🎯',
+                  title: 'Arrive at Gate',
+                  primary: plan.arrival_time,
+                  primarySize: 'text-2xl font-bold text-emerald-600',
+                  body: plan.recommended_gate.name,
+                  iconBg: 'bg-emerald-600',
+                  connectorColor: 'bg-emerald-200',
+                  showConnector: true,
+                  destination: true,
+                },
+                {
+                  icon: '🎉',
+                  title: 'Enjoy the Event!',
+                  primary: null as string | null,
+                  primarySize: '',
+                  body: `Section ${demoTicket.section}, Row ${demoTicket.row}, Seat ${demoTicket.seat}`,
+                  iconBg: 'bg-amber-500',
+                  connectorColor: '',
+                  showConnector: false,
+                  destination: false,
+                },
+              ]
+              return steps.map((s, i) => (
+                <motion.div
+                  key={s.title}
+                  initial={{ opacity: 0, x: -8 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{
+                    duration: 0.45,
+                    delay: 0.1 + i * 0.1,
+                    ease: 'easeOut',
+                  }}
+                  className="flex gap-4"
+                >
+                  <div className="flex flex-col items-center">
+                    <div
+                      className={`relative w-12 h-12 rounded-full ${s.iconBg} text-white flex items-center justify-center text-xl shadow-sm`}
+                    >
+                      {s.icon}
+                      {s.destination && (
+                        <span className="absolute inset-0 rounded-full border-2 border-emerald-500/60 animate-pulse pointer-events-none" />
+                      )}
+                    </div>
+                    {s.showConnector && (
+                      <div className={`w-0.5 h-12 ${s.connectorColor} my-2 rounded-full`} />
+                    )}
+                  </div>
+                  <div className="flex-1 py-1">
+                    <div className="font-bold text-slate-900">{s.title}</div>
+                    {s.primary && <div className={s.primarySize}>{s.primary}</div>}
+                    <p className="text-sm text-slate-600 mt-1.5">{s.body}</p>
+                  </div>
+                </motion.div>
+              ))
+            })()}
           </div>
         </div>
 

@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
+import { motion } from 'framer-motion'
 import { demoTicket, demoVenue, deriveArrivalPlan } from '@/lib/seed'
 import { getAllSignals, loadReadiness, subscribeToFanflowChanges } from '@/lib/store'
 import type {
@@ -77,7 +78,7 @@ export default function VenueMapPage() {
   const recommendedGate = demoVenue.gates.find((g) => g.id === recommendedGateId)!
 
   return (
-    <div className="min-h-screen page-bg">
+    <div className="min-h-screen page-bg page-enter">
       <div className="page-header px-4 h-14 flex items-center justify-between">
         <h1 className="font-bold text-slate-900">Venue Map & Support</h1>
         <Link
@@ -204,32 +205,41 @@ export default function VenueMapPage() {
                   Section 117
                 </text>
 
-                {/* Walking path from recommended gate to seat */}
-                <line
-                  x1={recommendedGate.map_x}
-                  y1={recommendedGate.map_y}
-                  x2="260"
-                  y2="218"
+                {/* Walking path from recommended gate to seat — animated draw */}
+                <motion.path
+                  d={`M ${recommendedGate.map_x} ${recommendedGate.map_y} L 260 218`}
                   stroke="#7c3aed"
-                  strokeWidth="2"
-                  strokeDasharray="4 4"
-                  opacity="0.6"
+                  strokeWidth="2.5"
+                  strokeDasharray="5 5"
+                  fill="none"
+                  strokeLinecap="round"
+                  opacity="0.7"
+                  initial={{ pathLength: 0 }}
+                  animate={{ pathLength: 1 }}
+                  transition={{ duration: 1.2, ease: [0.16, 1, 0.3, 1], delay: 0.4 }}
                 />
 
                 {/* Support markers — visible when filter is 'all' or matches type */}
                 {supportMarkers
                   .filter((m) => filter === 'all' || filter === m.data.type)
-                  .map((m) => {
+                  .map((m, i) => {
                   const meta = SUPPORT_META[m.data.type]
                   const x = m.data.map_x ?? 0
                   const y = m.data.map_y ?? 0
                   const isActive =
                     selected?.kind === 'support' && selected.data.id === m.data.id
                   return (
-                    <g
+                    <motion.g
                       key={m.data.id}
                       onClick={() => setSelected(m)}
-                      style={{ cursor: 'pointer' }}
+                      style={{ cursor: 'pointer', transformOrigin: `${x}px ${y}px` }}
+                      initial={{ opacity: 0, scale: 0 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      transition={{
+                        duration: 0.45,
+                        delay: 0.6 + i * 0.06,
+                        ease: [0.16, 1, 0.3, 1],
+                      }}
                     >
                       <circle
                         cx={x}
@@ -249,23 +259,30 @@ export default function VenueMapPage() {
                       >
                         {meta.emoji}
                       </text>
-                    </g>
+                    </motion.g>
                   )
                 })}
 
                 {/* Gate markers (drawn last to sit on top) — visible when filter is 'all' or 'gates' */}
                 {gateMarkers
                   .filter(() => filter === 'all' || filter === 'gates')
-                  .map((m) => {
+                  .map((m, i) => {
                   const x = m.data.map_x ?? 0
                   const y = m.data.map_y ?? 0
                   const isActive = selected?.kind === 'gate' && selected.data.id === m.data.id
                   const fill = m.recommended ? '#7c3aed' : '#1e293b'
                   return (
-                    <g
+                    <motion.g
                       key={m.data.id}
                       onClick={() => setSelected(m)}
-                      style={{ cursor: 'pointer' }}
+                      style={{ cursor: 'pointer', transformOrigin: `${x}px ${y}px` }}
+                      initial={{ opacity: 0, scale: 0 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      transition={{
+                        duration: 0.5,
+                        delay: 0.1 + i * 0.08,
+                        ease: [0.16, 1, 0.3, 1],
+                      }}
                     >
                       {m.recommended && (
                         <circle
@@ -313,7 +330,7 @@ export default function VenueMapPage() {
                       >
                         {m.data.name.match(/Gate (\d+)/)?.[1] ?? '?'}
                       </text>
-                    </g>
+                    </motion.g>
                   )
                 })}
               </svg>

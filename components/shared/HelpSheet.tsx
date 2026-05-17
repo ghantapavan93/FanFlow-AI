@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
+import { AnimatePresence, motion } from 'framer-motion'
 import { demoEvent, demoTicket, demoVenue } from '@/lib/seed'
 import type { ArrivalPlan, SupportPoint, SupportType } from '@/lib/types'
 
@@ -231,14 +232,23 @@ export function HelpSheet({ open, onClose, plan, eventId }: HelpSheetProps) {
             </div>
           </div>
 
-          {/* Suggestion */}
-          {action && (
-            <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
-              <div className="kicker text-emerald-700">Suggested next step</div>
-              <div className="font-bold text-emerald-900 mt-1">{action.headline}</div>
-              <p className="text-sm text-emerald-900/90 mt-2 leading-relaxed">{action.body}</p>
-            </div>
-          )}
+          {/* Suggestion — animated reveal when a category is picked */}
+          <AnimatePresence mode="wait">
+            {action && (
+              <motion.div
+                key={category}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -4 }}
+                transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
+                className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4"
+              >
+                <div className="kicker text-emerald-700">Suggested next step</div>
+                <div className="font-bold text-emerald-900 mt-1">{action.headline}</div>
+                <p className="text-sm text-emerald-900/90 mt-2 leading-relaxed">{action.body}</p>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
           {/* Nearby support quick links */}
           <div>

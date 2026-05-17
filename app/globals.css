@@ -38,8 +38,10 @@ body {
 }
 *:focus-visible {
   outline: 2px solid var(--ff-purple);
-  outline-offset: 2px;
-  border-radius: 6px;
+  outline-offset: 3px;
+  border-radius: 8px;
+  box-shadow: 0 0 0 4px rgba(124, 58, 237, 0.12);
+  transition: box-shadow 120ms ease-out;
 }
 
 /* Dark mode for staff */
@@ -180,6 +182,27 @@ body {
 }
 .animate-fade {
   animation: ff-fade 200ms ease-out;
+}
+
+/* Subtle page entry — applied to a route's root content wrapper for a calm
+   fade-up on each navigation. Respects prefers-reduced-motion. */
+@keyframes ff-page-enter {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.page-enter {
+  animation: ff-page-enter 320ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .page-enter {
+    animation: none;
+  }
 }
 
 @media (hover: none) {

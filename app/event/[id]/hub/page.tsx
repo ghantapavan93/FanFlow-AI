@@ -110,7 +110,7 @@ export default function EventHubPage() {
   const visibleSignals = signals.slice(0, 5)
 
   return (
-    <div className="min-h-screen page-bg">
+    <div className="min-h-screen page-bg page-enter">
       <div className="page-header px-4 h-14 flex items-center justify-between">
         <h1 className="font-bold text-slate-900">Event Day Hub</h1>
         <div className="flex items-center gap-1">
