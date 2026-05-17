@@ -326,6 +326,12 @@ export default function Home() {
           </div>
           <div className="flex items-center gap-2">
             <Link
+              href="/discover"
+              className="hidden sm:inline-flex btn-ghost text-sm"
+            >
+              Discover
+            </Link>
+            <Link
               href="/staff/wc2026-final"
               className="hidden sm:inline-flex btn-ghost text-sm"
             >
@@ -370,6 +376,17 @@ export default function Home() {
                 className="btn-secondary text-base sm:!min-h-[56px] sm:px-7"
               >
                 Start Readiness Check
+              </Link>
+            </div>
+            {/* Phase-2 entry: full purchase journey demo */}
+            <div className="mt-3">
+              <Link
+                href="/discover"
+                className="inline-flex items-center gap-1.5 text-xs sm:text-sm font-semibold text-violet-700 hover:text-violet-800 group"
+              >
+                <span className="kicker !text-[10px] !text-violet-700">New</span>
+                See the full StubHub-style journey
+                <span className="transition-transform group-hover:translate-x-0.5">→</span>
               </Link>
             </div>
 

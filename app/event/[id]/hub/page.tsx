@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, type ReactNode } from 'react'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import { demoEvent, demoTicket, demoVenue, deriveArrivalPlan } from '@/lib/seed'
@@ -19,6 +19,33 @@ import { EventIntelligenceCard } from '@/components/intelligence/EventIntelligen
 import { computeEventIntelligence, computeFanPulse } from '@/lib/intelligence'
 import { motion, AnimatePresence } from 'framer-motion'
 import type { SupportType } from '@/lib/types'
+
+/**
+ * Scroll-triggered fade-up reveal — local to the Hub for lower-fold cards.
+ * Mirrors the Landing's RevealOnScroll pattern; once-only so back-scroll
+ * doesn't retrigger. Framer Motion handles prefers-reduced-motion natively.
+ */
+function Reveal({
+  children,
+  delay = 0,
+  className,
+}: {
+  children: ReactNode
+  delay?: number
+  className?: string
+}) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 14 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true, margin: '-60px' }}
+      transition={{ duration: 0.5, delay, ease: [0.16, 1, 0.3, 1] }}
+      className={className}
+    >
+      {children}
+    </motion.div>
+  )
+}
 
 const SUPPORT_TONE: Record<SupportType, string> = {
   first_aid: '#dc2626',
@@ -198,22 +225,39 @@ export default function EventHubPage() {
                 <p className="text-xs text-emerald-700 mt-2 leading-relaxed">
                   Want a personalized arrival guide for your group? It takes about 90 seconds.
                 </p>
-                <Link
-                  href={`/event/${eventId}/readiness`}
-                  className="inline-flex items-center gap-1.5 mt-3 text-xs font-bold text-white bg-emerald-700 hover:bg-emerald-800 transition px-3 py-2 rounded-full"
-                >
-                  Start Event Day Readiness →
-                </Link>
+                <div className="flex items-center gap-2 mt-3">
+                  <Link
+                    href={`/event/${eventId}/readiness`}
+                    className="inline-flex items-center gap-1.5 text-xs font-bold text-white bg-emerald-700 hover:bg-emerald-800 transition px-3 py-2 rounded-full"
+                  >
+                    Start Event Day Readiness →
+                  </Link>
+                  <Link
+                    href={`/event/${eventId}/checkout-success`}
+                    className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 hover:text-emerald-800"
+                    title="Replay the cinematic post-purchase unlock"
+                  >
+                    ↻ Replay unlock
+                  </Link>
+                </div>
               </div>
             </div>
           ) : (
-            <div className="flex items-center gap-2 text-xs">
-              <span className="dot bg-emerald-500" />
-              <span className="font-semibold text-emerald-800">Ticket confirmed</span>
-              <span className="text-slate-400">·</span>
-              <span className="text-slate-600">
-                Section {demoTicket.section}, Row {demoTicket.row}
-              </span>
+            <div className="flex items-center justify-between gap-2 text-xs">
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="dot bg-emerald-500" />
+                <span className="font-semibold text-emerald-800">Ticket confirmed</span>
+                <span className="text-slate-400">·</span>
+                <span className="text-slate-600 truncate">
+                  Section {demoTicket.section}, Row {demoTicket.row}
+                </span>
+              </div>
+              <Link
+                href={`/event/${eventId}/checkout-success`}
+                className="text-[11px] font-semibold text-emerald-700 hover:text-emerald-800 whitespace-nowrap flex-shrink-0"
+              >
+                ↻ Replay
+              </Link>
             </div>
           )}
         </motion.div>
@@ -519,6 +563,7 @@ export default function EventHubPage() {
         </div>
 
         {/* Checklist */}
+        <Reveal>
         <div className="card-base p-5 sm:p-6">
           <h3 className="kicker mb-4">Before you leave</h3>
           <div className="space-y-1">
@@ -548,8 +593,10 @@ export default function EventHubPage() {
             ))}
           </div>
         </div>
+        </Reveal>
 
         {/* Live Conditions — felt-live polish + last-updated cue */}
+        <Reveal>
         <div className="card-base p-5 sm:p-6">
           <div className="flex items-center justify-between mb-1">
             <div className="flex items-center gap-2">
@@ -640,8 +687,10 @@ export default function EventHubPage() {
             )}
           </div>
         </div>
+        </Reveal>
 
         {/* Fan Pulse */}
+        <Reveal>
         <div className="card-base p-5 sm:p-6">
           <div className="flex items-start justify-between gap-3 mb-4">
             <div>
@@ -751,8 +800,10 @@ export default function EventHubPage() {
             )
           })()}
         </div>
+        </Reveal>
 
         {/* Support */}
+        <Reveal>
         <div className="card-base p-5 sm:p-6">
           <div className="flex items-center justify-between mb-4">
             <h3 className="kicker">Nearby support</h3>
@@ -788,15 +839,19 @@ export default function EventHubPage() {
             ))}
           </div>
         </div>
+        </Reveal>
 
+        <Reveal>
         <button
           onClick={() => setHelpOpen(true)}
           className="btn-secondary w-full !min-h-[56px]"
         >
           Need help? Contact support
         </button>
+        </Reveal>
 
         {/* Compact FanFlow does / doesn't trust panel */}
+        <Reveal>
         <div className="card-base p-5">
           <h3 className="kicker mb-3">How FanFlow works</h3>
           <div className="grid sm:grid-cols-2 gap-4 text-sm">
@@ -820,6 +875,7 @@ export default function EventHubPage() {
             </div>
           </div>
         </div>
+        </Reveal>
 
         {/* Trust pill — mirrors StubHub's "Prices include all fees" */}
         <div className="flex justify-center pt-2">
