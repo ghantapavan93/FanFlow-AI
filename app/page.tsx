@@ -309,6 +309,63 @@ export default function Home() {
         </div>
       </section>
 
+      {/* StubHub → FanFlow journey transition */}
+      <section className="py-10 sm:py-12 px-4 bg-white border-y border-slate-100">
+        <div className="max-w-5xl mx-auto">
+          <div className="text-center mb-6 sm:mb-8">
+            <div className="kicker mb-3">The handoff</div>
+            <p className="text-slate-700 text-base sm:text-lg max-w-2xl mx-auto leading-relaxed">
+              <span className="font-semibold text-slate-900">StubHub helps fans find the moment.</span>{' '}
+              <span className="text-violet-700">FanFlow helps them arrive ready for it.</span>
+            </p>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 max-w-3xl mx-auto">
+            {[
+              { label: 'Discover event', emoji: '🔎', tone: 'slate' },
+              { label: 'Choose seats', emoji: '💺', tone: 'slate' },
+              { label: 'Ticket confirmed', emoji: '🎟️', tone: 'slate' },
+              { label: 'FanFlow begins', emoji: '✨', tone: 'violet' },
+            ].map((step, i, arr) => {
+              const isLast = i === arr.length - 1
+              const accent = step.tone === 'violet'
+              return (
+                <div key={step.label} className="relative">
+                  <div
+                    className={`rounded-2xl border p-4 text-center transition ${
+                      accent
+                        ? 'border-violet-300 bg-violet-50'
+                        : 'border-slate-200 bg-white'
+                    }`}
+                  >
+                    <div
+                      className={`w-9 h-9 mx-auto rounded-full flex items-center justify-center text-base ${
+                        accent ? 'bg-violet-600 text-white' : 'bg-slate-100 text-slate-700'
+                      }`}
+                    >
+                      {step.emoji}
+                    </div>
+                    <div
+                      className={`mt-2 text-xs sm:text-sm font-semibold ${
+                        accent ? 'text-violet-800' : 'text-slate-700'
+                      }`}
+                    >
+                      {step.label}
+                    </div>
+                  </div>
+                  {/* Arrow connector — desktop only */}
+                  {!isLast && (
+                    <div className="hidden sm:flex absolute top-1/2 -right-3 -translate-y-1/2 text-slate-300 text-lg pointer-events-none">
+                      →
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      </section>
+
       {/* Problem */}
       <section className="py-16 sm:py-20 px-4 page-bg">
         <div className="max-w-6xl mx-auto">

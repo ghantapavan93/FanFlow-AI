@@ -15,6 +15,7 @@ import {
 import type { LiveSignal, ReadinessPrefs } from '@/lib/types'
 import { HelpSheet } from '@/components/shared/HelpSheet'
 import { ImpactCards } from '@/components/impact/ImpactCards'
+import { motion } from 'framer-motion'
 import type { SupportType } from '@/lib/types'
 
 const SUPPORT_TONE: Record<SupportType, string> = {
@@ -166,6 +167,57 @@ export default function EventHubPage() {
             </div>
           </div>
         </div>
+
+        {/* Post-purchase unlock moment — anchors FanFlow as a StubHub benefit */}
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.55, ease: [0.16, 1, 0.3, 1] }}
+          className="rounded-2xl border border-violet-200 bg-gradient-to-br from-violet-50 via-white to-white p-5 sm:p-6"
+        >
+          <div className="flex items-start gap-3">
+            <span className="w-10 h-10 rounded-full bg-violet-600 text-white flex items-center justify-center text-base flex-shrink-0">
+              ✨
+            </span>
+            <div className="flex-1">
+              <div className="kicker text-violet-700 mb-1">A StubHub benefit</div>
+              <h3 className="font-bold text-slate-900 text-lg leading-tight">
+                Your Event Day Guide is unlocked.
+              </h3>
+              <p className="text-sm text-slate-600 mt-1.5 leading-relaxed">
+                Because you booked this ticket through StubHub, FanFlow can personalize
+                arrival guidance around your section, group, and venue context.
+              </p>
+            </div>
+          </div>
+
+          {/* Included-with-ticket benefit list */}
+          <div className="mt-5 pt-4 border-t border-violet-100">
+            <div className="kicker mb-3">Included with your StubHub ticket</div>
+            <ul className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
+              {[
+                { icon: '🎟️', label: 'Event Day Hub' },
+                { icon: '🧭', label: 'Personalized Arrival Guide' },
+                { icon: '🗺️', label: 'Venue Support Map' },
+                { icon: '📡', label: 'Live Updates' },
+                { icon: '🤝', label: 'Need Help context' },
+              ].map((b, i) => (
+                <motion.li
+                  key={b.label}
+                  initial={{ opacity: 0, x: -8 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ duration: 0.4, delay: 0.15 + i * 0.06, ease: 'easeOut' }}
+                  className="flex items-center gap-2.5 text-slate-700"
+                >
+                  <span className="w-7 h-7 rounded-full bg-white border border-violet-100 flex items-center justify-center text-sm">
+                    {b.icon}
+                  </span>
+                  <span>{b.label}</span>
+                </motion.li>
+              ))}
+            </ul>
+          </div>
+        </motion.div>
 
         {/* Personalize CTA — StubHub-style lavender promo banner */}
         {hydrated && !prefs && (
@@ -324,7 +376,12 @@ export default function EventHubPage() {
           <div className="flex items-start justify-between gap-3 mb-4">
             <div>
               <h3 className="kicker">Fan pulse</h3>
-              <p className="text-sm text-slate-700 mt-1">How's your entry? Help other fans.</p>
+              <p className="text-sm text-slate-800 font-semibold mt-1">
+                Help the next fan arrive smarter.
+              </p>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Staff updates carry higher trust than fan signals.
+              </p>
             </div>
           </div>
           <div className="grid grid-cols-3 gap-2">
@@ -351,8 +408,9 @@ export default function EventHubPage() {
             </button>
           </div>
           {pulseCount > 0 && (
-            <p className="text-xs text-slate-500 text-center mt-3">
-              Thanks — {pulseCount} signal{pulseCount === 1 ? '' : 's'} shared.
+            <p className="text-xs text-slate-600 text-center mt-3 leading-relaxed">
+              Thanks — your signal helps improve event-day guidance.{' '}
+              <span className="text-slate-400">({pulseCount} sent)</span>
             </p>
           )}
         </div>
@@ -400,6 +458,31 @@ export default function EventHubPage() {
         >
           Need help? Contact support
         </button>
+
+        {/* Compact FanFlow does / doesn't trust panel */}
+        <div className="card-base p-5">
+          <h3 className="kicker mb-3">How FanFlow works</h3>
+          <div className="grid sm:grid-cols-2 gap-4 text-sm">
+            <div>
+              <div className="font-semibold text-emerald-700 mb-2">Does</div>
+              <ul className="space-y-1.5 text-slate-700">
+                <li>✓ Uses your ticket section to guide arrival</li>
+                <li>✓ Surfaces venue support relevant to you</li>
+                <li>✓ Weighs staff and fan signals carefully</li>
+                <li>✓ Explains why a route is recommended</li>
+              </ul>
+            </div>
+            <div>
+              <div className="font-semibold text-rose-700 mb-2">Doesn&apos;t</div>
+              <ul className="space-y-1.5 text-slate-700">
+                <li>✗ Replace venue staff or signage</li>
+                <li>✗ Guarantee wait times</li>
+                <li>✗ Predict exact crowd density</li>
+                <li>✗ Sell or change tickets</li>
+              </ul>
+            </div>
+          </div>
+        </div>
 
         {/* Trust pill — mirrors StubHub's "Prices include all fees" */}
         <div className="flex justify-center pt-2">
