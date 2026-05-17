@@ -157,6 +157,52 @@ function PhonePreview() {
   )
 }
 
+function JourneyCard({
+  step,
+  label,
+  accent = false,
+  children,
+}: {
+  step: number
+  label: string
+  accent?: boolean
+  children: React.ReactNode
+}) {
+  return (
+    <div className="relative">
+      <div
+        className={`rounded-2xl border p-3 transition ${
+          accent
+            ? 'border-violet-300 bg-violet-50/60'
+            : 'border-slate-200 bg-slate-50'
+        }`}
+      >
+        {/* Step badge */}
+        <div className="flex items-center justify-between mb-2">
+          <span
+            className={`inline-flex items-center justify-center w-6 h-6 rounded-full text-[10px] font-bold ${
+              accent
+                ? 'bg-violet-600 text-white'
+                : 'bg-white border border-slate-200 text-slate-600'
+            }`}
+          >
+            {step}
+          </span>
+          <span
+            className={`text-[10px] font-semibold uppercase tracking-wider ${
+              accent ? 'text-violet-700' : 'text-slate-500'
+            }`}
+          >
+            {label}
+          </span>
+        </div>
+        {/* The visual mockup content */}
+        {children}
+      </div>
+    </div>
+  )
+}
+
 function HeroPhoneStage() {
   const reduced = useReducedMotion()
 
@@ -323,60 +369,143 @@ export default function Home() {
         </div>
       </section>
 
-      {/* StubHub → FanFlow journey transition */}
-      <section className="py-10 sm:py-12 px-4 bg-white border-y border-slate-100">
-        <div className="max-w-5xl mx-auto">
-          <div className="text-center mb-6 sm:mb-8">
-            <div className="kicker mb-3">The handoff</div>
-            <p className="text-slate-700 text-base sm:text-lg max-w-2xl mx-auto leading-relaxed">
-              <span className="font-semibold text-slate-900">StubHub helps fans find the moment.</span>{' '}
-              <span className="text-violet-700">FanFlow helps them arrive ready for it.</span>
+      {/* Journey prelude — visual storyboard mocking the real StubHub flow
+          followed by the FanFlow handoff card. Each card is a static UI
+          mockup, not interactive. Tells the story before scrolling further. */}
+      <section className="py-12 sm:py-16 px-4 bg-white border-y border-slate-100">
+        <div className="max-w-7xl mx-auto">
+          <div className="text-center mb-8 sm:mb-10">
+            <div className="kicker mb-3">Your journey to event day</div>
+            <h2 className="text-2xl sm:text-3xl font-bold text-slate-900 max-w-3xl mx-auto leading-tight">
+              StubHub gets you the ticket.{' '}
+              <span className="text-violet-700">FanFlow gets you ready.</span>
+            </h2>
+            <p className="text-slate-600 mt-3 text-sm sm:text-base max-w-2xl mx-auto">
+              Available right after ticket confirmation. Included with your ticket experience.
             </p>
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 max-w-3xl mx-auto">
-            {[
-              { label: 'Discover event', emoji: '🔎', tone: 'slate' },
-              { label: 'Choose seats', emoji: '💺', tone: 'slate' },
-              { label: 'Ticket confirmed', emoji: '🎟️', tone: 'slate' },
-              { label: 'FanFlow begins', emoji: '✨', tone: 'violet' },
-            ].map((step, i, arr) => {
-              const isLast = i === arr.length - 1
-              const accent = step.tone === 'violet'
-              return (
-                <div key={step.label} className="relative">
-                  <div
-                    className={`rounded-2xl border p-4 text-center transition ${
-                      accent
-                        ? 'border-violet-300 bg-violet-50'
-                        : 'border-slate-200 bg-white'
-                    }`}
-                  >
-                    <div
-                      className={`w-9 h-9 mx-auto rounded-full flex items-center justify-center text-base ${
-                        accent ? 'bg-violet-600 text-white' : 'bg-slate-100 text-slate-700'
-                      }`}
-                    >
-                      {step.emoji}
-                    </div>
-                    <div
-                      className={`mt-2 text-xs sm:text-sm font-semibold ${
-                        accent ? 'text-violet-800' : 'text-slate-700'
-                      }`}
-                    >
-                      {step.label}
-                    </div>
-                  </div>
-                  {/* Arrow connector — desktop only */}
-                  {!isLast && (
-                    <div className="hidden sm:flex absolute top-1/2 -right-3 -translate-y-1/2 text-slate-300 text-lg pointer-events-none">
-                      →
-                    </div>
-                  )}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4">
+            {/* Card 1 — Browse marketplace */}
+            <JourneyCard step={1} label="Browse">
+              <div className="bg-white rounded-lg border border-slate-200 p-2.5 space-y-2">
+                <div className="flex items-center gap-1.5">
+                  <div className="w-5 h-5 rounded bg-violet-600" />
+                  <div className="h-1.5 bg-slate-200 rounded flex-1" />
                 </div>
-              )
-            })}
+                <div className="flex gap-1 flex-wrap">
+                  {['NBA', 'NFL', 'World Cup', 'BTS'].map((c) => (
+                    <span
+                      key={c}
+                      className="text-[8px] font-semibold px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-600"
+                    >
+                      {c}
+                    </span>
+                  ))}
+                </div>
+                <div className="grid grid-cols-2 gap-1">
+                  <div className="aspect-square rounded bg-gradient-to-br from-violet-500 to-violet-700" />
+                  <div className="aspect-square rounded bg-slate-200" />
+                  <div className="aspect-square rounded bg-slate-200" />
+                  <div className="aspect-square rounded bg-slate-200" />
+                </div>
+              </div>
+            </JourneyCard>
+
+            {/* Card 2 — Event detail page */}
+            <JourneyCard step={2} label="Open event">
+              <div className="bg-white rounded-lg border border-slate-200 p-2.5 space-y-2">
+                <div className="aspect-[16/9] rounded bg-gradient-to-br from-violet-600 via-violet-700 to-slate-900 relative overflow-hidden">
+                  <div className="absolute bottom-1 left-1.5 text-white">
+                    <div className="text-[7px] font-bold tracking-widest opacity-90">
+                      🏆 WORLD CUP
+                    </div>
+                    <div className="text-[9px] font-bold leading-tight">2026 Final</div>
+                  </div>
+                </div>
+                <div>
+                  <div className="text-[9px] font-bold text-slate-900">
+                    FIFA World Cup Final
+                  </div>
+                  <div className="text-[7px] text-slate-500">Jul 19 · MetLife Stadium</div>
+                </div>
+                <div className="bg-violet-600 text-white text-[8px] font-bold text-center py-1 rounded">
+                  See Tickets
+                </div>
+              </div>
+            </JourneyCard>
+
+            {/* Card 3 — Seat map */}
+            <JourneyCard step={3} label="Pick seat">
+              <div className="bg-white rounded-lg border border-slate-200 p-2.5 space-y-2">
+                <div className="text-[7px] font-semibold text-slate-500 uppercase tracking-wider">
+                  Section
+                </div>
+                <svg viewBox="0 0 100 70" className="w-full h-auto">
+                  <ellipse cx="50" cy="35" rx="45" ry="28" fill="#f1f5f9" stroke="#cbd5e1" strokeWidth="0.6" />
+                  <ellipse cx="50" cy="35" rx="22" ry="12" fill="#bbf7d0" stroke="#22c55e" strokeWidth="0.5" opacity="0.8" />
+                  <line x1="50" y1="23" x2="50" y2="47" stroke="#fff" strokeWidth="0.4" />
+                  {/* Section 117 highlighted */}
+                  <rect x="42" y="52" width="16" height="6" rx="1" fill="#7c3aed" />
+                  <text x="50" y="56.4" textAnchor="middle" fontSize="3.5" fill="#fff" fontWeight="700">
+                    117
+                  </text>
+                  {/* Nearby sections */}
+                  <rect x="24" y="50" width="14" height="5" rx="1" fill="#e2e8f0" />
+                  <rect x="62" y="50" width="14" height="5" rx="1" fill="#e2e8f0" />
+                  <rect x="20" y="14" width="12" height="5" rx="1" fill="#e2e8f0" />
+                  <rect x="68" y="14" width="12" height="5" rx="1" fill="#e2e8f0" />
+                </svg>
+                <div className="flex items-center justify-between text-[8px]">
+                  <span className="font-semibold text-violet-700">Section 117</span>
+                  <span className="font-bold text-slate-900">$1,007</span>
+                </div>
+              </div>
+            </JourneyCard>
+
+            {/* Card 4 — Ticket confirmed */}
+            <JourneyCard step={4} label="Confirmed">
+              <div className="bg-white rounded-lg border border-slate-200 p-2.5 space-y-2 flex flex-col items-center text-center">
+                <div className="w-8 h-8 rounded-full bg-emerald-500 text-white flex items-center justify-center text-sm font-bold mt-1">
+                  ✓
+                </div>
+                <div>
+                  <div className="text-[9px] font-bold text-slate-900">Ticket Confirmed</div>
+                  <div className="text-[7px] text-slate-500 mt-0.5">
+                    Section 117 · Row 12 · Seat 4
+                  </div>
+                </div>
+                <div className="w-full border-t border-dashed border-slate-200 pt-1.5">
+                  <div className="text-[6px] uppercase tracking-wider text-slate-400 font-semibold">
+                    Order #SH-4291
+                  </div>
+                </div>
+              </div>
+            </JourneyCard>
+
+            {/* Card 5 — FanFlow begins (accent) */}
+            <JourneyCard step={5} label="FanFlow begins" accent>
+              <div className="bg-gradient-to-br from-violet-50 to-white rounded-lg border border-violet-200 p-2.5 space-y-2">
+                <div className="flex items-center gap-1.5">
+                  <div className="w-5 h-5 rounded bg-gradient-to-br from-violet-500 to-violet-700" />
+                  <div className="text-[9px] font-bold text-slate-900">FanFlow AI</div>
+                </div>
+                <div className="text-[8px] font-bold text-violet-900 leading-tight">
+                  Your Event Day Guide is ready
+                </div>
+                <div className="text-[7px] text-slate-600 leading-snug">
+                  Tailored arrival, live conditions, and support — all set for your section.
+                </div>
+                <div className="bg-violet-600 text-white text-[8px] font-bold text-center py-1 rounded">
+                  Start Readiness →
+                </div>
+              </div>
+            </JourneyCard>
           </div>
+
+          <p className="text-center mt-6 text-xs text-slate-500 max-w-2xl mx-auto">
+            FanFlow appears after ticket confirmation. Your ticket gets you in — FanFlow helps you arrive ready.
+          </p>
         </div>
       </section>
 
@@ -588,6 +717,31 @@ export default function Home() {
           <p className="text-sm text-violet-700 mt-3 font-semibold">
             FanFlow AI · Clear guidance. Real support. Better arrivals.
           </p>
+        </div>
+      </section>
+
+      {/* Phase-2 future hint — small, honest, no over-promising */}
+      <section className="py-10 sm:py-12 px-4 bg-white">
+        <div className="max-w-3xl mx-auto">
+          <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-5 sm:p-6">
+            <div className="flex items-start gap-3">
+              <span className="w-9 h-9 rounded-full bg-slate-200 text-slate-600 flex items-center justify-center text-sm flex-shrink-0">
+                ›
+              </span>
+              <div>
+                <div className="kicker mb-1">Coming later</div>
+                <h3 className="font-bold text-slate-900 text-base sm:text-lg leading-tight">
+                  Saved preferences, loyalty perks, and premium event-day guidance.
+                </h3>
+                <p className="text-sm text-slate-600 mt-2 leading-relaxed">
+                  Future releases could remember calmer-route, family, and accessibility
+                  preferences across your StubHub purchases — and offer premium
+                  event-day support packages for major venues. None of that is in v1;
+                  the prototype focuses on getting one journey right end-to-end.
+                </p>
+              </div>
+            </div>
+          </div>
         </div>
       </section>
 

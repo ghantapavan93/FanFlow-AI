@@ -192,22 +192,26 @@ export default function ReadinessPage() {
                 </div>
               </div>
               <p className="text-slate-600 leading-relaxed">
-                Answer a few quick questions so FanFlow can adjust your arrival
-                window, gate recommendation, and support resources.
+                Answer a few quick questions so FanFlow can tailor your arrival
+                plan to your group, route, and support preferences.
               </p>
-              <ul className="mt-5 space-y-2.5 text-sm text-slate-700">
+              <div className="kicker text-violet-700 mt-5 mb-2">
+                Built to handle real fan contexts
+              </div>
+              <ul className="space-y-2 text-sm text-slate-700">
                 {[
-                  'Group-aware route',
-                  'Support points near your section',
-                  'Calmer route option when available',
-                  'Transit or rideshare timing buffer',
-                  'Help context if you need support',
+                  'Families with young children or older kids',
+                  'Guests who prefer step-free or accessible entry',
+                  'Crowd-sensitive fans who want a calmer route',
+                  'First-time visitors to MetLife Stadium',
+                  'Out-of-town or international visitors',
+                  'Public transit, driving, rideshare, or walking',
                 ].map((b, i) => (
                   <motion.li
                     key={b}
                     initial={{ opacity: 0, x: -6 }}
                     animate={{ opacity: 1, x: 0 }}
-                    transition={{ duration: 0.35, delay: 0.2 + i * 0.06 }}
+                    transition={{ duration: 0.35, delay: 0.2 + i * 0.05 }}
                     className="flex items-start gap-2.5"
                   >
                     <span className="text-violet-600 font-bold mt-0.5 flex-shrink-0">✓</span>

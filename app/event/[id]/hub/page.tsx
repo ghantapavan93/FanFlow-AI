@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
-import { demoEvent, demoVenue, deriveArrivalPlan } from '@/lib/seed'
+import { demoEvent, demoTicket, demoVenue, deriveArrivalPlan } from '@/lib/seed'
 import {
   getAllSignals,
   loadChecklist,
@@ -131,6 +131,55 @@ export default function EventHubPage() {
       </div>
 
       <div className="container-mobile px-4 py-5 sm:py-6 space-y-4 sm:space-y-5 safe-bottom">
+        {/* Ticket-confirmed handoff — feels like the literal post-purchase moment.
+            Renders prominently when no prefs yet (the "you just bought a ticket"
+            beat); collapses to a quieter acknowledgment once readiness is done. */}
+        <motion.div
+          initial={{ opacity: 0, y: -6 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+          className={
+            hydrated && !prefs
+              ? 'rounded-2xl bg-emerald-50 border border-emerald-200 p-4 sm:p-5'
+              : 'rounded-xl bg-white border border-emerald-200/70 px-3.5 py-2.5'
+          }
+        >
+          {hydrated && !prefs ? (
+            <div className="flex items-start gap-3">
+              <span className="w-10 h-10 rounded-full bg-emerald-600 text-white flex items-center justify-center text-base font-bold flex-shrink-0">
+                ✓
+              </span>
+              <div className="flex-1 min-w-0">
+                <div className="font-bold text-emerald-900 text-sm sm:text-base">
+                  Ticket confirmed
+                </div>
+                <div className="text-xs sm:text-sm text-emerald-800 mt-0.5">
+                  Section {demoTicket.section} · Row {demoTicket.row} · Seat{' '}
+                  {demoTicket.seat}
+                </div>
+                <p className="text-xs text-emerald-700 mt-2 leading-relaxed">
+                  Want a personalized arrival guide for your group? It takes about 90 seconds.
+                </p>
+                <Link
+                  href={`/event/${eventId}/readiness`}
+                  className="inline-flex items-center gap-1.5 mt-3 text-xs font-bold text-white bg-emerald-700 hover:bg-emerald-800 transition px-3 py-2 rounded-full"
+                >
+                  Start Event Day Readiness →
+                </Link>
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2 text-xs">
+              <span className="dot bg-emerald-500" />
+              <span className="font-semibold text-emerald-800">Ticket confirmed</span>
+              <span className="text-slate-400">·</span>
+              <span className="text-slate-600">
+                Section {demoTicket.section}, Row {demoTicket.row}
+              </span>
+            </div>
+          )}
+        </motion.div>
+
         {/* Event Hero — StubHub-style confirmation card, cinematic refinement */}
         <div className="card-base overflow-hidden">
           <div
