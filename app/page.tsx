@@ -1,7 +1,41 @@
 'use client'
 
 import Link from 'next/link'
+import type { ReactNode } from 'react'
 import { motion, useReducedMotion } from 'framer-motion'
+
+/**
+ * Scroll-triggered section reveal.
+ *
+ * Wraps any section in a Framer Motion div that fades + slides up the first
+ * time it enters the viewport. Each section animates ONCE (`once: true`) so
+ * scrolling back up doesn't re-trigger. Respects prefers-reduced-motion via
+ * Framer Motion's built-in handling.
+ *
+ * Use this on the Landing's longer-form sections. Don't use it on the hero
+ * (already animated via .page-enter + the chaos animation).
+ */
+function RevealOnScroll({
+  children,
+  delay = 0,
+  className,
+}: {
+  children: ReactNode
+  delay?: number
+  className?: string
+}) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 16 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true, margin: '-80px' }}
+      transition={{ duration: 0.55, delay, ease: [0.16, 1, 0.3, 1] }}
+      className={className}
+    >
+      {children}
+    </motion.div>
+  )
+}
 
 // Positions are tuned for the EXPANDED chaos overlay (extends ~128px each
 // side beyond the phone). Left-column phrases scatter to the left of the
@@ -373,7 +407,7 @@ export default function Home() {
           followed by the FanFlow handoff card. Each card is a static UI
           mockup, not interactive. Tells the story before scrolling further. */}
       <section className="py-12 sm:py-16 px-4 bg-white border-y border-slate-100">
-        <div className="max-w-7xl mx-auto">
+        <RevealOnScroll className="max-w-7xl mx-auto">
           <div className="text-center mb-8 sm:mb-10">
             <div className="kicker mb-3">Your journey to event day</div>
             <h2 className="text-2xl sm:text-3xl font-bold text-slate-900 max-w-3xl mx-auto leading-tight">
@@ -506,12 +540,12 @@ export default function Home() {
           <p className="text-center mt-6 text-xs text-slate-500 max-w-2xl mx-auto">
             FanFlow appears after ticket confirmation. Your ticket gets you in — FanFlow helps you arrive ready.
           </p>
-        </div>
+        </RevealOnScroll>
       </section>
 
       {/* Problem */}
       <section className="py-16 sm:py-20 px-4 page-bg">
-        <div className="max-w-6xl mx-auto">
+        <RevealOnScroll className="max-w-6xl mx-auto">
           <div className="text-center mb-10 sm:mb-12">
             <div className="kicker mb-3">The gap</div>
             <h2 className="text-3xl sm:text-4xl font-bold text-slate-900">
@@ -533,12 +567,12 @@ export default function Home() {
               </div>
             ))}
           </div>
-        </div>
+        </RevealOnScroll>
       </section>
 
       {/* How it works — 5-step horizontal timeline */}
       <section className="py-16 sm:py-20 px-4 bg-white">
-        <div className="max-w-6xl mx-auto">
+        <RevealOnScroll className="max-w-6xl mx-auto">
           <div className="text-center mb-10 sm:mb-12">
             <div className="kicker mb-3">How it works</div>
             <h2 className="text-3xl sm:text-4xl font-bold text-slate-900">
@@ -573,12 +607,12 @@ export default function Home() {
               ))}
             </div>
           </div>
-        </div>
+        </RevealOnScroll>
       </section>
 
       {/* Maria scenario */}
       <section className="py-16 sm:py-20 px-4 page-bg">
-        <div className="max-w-5xl mx-auto">
+        <RevealOnScroll className="max-w-5xl mx-auto">
           <div className="text-center mb-10 sm:mb-12">
             <div className="kicker text-violet-700 mb-3">Built around one real fan</div>
             <h2 className="text-3xl sm:text-4xl font-bold text-slate-900">
@@ -636,12 +670,12 @@ export default function Home() {
               </ul>
             </div>
           </div>
-        </div>
+        </RevealOnScroll>
       </section>
 
       {/* Built for reliability */}
       <section className="py-12 sm:py-14 px-4 bg-white">
-        <div className="max-w-4xl mx-auto">
+        <RevealOnScroll className="max-w-4xl mx-auto">
           <div className="rounded-2xl border border-slate-200 bg-white p-6 sm:p-8">
             <div className="flex items-center gap-3 mb-5">
               <span className="w-10 h-10 rounded-full bg-violet-600 text-white flex items-center justify-center text-base">
@@ -671,12 +705,12 @@ export default function Home() {
               ))}
             </div>
           </div>
-        </div>
+        </RevealOnScroll>
       </section>
 
       {/* Does / Doesn't trust panel */}
       <section className="py-14 sm:py-16 px-4 bg-white">
-        <div className="max-w-3xl mx-auto">
+        <RevealOnScroll className="max-w-3xl mx-auto">
           <div className="rounded-2xl border border-slate-200 bg-white p-6 sm:p-8">
             <h2 className="text-xl font-bold text-slate-900 mb-4">
               What FanFlow does — and doesn't do
@@ -702,12 +736,12 @@ export default function Home() {
               </div>
             </div>
           </div>
-        </div>
+        </RevealOnScroll>
       </section>
 
       {/* Footer trust statement */}
       <section className="py-12 sm:py-14 px-4 bg-violet-50 border-y border-violet-100">
-        <div className="max-w-3xl mx-auto text-center">
+        <RevealOnScroll className="max-w-3xl mx-auto text-center">
           <span className="inline-flex w-12 h-12 rounded-full bg-violet-600 text-white items-center justify-center text-xl mb-4">
             💌
           </span>
@@ -717,12 +751,12 @@ export default function Home() {
           <p className="text-sm text-violet-700 mt-3 font-semibold">
             FanFlow AI · Clear guidance. Real support. Better arrivals.
           </p>
-        </div>
+        </RevealOnScroll>
       </section>
 
       {/* Phase-2 future hint — small, honest, no over-promising */}
       <section className="py-10 sm:py-12 px-4 bg-white">
-        <div className="max-w-3xl mx-auto">
+        <RevealOnScroll className="max-w-3xl mx-auto">
           <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-5 sm:p-6">
             <div className="flex items-start gap-3">
               <span className="w-9 h-9 rounded-full bg-slate-200 text-slate-600 flex items-center justify-center text-sm flex-shrink-0">
@@ -742,12 +776,12 @@ export default function Home() {
               </div>
             </div>
           </div>
-        </div>
+        </RevealOnScroll>
       </section>
 
       {/* CTA */}
       <section className="py-16 sm:py-20 px-4 bg-gradient-to-r from-violet-600 to-violet-700 text-white">
-        <div className="max-w-3xl mx-auto text-center">
+        <RevealOnScroll className="max-w-3xl mx-auto text-center">
           <h2 className="text-3xl sm:text-4xl font-bold mb-5">Experience the prototype</h2>
           <p className="text-lg sm:text-xl mb-8 opacity-90">
             One scenario. One complete journey. Live signals between fans and staff.
@@ -766,7 +800,7 @@ export default function Home() {
               Open Staff Console
             </Link>
           </div>
-        </div>
+        </RevealOnScroll>
       </section>
 
       {/* Footer */}

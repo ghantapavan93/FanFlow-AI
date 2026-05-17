@@ -206,14 +206,35 @@ export default function VenueMapPage() {
                   SOUTH
                 </text>
 
-                {/* Section 117 highlight */}
-                <circle
+                {/* Section 117 highlight — your seat. Gentle pulse loop
+                    so the eye is drawn to it across the whole stadium. */}
+                <motion.circle
+                  cx="260"
+                  cy="218"
+                  r="16"
+                  fill="#7c3aed"
+                  opacity="0.25"
+                  animate={{ r: [12, 20, 12], opacity: [0.4, 0, 0.4] }}
+                  transition={{
+                    duration: 2.4,
+                    repeat: Infinity,
+                    ease: 'easeInOut',
+                  }}
+                />
+                <motion.circle
                   cx="260"
                   cy="218"
                   r="8"
                   fill="#7c3aed"
                   stroke="#fff"
                   strokeWidth="2"
+                  animate={{ scale: [1, 1.08, 1] }}
+                  transition={{
+                    duration: 2.4,
+                    repeat: Infinity,
+                    ease: 'easeInOut',
+                  }}
+                  style={{ transformOrigin: '260px 218px' }}
                 />
                 <text x="260" y="240" textAnchor="middle" fontSize="9" fill="#7c3aed" fontWeight="700">
                   Section 117

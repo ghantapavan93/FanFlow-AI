@@ -1,7 +1,48 @@
 'use client'
 
-import { motion } from 'framer-motion'
+import { useEffect, useState } from 'react'
+import { animate, motion, useReducedMotion } from 'framer-motion'
 import type { EventIntelligence } from '@/lib/intelligence'
+
+/**
+ * Count up an integer from 0 to `value` over `duration` ms when it mounts.
+ * Respects prefers-reduced-motion (renders the final number instantly).
+ * Linear-style polish — keep duration short (~500-700ms) so it feels alive
+ * but never delays comprehension.
+ */
+function CountUp({
+  value,
+  duration = 0.6,
+  suffix = '',
+}: {
+  value: number
+  duration?: number
+  suffix?: string
+}) {
+  const reduced = useReducedMotion()
+  const [display, setDisplay] = useState(reduced ? value : 0)
+
+  useEffect(() => {
+    if (reduced) {
+      setDisplay(value)
+      return
+    }
+    const controls = animate(0, value, {
+      duration,
+      ease: [0.16, 1, 0.3, 1],
+      onUpdate: (latest) => setDisplay(Math.round(latest)),
+    })
+    return () => controls.stop()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value, reduced])
+
+  return (
+    <span className="tabular-nums">
+      {display}
+      {suffix}
+    </span>
+  )
+}
 
 interface Props {
   intelligence: EventIntelligence
@@ -38,7 +79,7 @@ export function EventIntelligenceCard({ intelligence }: Props) {
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
-      className="rounded-2xl border border-slate-200 bg-white overflow-hidden"
+      className="rounded-2xl border border-slate-200 bg-white overflow-hidden hover-lift"
     >
       {/* Top accent strip — violet, mirrors the Arrival Plan card */}
       <div className="h-1 bg-gradient-to-r from-violet-500 via-violet-600 to-violet-500" />
@@ -55,7 +96,7 @@ export function EventIntelligenceCard({ intelligence }: Props) {
             className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-slate-50 border border-slate-200 text-slate-700"
             title="Confidence percentage derived from your readiness preferences, gate scoring, and recent signals."
           >
-            {confidencePct}% confidence
+            <CountUp value={confidencePct} suffix="%" /> confidence
           </span>
         </div>
 
@@ -85,9 +126,13 @@ export function EventIntelligenceCard({ intelligence }: Props) {
               Fan pulse near gate
             </div>
             <div className="font-bold text-sm text-slate-900 mt-1.5">
-              {fanPulse.total > 0
-                ? `${fanPulse.smoothPct}% smooth`
-                : 'No recent reports'}
+              {fanPulse.total > 0 ? (
+                <>
+                  <CountUp value={fanPulse.smoothPct} suffix="%" /> smooth
+                </>
+              ) : (
+                'No recent reports'
+              )}
               {fanPulse.total > 0 && (
                 <span className="block text-[10px] font-normal text-slate-500 mt-0.5">
                   {fanPulse.total} report{fanPulse.total === 1 ? '' : 's'} · last 30m

@@ -313,7 +313,7 @@ export default function EventHubPage() {
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.55, ease: [0.16, 1, 0.3, 1] }}
-          className="rounded-2xl border border-violet-200 bg-gradient-to-br from-violet-50 via-white to-white p-5 sm:p-6"
+          className="rounded-2xl border border-violet-200 bg-gradient-to-br from-violet-50 via-white to-white p-5 sm:p-6 hover-lift"
         >
           <div className="flex items-start gap-3">
             <span className="w-10 h-10 rounded-full bg-violet-600 text-white flex items-center justify-center text-base flex-shrink-0">
@@ -374,7 +374,7 @@ export default function EventHubPage() {
         )}
 
         {/* Arrival Plan — premium card with subtle accent and icon-prefixed rows */}
-        <div className="relative rounded-2xl border border-slate-200 bg-white overflow-hidden">
+        <div className="relative rounded-2xl border border-slate-200 bg-white overflow-hidden hover-lift">
           {/* Top accent strip */}
           <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-violet-500 via-violet-600 to-violet-500" />
 
@@ -699,24 +699,30 @@ export default function EventHubPage() {
                     {fp.total} report{fp.total === 1 ? '' : 's'}
                   </span>
                 </div>
-                {/* Stacked bar */}
+                {/* Stacked bar — segments animate from width 0 on mount */}
                 <div className="flex h-2 rounded-full overflow-hidden bg-slate-100">
                   {fp.smoothPct > 0 && (
-                    <div
+                    <motion.div
                       className="bg-emerald-500"
-                      style={{ width: `${fp.smoothPct}%` }}
+                      initial={{ width: 0 }}
+                      animate={{ width: `${fp.smoothPct}%` }}
+                      transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
                     />
                   )}
                   {fp.slowPct > 0 && (
-                    <div
+                    <motion.div
                       className="bg-amber-500"
-                      style={{ width: `${fp.slowPct}%` }}
+                      initial={{ width: 0 }}
+                      animate={{ width: `${fp.slowPct}%` }}
+                      transition={{ duration: 0.7, delay: 0.1, ease: [0.16, 1, 0.3, 1] }}
                     />
                   )}
                   {fp.needHelpPct > 0 && (
-                    <div
+                    <motion.div
                       className="bg-rose-500"
-                      style={{ width: `${fp.needHelpPct}%` }}
+                      initial={{ width: 0 }}
+                      animate={{ width: `${fp.needHelpPct}%` }}
+                      transition={{ duration: 0.7, delay: 0.2, ease: [0.16, 1, 0.3, 1] }}
                     />
                   )}
                 </div>
