@@ -130,7 +130,76 @@ export default function StaffConsolePage() {
         </Link>
       </div>
 
-      <div className="max-w-5xl mx-auto px-4 py-6 grid gap-6 lg:grid-cols-3">
+      {/* KPI dashboard top row — dashboard credibility signal */}
+      <div className="max-w-5xl mx-auto px-4 pt-5 sm:pt-6">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          {(() => {
+            const openIncidents = incidents.filter((i) => i.status === 'open').length
+            const monitoringIncidents = incidents.filter((i) => i.status === 'monitoring').length
+            const recentSignals = signals.filter(
+              (s) => Date.now() - new Date(s.created_at).getTime() < 30 * 60 * 1000,
+            ).length
+            const staffSignalsRecent = signals.filter(
+              (s) =>
+                s.source === 'staff' &&
+                Date.now() - new Date(s.created_at).getTime() < 30 * 60 * 1000,
+            ).length
+            const avgWait = Math.round(
+              demoVenue.gates.reduce((sum, g) => sum + g.typical_wait_minutes, 0) /
+                demoVenue.gates.length,
+            )
+
+            const kpis = [
+              {
+                label: 'Open incidents',
+                value: openIncidents,
+                sub: monitoringIncidents > 0 ? `${monitoringIncidents} monitoring` : 'all clear',
+                tone:
+                  openIncidents > 0
+                    ? 'text-rose-300 border-rose-500/40 bg-rose-500/10'
+                    : 'text-slate-200 border-slate-700 bg-slate-900',
+              },
+              {
+                label: 'Gates monitored',
+                value: demoVenue.gates.length,
+                sub: 'real-time',
+                tone: 'text-slate-200 border-slate-700 bg-slate-900',
+              },
+              {
+                label: 'Signals last 30m',
+                value: recentSignals,
+                sub: staffSignalsRecent > 0 ? `${staffSignalsRecent} from staff` : 'fan-only',
+                tone:
+                  recentSignals > 0
+                    ? 'text-violet-300 border-violet-500/40 bg-violet-500/10'
+                    : 'text-slate-200 border-slate-700 bg-slate-900',
+              },
+              {
+                label: 'Avg typical wait',
+                value: `${avgWait}m`,
+                sub: 'across all gates',
+                tone: 'text-emerald-300 border-emerald-500/40 bg-emerald-500/10',
+              },
+            ]
+            return kpis.map((k) => (
+              <div
+                key={k.label}
+                className={`rounded-xl border p-3 sm:p-4 ${k.tone} transition`}
+              >
+                <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                  {k.label}
+                </div>
+                <div className="mt-1 text-2xl sm:text-3xl font-bold font-mono leading-none">
+                  {k.value}
+                </div>
+                <div className="text-[11px] text-slate-400 mt-1.5">{k.sub}</div>
+              </div>
+            ))
+          })()}
+        </div>
+      </div>
+
+      <div className="max-w-5xl mx-auto px-4 pt-5 sm:pt-6 pb-6 grid gap-6 lg:grid-cols-3">
         {/* Gate Panel */}
         <section className="lg:col-span-2 space-y-4">
           <div>

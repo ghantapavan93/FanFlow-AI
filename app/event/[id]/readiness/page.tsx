@@ -80,6 +80,7 @@ export default function ReadinessPage() {
   const [needs, setNeeds] = useState<AccessibilityNeed[]>([])
   const [notes, setNotes] = useState('')
   const [feedback, setFeedback] = useState<string | null>(null)
+  const [celebrating, setCelebrating] = useState(false)
 
   const totalSteps = 4
   const progress = ((step + 1) / totalSteps) * 100
@@ -137,6 +138,9 @@ export default function ReadinessPage() {
   }
 
   const finish = () => {
+    setCelebrating(true)
+    // Save immediately; redirect after the brief celebration so the user sees it
+    setTimeout(() => router.push(`/event/${eventId}/hub`), 1400)
     const prefs: ReadinessPrefs = {
       transport: transport ?? 'transit',
       group: group ?? 'solo',
@@ -145,7 +149,6 @@ export default function ReadinessPage() {
       updated_at: new Date().toISOString(),
     }
     saveReadiness(prefs)
-    router.push(`/event/${eventId}/hub`)
   }
 
   return (
@@ -404,6 +407,68 @@ export default function ReadinessPage() {
         </div>
       </div>
       )}
+
+      {/* Completion celebration — brief, restrained confetti before redirect */}
+      <AnimatePresence>
+        {celebrating && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="fixed inset-0 z-50 pointer-events-none flex items-center justify-center"
+            aria-hidden="true"
+          >
+            {/* Soft center halo */}
+            <motion.div
+              initial={{ scale: 0.6, opacity: 0 }}
+              animate={{ scale: 1.4, opacity: 0 }}
+              transition={{ duration: 1.2, ease: 'easeOut' }}
+              className="absolute w-40 h-40 rounded-full bg-violet-300/30 blur-2xl"
+            />
+            {/* Center check */}
+            <motion.div
+              initial={{ scale: 0.7, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
+              className="relative bg-violet-600 text-white w-20 h-20 rounded-full flex items-center justify-center text-3xl shadow-2xl"
+            >
+              ✓
+            </motion.div>
+            {/* Particles */}
+            {Array.from({ length: 10 }).map((_, i) => {
+              const angle = (i / 10) * Math.PI * 2
+              const distance = 90 + (i % 3) * 20
+              const dx = Math.cos(angle) * distance
+              const dy = Math.sin(angle) * distance
+              const colors = ['bg-violet-500', 'bg-emerald-400', 'bg-violet-400', 'bg-violet-600']
+              return (
+                <motion.span
+                  key={i}
+                  initial={{ x: 0, y: 0, opacity: 0, scale: 0.5 }}
+                  animate={{ x: dx, y: dy, opacity: [0, 1, 0], scale: 1 }}
+                  transition={{
+                    duration: 1.1,
+                    delay: 0.1 + (i % 4) * 0.04,
+                    ease: 'easeOut',
+                  }}
+                  className={`absolute w-2 h-2 rounded-full ${colors[i % colors.length]}`}
+                />
+              )
+            })}
+            {/* Caption */}
+            <motion.div
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.35, duration: 0.4 }}
+              className="absolute top-[58%] text-sm font-semibold text-slate-900 bg-white/95 px-3 py-1.5 rounded-full shadow-md border border-slate-200"
+            >
+              Your plan is ready
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Calm micro-feedback toast after selections */}
       <AnimatePresence>

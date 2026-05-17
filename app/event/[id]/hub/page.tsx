@@ -131,21 +131,33 @@ export default function EventHubPage() {
       </div>
 
       <div className="container-mobile px-4 py-5 sm:py-6 space-y-4 sm:space-y-5 safe-bottom">
-        {/* Event Hero — StubHub-style confirmation card */}
+        {/* Event Hero — StubHub-style confirmation card, cinematic refinement */}
         <div className="card-base overflow-hidden">
           <div
-            className="h-32 sm:h-40 bg-cover bg-center relative"
+            className="h-36 sm:h-44 bg-cover bg-center relative"
             style={{ backgroundImage: `url(${demoEvent.image_url})` }}
           >
-            <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/10 to-transparent" />
-            <div className="absolute top-3 left-3">
+            <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
+            <div className="absolute top-3 left-3 flex items-center gap-2">
               <span className="badge-trust bg-white/95">
-                <span className="dot bg-rose-500" /> Confirmed
+                <motion.span
+                  className="dot bg-rose-500"
+                  animate={{ opacity: [1, 0.4, 1] }}
+                  transition={{ duration: 2.4, repeat: Infinity, ease: 'easeInOut' }}
+                />
+                Confirmed
               </span>
             </div>
             <div className="absolute bottom-3 left-4 right-4 text-white">
-              <div className="text-[11px] font-semibold uppercase tracking-widest opacity-90">🏆 FIFA World Cup 2026</div>
-              <h2 className="text-xl sm:text-2xl font-bold leading-tight">{demoEvent.name}</h2>
+              <div className="flex items-center gap-2 mb-1.5">
+                <span className="w-6 h-px bg-white/70" />
+                <span className="text-[10px] font-semibold uppercase tracking-[0.2em] opacity-90">
+                  FIFA World Cup 2026
+                </span>
+              </div>
+              <h2 className="text-xl sm:text-[26px] font-bold leading-[1.1] tracking-tight">
+                {demoEvent.name}
+              </h2>
             </div>
           </div>
           <div className="p-4 sm:p-5">
@@ -155,14 +167,45 @@ export default function EventHubPage() {
                 <div className="text-xs text-slate-500">East Rutherford, NJ · Section 117</div>
               </div>
               <span className="chip-status-live">
-                <span className="dot bg-emerald-500" /> Live
+                <motion.span
+                  className="dot bg-emerald-500"
+                  animate={{ opacity: [1, 0.5, 1], scale: [1, 1.15, 1] }}
+                  transition={{ duration: 1.8, repeat: Infinity, ease: 'easeInOut' }}
+                />
+                Live
               </span>
             </div>
             <div className="border-t border-slate-200 pt-3">
-              <div className="kicker mb-2">Time to event</div>
-              <div className="font-mono text-2xl font-bold text-slate-900 tracking-wide">{countdown}</div>
-              <div className="text-[11px] text-slate-500 mt-1 font-mono tracking-widest">
-                DAYS &nbsp; HRS &nbsp; MINS &nbsp; SECS
+              <div className="flex items-baseline justify-between mb-2">
+                <div className="kicker">Time to event</div>
+                {(() => {
+                  const days = parseInt(countdown.split(/\s+/)[0], 10)
+                  if (!Number.isFinite(days)) return null
+                  return (
+                    <span className="text-[11px] text-violet-700 font-semibold">
+                      In {days} {days === 1 ? 'day' : 'days'}
+                    </span>
+                  )
+                })()}
+              </div>
+              <div className="font-mono text-[26px] sm:text-[28px] font-bold text-slate-900 tracking-[0.04em] flex gap-2 sm:gap-3">
+                {countdown.split(/\s+/).filter(Boolean).map((digit, i) => (
+                  <motion.span
+                    key={`${i}-${digit}`}
+                    initial={{ scale: 0.96, opacity: 0.85 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    transition={{ duration: 0.25, ease: 'easeOut' }}
+                    className="tabular-nums"
+                  >
+                    {digit}
+                  </motion.span>
+                ))}
+              </div>
+              <div className="text-[10px] text-slate-400 mt-1.5 font-mono tracking-[0.2em] flex gap-2 sm:gap-3">
+                <span className="w-[2ch] sm:w-[2.5ch]">DAYS</span>
+                <span className="w-[2ch] sm:w-[2.5ch]">HRS</span>
+                <span className="w-[2ch] sm:w-[2.5ch]">MINS</span>
+                <span className="w-[2ch] sm:w-[2.5ch]">SECS</span>
               </div>
             </div>
           </div>
@@ -245,49 +288,91 @@ export default function EventHubPage() {
         {/* Impact cards — render only when there are reasons to show */}
         {hydrated && <ImpactCards plan={plan} prefs={prefs} signals={signals} />}
 
-        {/* Arrival Plan */}
-        <div className="rounded-2xl border border-slate-200 p-5 sm:p-6 bg-white">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="kicker text-violet-700">Your arrival plan</h3>
-            <span
-              className={
-                plan.confidence === 'high'
-                  ? 'badge-success'
-                  : plan.confidence === 'medium'
-                  ? 'badge-warning'
-                  : 'badge-danger'
-              }
-            >
-              {plan.confidence === 'high' ? '🟢' : plan.confidence === 'medium' ? '🟡' : '🔴'}{' '}
-              {plan.confidence.charAt(0).toUpperCase() + plan.confidence.slice(1)} Confidence
-            </span>
-          </div>
+        {/* Arrival Plan — premium card with subtle accent and icon-prefixed rows */}
+        <div className="relative rounded-2xl border border-slate-200 bg-white overflow-hidden">
+          {/* Top accent strip */}
+          <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-violet-500 via-violet-600 to-violet-500" />
 
-          <div className="space-y-3 mb-4">
-            <div className="flex justify-between items-center py-2 border-b border-slate-200">
-              <span className="text-slate-600 font-medium">Leave by</span>
-              <span className="font-bold text-lg text-slate-900">{plan.leave_by_time}</span>
+          <div className="p-5 sm:p-6 pt-6 sm:pt-7">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="kicker text-violet-700">Your arrival plan</h3>
+              <span
+                className={
+                  plan.confidence === 'high'
+                    ? 'badge-success'
+                    : plan.confidence === 'medium'
+                    ? 'badge-warning'
+                    : 'badge-danger'
+                }
+              >
+                <span
+                  className={`dot ${
+                    plan.confidence === 'high'
+                      ? 'bg-emerald-500'
+                      : plan.confidence === 'medium'
+                      ? 'bg-amber-500'
+                      : 'bg-rose-500'
+                  }`}
+                />
+                {plan.confidence.charAt(0).toUpperCase() + plan.confidence.slice(1)} confidence
+              </span>
             </div>
-            <div className="flex justify-between items-center py-2 border-b border-slate-200">
-              <span className="text-slate-600 font-medium">Arrive at</span>
-              <span className="font-bold text-lg text-slate-900">{plan.arrival_time}</span>
-            </div>
-            <div className="flex justify-between items-center py-2">
-              <span className="text-slate-600 font-medium">Gate</span>
-              <span className="font-bold text-lg text-violet-600">{plan.recommended_gate.name}</span>
-            </div>
-          </div>
 
-          <div className="p-3 bg-slate-100 rounded-lg mb-4">
-            <p className="text-sm text-slate-700">{plan.route_summary}</p>
-          </div>
+            <div className="space-y-1 mb-4">
+              {[
+                {
+                  icon: '⏰',
+                  label: 'Leave by',
+                  value: plan.leave_by_time,
+                  emphasis: false,
+                },
+                {
+                  icon: '🎯',
+                  label: 'Arrive at',
+                  value: plan.arrival_time,
+                  emphasis: false,
+                },
+                {
+                  icon: '📍',
+                  label: 'Gate',
+                  value: plan.recommended_gate.name,
+                  emphasis: true,
+                },
+              ].map((row, i, arr) => (
+                <div
+                  key={row.label}
+                  className={`flex justify-between items-center py-2.5 ${
+                    i < arr.length - 1 ? 'border-b border-slate-100' : ''
+                  }`}
+                >
+                  <span className="flex items-center gap-2.5 text-slate-600 font-medium">
+                    <span className="w-7 h-7 rounded-full bg-slate-50 border border-slate-100 flex items-center justify-center text-sm">
+                      {row.icon}
+                    </span>
+                    {row.label}
+                  </span>
+                  <span
+                    className={`font-bold text-lg ${
+                      row.emphasis ? 'text-violet-700' : 'text-slate-900'
+                    }`}
+                  >
+                    {row.value}
+                  </span>
+                </div>
+              ))}
+            </div>
 
-          <Link
-            href={`/event/${eventId}/guide`}
-            className="btn-primary w-full"
-          >
-            View Full Arrival Guide →
-          </Link>
+            <div className="p-3 rounded-xl bg-gradient-to-br from-violet-50 to-slate-50 border border-violet-100/60 mb-4">
+              <div className="flex items-start gap-2">
+                <span className="text-violet-600 text-sm flex-shrink-0 mt-0.5">🧭</span>
+                <p className="text-sm text-slate-700 leading-relaxed">{plan.route_summary}</p>
+              </div>
+            </div>
+
+            <Link href={`/event/${eventId}/guide`} className="btn-primary w-full">
+              View Full Arrival Guide →
+            </Link>
+          </div>
         </div>
 
         {/* Checklist */}
@@ -321,10 +406,20 @@ export default function EventHubPage() {
           </div>
         </div>
 
-        {/* Live Conditions */}
+        {/* Live Conditions — felt-live polish */}
         <div className="card-base p-5 sm:p-6">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="kicker">Live conditions</h3>
+            <div className="flex items-center gap-2">
+              <h3 className="kicker">Live conditions</h3>
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-[10px] font-bold uppercase tracking-wider text-emerald-700">
+                <motion.span
+                  className="w-1.5 h-1.5 rounded-full bg-emerald-500"
+                  animate={{ opacity: [1, 0.4, 1], scale: [1, 1.3, 1] }}
+                  transition={{ duration: 1.6, repeat: Infinity, ease: 'easeInOut' }}
+                />
+                Live
+              </span>
+            </div>
             <span className="text-xs text-slate-500">
               {signals.length} signal{signals.length === 1 ? '' : 's'}
             </span>
@@ -336,33 +431,49 @@ export default function EventHubPage() {
               </p>
             ) : (
               visibleSignals.map((signal) => {
+                const rowBg =
+                  signal.sentiment === 'smooth'
+                    ? 'bg-emerald-50/40 border-emerald-100'
+                    : signal.sentiment === 'moderate'
+                    ? 'bg-amber-50/40 border-amber-100'
+                    : 'bg-rose-50/40 border-rose-100'
                 const sentimentColor =
                   signal.sentiment === 'smooth'
                     ? 'badge-success'
                     : signal.sentiment === 'moderate'
                     ? 'badge-warning'
                     : 'badge-danger'
-                const sentimentEmoji =
+                const sentimentDot =
                   signal.sentiment === 'smooth'
-                    ? '🟢'
+                    ? 'bg-emerald-500'
                     : signal.sentiment === 'moderate'
-                    ? '🟡'
-                    : '🔴'
+                    ? 'bg-amber-500'
+                    : 'bg-rose-500'
                 const gate = demoVenue.gates.find((g) => g.id === signal.gate_id)
+                const ageMs = Date.now() - new Date(signal.created_at).getTime()
+                const ageMin = Math.floor(ageMs / 60000)
+                const rel =
+                  ageMin < 1 ? 'just now' : ageMin < 60 ? `${ageMin}m ago` : `${Math.floor(ageMin / 60)}h ago`
                 return (
                   <div
                     key={signal.id}
-                    className="flex items-start justify-between gap-3 py-2 border-b border-slate-200 last:border-0"
+                    className={`flex items-start justify-between gap-3 p-3 rounded-xl border ${rowBg}`}
                   >
-                    <div className="flex-1">
-                      <div className="text-sm text-slate-800">{signal.message}</div>
-                      <div className="text-xs text-slate-500 mt-0.5">
-                        {gate?.name ?? signal.gate_id} ·{' '}
-                        {signal.source === 'staff' ? '👮 Staff' : '🙋 Fan'}
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm text-slate-800 font-medium leading-snug">
+                        {signal.message}
+                      </div>
+                      <div className="text-xs text-slate-500 mt-1 flex items-center gap-1.5 flex-wrap">
+                        <span>{gate?.name ?? signal.gate_id}</span>
+                        <span>·</span>
+                        <span>{signal.source === 'staff' ? '👮 Staff' : '🙋 Fan'}</span>
+                        <span>·</span>
+                        <span>{rel}</span>
                       </div>
                     </div>
                     <span className={`${sentimentColor} text-xs whitespace-nowrap`}>
-                      {sentimentEmoji} {signal.sentiment}
+                      <span className={`dot ${sentimentDot}`} />
+                      {signal.sentiment}
                     </span>
                   </div>
                 )
