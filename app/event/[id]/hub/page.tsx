@@ -210,19 +210,29 @@ export default function EventHubPage() {
             </div>
           </div>
           <div className="p-4 sm:p-5">
-            <div className="flex items-center justify-between mb-3">
-              <div>
+            <div className="flex items-center justify-between mb-3 gap-2">
+              <div className="min-w-0 flex-1">
                 <div className="text-sm font-semibold text-slate-900">{demoVenue.name}</div>
                 <div className="text-xs text-slate-500">East Rutherford, NJ · Section 117</div>
               </div>
-              <span className="chip-status-live">
-                <motion.span
-                  className="dot bg-emerald-500"
-                  animate={{ opacity: [1, 0.5, 1], scale: [1, 1.15, 1] }}
-                  transition={{ duration: 1.8, repeat: Infinity, ease: 'easeInOut' }}
-                />
-                Live
-              </span>
+              <div className="flex items-center gap-1.5 flex-shrink-0">
+                {/* Mock weather chip — seeded value, not a real API. Adds the
+                    universal arrival-confidence cue every venue product has. */}
+                <span
+                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-sky-50 border border-sky-200 text-[11px] font-semibold text-sky-700"
+                  title="Mock weather — seeded for the demo"
+                >
+                  🌤 72°F
+                </span>
+                <span className="chip-status-live">
+                  <motion.span
+                    className="dot bg-emerald-500"
+                    animate={{ opacity: [1, 0.5, 1], scale: [1, 1.15, 1] }}
+                    transition={{ duration: 1.8, repeat: Infinity, ease: 'easeInOut' }}
+                  />
+                  Live
+                </span>
+              </div>
             </div>
             <div className="border-t border-slate-200 pt-3">
               <div className="flex items-baseline justify-between mb-2">
@@ -311,28 +321,9 @@ export default function EventHubPage() {
           </div>
         </motion.div>
 
-        {/* Personalize CTA — StubHub-style lavender promo banner */}
-        {hydrated && !prefs && (
-          <div className="promo-banner">
-            <span className="w-9 h-9 rounded-full bg-violet-600 text-white flex items-center justify-center text-base flex-shrink-0">
-              ✨
-            </span>
-            <div className="flex-1 min-w-0">
-              <div className="font-bold text-slate-900 text-sm sm:text-base">
-                Want a tailored plan?
-              </div>
-              <div className="text-xs sm:text-sm text-slate-600 mt-0.5 hidden sm:block">
-                60 seconds. Personalize your gate and timing.
-              </div>
-            </div>
-            <Link
-              href={`/event/${eventId}/readiness`}
-              className="inline-flex items-center justify-center min-h-[40px] px-4 rounded-full bg-violet-600 text-white font-semibold text-sm hover:bg-violet-700 active:bg-violet-800 transition flex-shrink-0 whitespace-nowrap"
-            >
-              Personalize
-            </Link>
-          </div>
-        )}
+        {/* (Personalize CTA removed — the Ticket-confirmed handoff card at the
+            top of this page already carries the Start Readiness CTA when no
+            prefs exist. Two banners doing the same job was scroll noise.) */}
 
         {/* Impact cards — render only when there are reasons to show */}
         {hydrated && <ImpactCards plan={plan} prefs={prefs} signals={signals} />}
@@ -411,12 +402,70 @@ export default function EventHubPage() {
               ))}
             </div>
 
-            <div className="p-3 rounded-xl bg-gradient-to-br from-violet-50 to-slate-50 border border-violet-100/60 mb-4">
+            <div className="p-3 rounded-xl bg-gradient-to-br from-violet-50 to-slate-50 border border-violet-100/60 mb-3">
               <div className="flex items-start gap-2">
                 <span className="text-violet-600 text-sm flex-shrink-0 mt-0.5">🧭</span>
                 <p className="text-sm text-slate-700 leading-relaxed">{plan.route_summary}</p>
               </div>
             </div>
+
+            {/* Why this gate — surfaces the top 3 score reasons inline so the
+                rules-decide-AI-explains logic is visible on the Hub, not
+                buried in the Guide page. */}
+            {(() => {
+              const picked = plan.gate_scores?.find((g) => g.is_recommended)
+              if (!picked) return null
+              const c = picked.components
+              const reasons: { label: string; tone: 'pos' | 'neg' }[] = []
+              if (c.section_proximity >= 10)
+                reasons.push({ label: `Closest to Section ${demoTicket.section}`, tone: 'pos' })
+              else if (c.section_proximity >= 6)
+                reasons.push({ label: `Near your section`, tone: 'pos' })
+              if (c.accessibility_match > 0)
+                reasons.push({ label: 'Step-free accessible entry', tone: 'pos' })
+              if (c.family_match > 0)
+                reasons.push({ label: 'Family-friendly lane', tone: 'pos' })
+              if (c.sensory_match > 0)
+                reasons.push({ label: 'Calmer route preference', tone: 'pos' })
+              if (c.staff_signal > 0)
+                reasons.push({ label: 'Staff just reported smooth entry', tone: 'pos' })
+              else if (c.staff_signal < 0)
+                reasons.push({ label: 'Staff reports congestion at other gates', tone: 'pos' })
+              if (picked.gate_name.match(/typical wait|wait/i)) {/* no-op */}
+              if (c.wait_penalty > -2.5)
+                reasons.push({
+                  label: `Typical wait ~${plan.recommended_gate.typical_wait_minutes} min`,
+                  tone: 'pos',
+                })
+              const top = reasons.slice(0, 3)
+              if (top.length === 0) return null
+              return (
+                <div className="mb-4">
+                  <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 mb-1.5">
+                    Picked because
+                  </div>
+                  <ul className="space-y-1">
+                    {top.map((r) => (
+                      <li
+                        key={r.label}
+                        className="flex items-start gap-2 text-xs text-slate-700"
+                      >
+                        <span className="text-emerald-600 font-bold mt-0.5 flex-shrink-0">
+                          ✓
+                        </span>
+                        <span>{r.label}</span>
+                      </li>
+                    ))}
+                  </ul>
+                  <Link
+                    href={`/event/${eventId}/guide`}
+                    className="inline-block text-[11px] font-semibold text-violet-700 hover:text-violet-800 mt-2"
+                  >
+                    See full score breakdown →
+                  </Link>
+                </div>
+              )
+            })()}
 
             <Link href={`/event/${eventId}/guide`} className="btn-primary w-full">
               View Full Arrival Guide →
@@ -455,9 +504,9 @@ export default function EventHubPage() {
           </div>
         </div>
 
-        {/* Live Conditions — felt-live polish */}
+        {/* Live Conditions — felt-live polish + last-updated cue */}
         <div className="card-base p-5 sm:p-6">
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center justify-between mb-1">
             <div className="flex items-center gap-2">
               <h3 className="kicker">Live conditions</h3>
               <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-[10px] font-bold uppercase tracking-wider text-emerald-700">
@@ -472,6 +521,22 @@ export default function EventHubPage() {
             <span className="text-xs text-slate-500">
               {signals.length} signal{signals.length === 1 ? '' : 's'}
             </span>
+          </div>
+          {/* Last-updated microcopy */}
+          <div className="text-[11px] text-slate-500 mb-4">
+            {(() => {
+              if (signals.length === 0) return 'Waiting for first signals'
+              const newest = signals[0]
+              const ageMs = Date.now() - new Date(newest.created_at).getTime()
+              const ageMin = Math.floor(ageMs / 60000)
+              const rel =
+                ageMin < 1
+                  ? 'just now'
+                  : ageMin < 60
+                  ? `${ageMin}m ago`
+                  : `${Math.floor(ageMin / 60)}h ago`
+              return `Last update · ${rel}`
+            })()}
           </div>
           <div className="space-y-2">
             {visibleSignals.length === 0 ? (

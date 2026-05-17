@@ -234,60 +234,105 @@ export default function ArrivalGuidePage() {
           </div>
         </div>
 
-        {/* Explanation */}
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="font-bold text-slate-900">Why this recommendation?</h3>
-            {explanation && (
-              <span
-                className={`text-[10px] font-semibold uppercase tracking-wide px-2 py-1 rounded-full cursor-help ${
-                  explanation.source === 'template'
-                    ? 'bg-slate-200 text-slate-700'
-                    : 'bg-violet-100 text-violet-700'
-                }`}
-                title={
-                  explanation.source === 'template'
-                    ? 'Template = deterministic explanation, always available.'
-                    : `AI = rewritten by ${explanation.source} and sanitized before display. Facts (gate, times, support) unchanged.${
-                        explanation.latencyMs ? ` Latency: ${explanation.latencyMs}ms.` : ''
-                      }`
-                }
-              >
-                {explanation.source === 'template'
-                  ? 'Template'
-                  : `AI · ${explanation.source}`}
-              </span>
-            )}
-          </div>
-          {explainLoading && !explanation ? (
-            <div className="space-y-2">
-              <div className="h-3 bg-slate-200 rounded animate-pulse" />
-              <div className="h-3 bg-slate-200 rounded animate-pulse w-5/6" />
-              <div className="h-3 bg-slate-200 rounded animate-pulse w-4/6" />
+        {/* Why this recommendation — hero-treatment.
+            This is the centerpiece of the "rules decide, AI explains" thesis,
+            so it gets the visual weight to match. */}
+        <div
+          className={`relative rounded-2xl overflow-hidden ${
+            explanation?.source && explanation.source !== 'template'
+              ? 'border border-violet-200 bg-gradient-to-br from-violet-50 via-white to-white'
+              : 'border border-slate-200 bg-white'
+          }`}
+        >
+          {/* Top accent strip */}
+          <div
+            className={`absolute inset-x-0 top-0 h-1 ${
+              explanation?.source && explanation.source !== 'template'
+                ? 'bg-gradient-to-r from-violet-500 via-violet-600 to-violet-500'
+                : 'bg-slate-200'
+            }`}
+          />
+          <div className="p-5 sm:p-6 pt-6 sm:pt-7">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2.5">
+                <span
+                  className={`w-9 h-9 rounded-full flex items-center justify-center text-base flex-shrink-0 ${
+                    explanation?.source && explanation.source !== 'template'
+                      ? 'bg-violet-600 text-white'
+                      : 'bg-slate-100 text-slate-600'
+                  }`}
+                >
+                  💡
+                </span>
+                <div>
+                  <div className="kicker">
+                    {explanation?.source && explanation.source !== 'template'
+                      ? 'Rules decided · AI explained'
+                      : 'Rules decided'}
+                  </div>
+                  <h3 className="font-bold text-slate-900 text-base sm:text-lg leading-tight">
+                    Why this recommendation?
+                  </h3>
+                </div>
+              </div>
+              {explanation && (
+                <span
+                  className={`text-[10px] font-semibold uppercase tracking-wide px-2 py-1 rounded-full cursor-help flex-shrink-0 ${
+                    explanation.source === 'template'
+                      ? 'bg-slate-200 text-slate-700'
+                      : 'bg-violet-100 text-violet-700'
+                  }`}
+                  title={
+                    explanation.source === 'template'
+                      ? 'Template = deterministic explanation, always available.'
+                      : `AI = rewritten by ${explanation.source} and sanitized before display. Facts (gate, times, support) unchanged.${
+                          explanation.latencyMs ? ` Latency: ${explanation.latencyMs}ms.` : ''
+                        }`
+                  }
+                >
+                  {explanation.source === 'template'
+                    ? 'Template'
+                    : `AI · ${explanation.source}`}
+                </span>
+              )}
             </div>
-          ) : (
-            <p className="text-slate-700 text-sm leading-relaxed">
-              {explanation?.explanation ?? plan.explanation_text}
+
+            {explainLoading && !explanation ? (
+              <div className="space-y-2 mt-4">
+                <div className="h-3 bg-slate-200 rounded animate-pulse" />
+                <div className="h-3 bg-slate-200 rounded animate-pulse w-5/6" />
+                <div className="h-3 bg-slate-200 rounded animate-pulse w-4/6" />
+              </div>
+            ) : (
+              <p className="text-slate-800 text-[15px] sm:text-base leading-relaxed mt-2">
+                {explanation?.explanation ?? plan.explanation_text}
+              </p>
+            )}
+
+            <div className="mt-4 flex items-center justify-between gap-2 text-xs">
+              <span className="inline-flex items-center gap-1.5 text-slate-600">
+                <span
+                  className={`dot ${
+                    plan.confidence === 'high'
+                      ? 'bg-emerald-500'
+                      : plan.confidence === 'medium'
+                      ? 'bg-amber-500'
+                      : 'bg-rose-500'
+                  }`}
+                />
+                <span className="font-semibold">
+                  {plan.confidence.charAt(0).toUpperCase() + plan.confidence.slice(1)} confidence
+                </span>
+                <span className="text-slate-400 hidden sm:inline">
+                  · {plan.confidence_reason}
+                </span>
+              </span>
+            </div>
+            <p className="text-[11px] text-slate-500 mt-3 leading-relaxed border-t border-slate-100 pt-3">
+              Rules pick the gate, times, support points, and confidence. AI only
+              rewords this explanation — it cannot change facts.
             </p>
-          )}
-          <div className="mt-4 text-xs text-slate-500 p-3 bg-white rounded border border-slate-200">
-            Confidence:{' '}
-            <span
-              className={
-                plan.confidence === 'high'
-                  ? 'font-bold text-emerald-600'
-                  : plan.confidence === 'medium'
-                  ? 'font-bold text-amber-600'
-                  : 'font-bold text-rose-600'
-              }
-            >
-              {plan.confidence.toUpperCase()}
-            </span>{' '}
-            — {plan.confidence_reason}
           </div>
-          <p className="text-[11px] text-slate-500 mt-2 px-1">
-            Rules pick the gate and times. AI only rewords the explanation — it cannot change facts.
-          </p>
         </div>
 
         {/* Score Breakdown — collapsible details panel */}

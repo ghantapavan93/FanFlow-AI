@@ -45,6 +45,9 @@ export default function VenueMapPage() {
   const [signals, setSignals] = useState<LiveSignal[]>([])
   const [selected, setSelected] = useState<Marker | null>(null)
   const [filter, setFilter] = useState<'all' | 'gates' | SupportType>('all')
+  // Incrementing this key remounts the animated <motion.path> and <motion.g>
+  // elements, replaying the path-drawing and marker stagger animations.
+  const [replayKey, setReplayKey] = useState(0)
 
   useEffect(() => {
     const refresh = () => {
@@ -117,7 +120,18 @@ export default function VenueMapPage() {
           <div className="lg:col-span-2 rounded-2xl border border-slate-200 bg-white p-4 sm:p-5">
             <div className="flex items-center justify-between mb-3">
               <h2 className="font-bold text-slate-900">MetLife Stadium</h2>
-              <span className="text-xs text-slate-500">Tap a marker for details</span>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => setReplayKey((k) => k + 1)}
+                  className="text-[11px] font-semibold text-violet-700 hover:text-violet-800 inline-flex items-center gap-1"
+                  aria-label="Replay route animation"
+                >
+                  ↻ Replay route
+                </button>
+                <span className="hidden sm:inline text-xs text-slate-500">
+                  Tap a marker for details
+                </span>
+              </div>
             </div>
 
             {/* Filter chips */}
@@ -205,8 +219,10 @@ export default function VenueMapPage() {
                   Section 117
                 </text>
 
-                {/* Walking path from recommended gate to seat — animated draw */}
+                {/* Walking path from recommended gate to seat — animated draw.
+                    key={replayKey} forces remount on Replay click. */}
                 <motion.path
+                  key={`route-${replayKey}`}
                   d={`M ${recommendedGate.map_x} ${recommendedGate.map_y} L 260 218`}
                   stroke="#7c3aed"
                   strokeWidth="2.5"
@@ -230,7 +246,7 @@ export default function VenueMapPage() {
                     selected?.kind === 'support' && selected.data.id === m.data.id
                   return (
                     <motion.g
-                      key={m.data.id}
+                      key={`support-${m.data.id}-${replayKey}`}
                       onClick={() => setSelected(m)}
                       style={{ cursor: 'pointer', transformOrigin: `${x}px ${y}px` }}
                       initial={{ opacity: 0, scale: 0 }}
@@ -273,7 +289,7 @@ export default function VenueMapPage() {
                   const fill = m.recommended ? '#7c3aed' : '#1e293b'
                   return (
                     <motion.g
-                      key={m.data.id}
+                      key={`gate-${m.data.id}-${replayKey}`}
                       onClick={() => setSelected(m)}
                       style={{ cursor: 'pointer', transformOrigin: `${x}px ${y}px` }}
                       initial={{ opacity: 0, scale: 0 }}
