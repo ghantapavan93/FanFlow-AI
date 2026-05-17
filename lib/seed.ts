@@ -365,8 +365,23 @@ function describeGroup(group: ReadinessPrefs['group']): string {
   }
 }
 
+/**
+ * Locale-independent time formatter.
+ *
+ * Avoids `toLocaleTimeString` because it produces different output between
+ * Node (server) and the browser depending on the system locale — e.g.
+ * "07:55 pm" on one and "07:55 PM" on the other, which causes a Next.js
+ * hydration mismatch error during SSR.
+ *
+ * Always returns "HH:MM AM" or "HH:MM PM" with uppercase meridiem.
+ */
 function fmtTime(d: Date): string {
-  return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  let hours = d.getHours()
+  const minutes = d.getMinutes().toString().padStart(2, '0')
+  const meridiem = hours >= 12 ? 'PM' : 'AM'
+  hours = hours % 12
+  if (hours === 0) hours = 12
+  return `${hours.toString().padStart(2, '0')}:${minutes} ${meridiem}`
 }
 
 export function deriveArrivalPlan(
