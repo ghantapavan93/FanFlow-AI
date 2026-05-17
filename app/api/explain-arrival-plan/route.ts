@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { randomUUID } from 'node:crypto'
 import {
   ExplainRequestSchema,
   buildLLMPrompt,
@@ -7,6 +8,7 @@ import {
   sanitizeExplanation,
   type ExplainRequest,
 } from '@/lib/explain/arrivalExplanation'
+import { env } from '@/lib/env'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -14,6 +16,35 @@ export const dynamic = 'force-dynamic'
 const LLM_TIMEOUT_MS = 2500
 
 type Source = 'template' | 'groq' | 'gemini'
+
+/**
+ * Standardized error response shape. All non-2xx responses use this so
+ * clients (and future monitoring) can rely on consistent keys.
+ */
+function errorResponse(
+  code: string,
+  message: string,
+  status: number,
+  requestId: string,
+  extra?: Record<string, unknown>,
+) {
+  return NextResponse.json(
+    {
+      error: { code, message, requestId, ...extra },
+    },
+    { status, headers: { 'x-request-id': requestId } },
+  )
+}
+
+/**
+ * Extract or generate a request ID. Honors an inbound x-request-id header
+ * so a frontend or proxy can correlate logs across hops.
+ */
+function getRequestId(request: Request): string {
+  const inbound = request.headers.get('x-request-id')
+  if (inbound && /^[\w-]{8,64}$/.test(inbound)) return inbound
+  return randomUUID()
+}
 
 /**
  * Hard outer timeout wrapper. Each provider call (callGroq / callGemini)
@@ -115,21 +146,23 @@ async function callGemini(
 }
 
 export async function POST(request: Request) {
+  const requestId = getRequestId(request)
+
   let body: unknown
   try {
     body = await request.json()
   } catch {
-    return NextResponse.json(
-      { error: 'Invalid JSON body' },
-      { status: 400 },
-    )
+    return errorResponse('invalid_json', 'Request body is not valid JSON.', 400, requestId)
   }
 
   const parsed = ExplainRequestSchema.safeParse(body)
   if (!parsed.success) {
-    return NextResponse.json(
-      { error: 'Invalid request shape', issues: parsed.error.flatten() },
-      { status: 400 },
+    return errorResponse(
+      'invalid_shape',
+      'Request body does not match the expected schema.',
+      400,
+      requestId,
+      { issues: parsed.error.flatten() },
     )
   }
   const req = parsed.data
@@ -138,9 +171,10 @@ export async function POST(request: Request) {
   let explanation = template
   let source: Source = 'template'
   let latencyMs = 0
+  let llmDiscarded = false
 
-  const groqKey = process.env.GROQ_API_KEY?.trim()
-  const geminiKey = process.env.GEMINI_API_KEY?.trim()
+  const groqKey = env.GROQ_API_KEY
+  const geminiKey = env.GEMINI_API_KEY
   const recommendedGateName = req.plan.recommended_gate.name
 
   if (groqKey) {
@@ -151,6 +185,7 @@ export async function POST(request: Request) {
       const sanitized = sanitizeExplanation(raw)
       if (mentionsWrongGate(sanitized, recommendedGateName)) {
         // LLM hallucinated a different gate — discard, keep template
+        llmDiscarded = true
       } else {
         explanation = sanitized
         source = 'groq'
@@ -166,7 +201,7 @@ export async function POST(request: Request) {
     if (raw) {
       const sanitized = sanitizeExplanation(raw)
       if (mentionsWrongGate(sanitized, recommendedGateName)) {
-        // LLM hallucinated a different gate — discard, keep template
+        llmDiscarded = true
       } else {
         explanation = sanitized
         source = 'gemini'
@@ -174,10 +209,18 @@ export async function POST(request: Request) {
     }
   }
 
-  return NextResponse.json({
-    explanation,
-    source,
-    generatedAt: new Date().toISOString(),
-    latencyMs,
-  })
+  return NextResponse.json(
+    {
+      explanation,
+      source,
+      generatedAt: new Date().toISOString(),
+      latencyMs,
+      requestId,
+      // Observability hint: true if an LLM was called but its output was
+      // rejected by the guardrail (gate hallucination). Lets reviewers see
+      // the safety net working in production.
+      ...(llmDiscarded ? { llmDiscarded: true } : {}),
+    },
+    { headers: { 'x-request-id': requestId } },
+  )
 }
