@@ -418,6 +418,49 @@ export default function EventHubPage() {
           />
         )}
 
+        {/* Guidance mode chip — derived purely from current signals.
+            Helps the recruiter SEE how the system communicates the
+            credibility of its current advice: Staff verified > Fan pulse
+            only > Baseline venue guidance. No new state, no new types. */}
+        {hydrated && (() => {
+          const recentSignals = signals.filter(
+            (s) => Date.now() - new Date(s.created_at).getTime() < 60 * 60 * 1000,
+          )
+          const hasStaff = recentSignals.some((s) => s.source === 'staff')
+          const hasFan = recentSignals.some((s) => s.source === 'fan')
+          const mode = hasStaff
+            ? {
+                label: 'Staff verified',
+                tone: 'bg-emerald-50 border-emerald-200 text-emerald-700',
+                dot: 'bg-emerald-500',
+                body: 'Staff signals carry higher trust than fan reports.',
+              }
+            : hasFan
+              ? {
+                  label: 'Fan pulse only',
+                  tone: 'bg-amber-50 border-amber-200 text-amber-700',
+                  dot: 'bg-amber-500',
+                  body: 'Fan reports inform conditions. Staff or venue signage should still be followed.',
+                }
+              : {
+                  label: 'Baseline venue guidance',
+                  tone: 'bg-slate-50 border-slate-200 text-slate-700',
+                  dot: 'bg-slate-400',
+                  body: 'No staff updates yet. This plan uses ticket and venue context.',
+                }
+          return (
+            <div className={`rounded-2xl border ${mode.tone} px-4 py-3 flex items-start gap-3`}>
+              <span className={`w-2 h-2 rounded-full ${mode.dot} mt-1.5 flex-shrink-0`} />
+              <div className="min-w-0 flex-1">
+                <div className="text-[10px] font-bold uppercase tracking-wider">
+                  Guidance mode · {mode.label}
+                </div>
+                <p className="text-xs mt-0.5 leading-relaxed opacity-80">{mode.body}</p>
+              </div>
+            </div>
+          )
+        })()}
+
         {/* Orientation tips — surfaces only when the fan flagged themselves
             as first-time / out-of-town in Readiness. Doesn't affect the
             gate score; provides anchor landmarks + signage cues so a new

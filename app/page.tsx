@@ -326,10 +326,10 @@ export default function Home() {
           </div>
           <div className="flex items-center gap-2">
             <Link
-              href="/discover"
-              className="hidden sm:inline-flex btn-ghost text-sm"
+              href="/demo/fanflow-vision"
+              className="hidden md:inline-flex btn-ghost text-sm text-violet-700"
             >
-              Discover
+              ✨ Vision walkthrough
             </Link>
             <Link
               href="/staff/wc2026-final"
@@ -378,13 +378,13 @@ export default function Home() {
                 Start Readiness Check
               </Link>
             </div>
-            {/* Phase-2 entry: full purchase journey demo */}
+            {/* Cinematic vision walkthrough — single-route state machine */}
             <div className="mt-3">
               <Link
-                href="/discover"
+                href="/demo/fanflow-vision"
                 className="inline-flex items-center gap-1.5 text-xs sm:text-sm font-semibold text-violet-700 hover:text-violet-800 group"
               >
-                <span className="kicker !text-[10px] !text-violet-700">New</span>
+                <span className="kicker !text-[10px] !text-violet-700">New · cinematic</span>
                 See the full StubHub-style journey
                 <span className="transition-transform group-hover:translate-x-0.5">→</span>
               </Link>
