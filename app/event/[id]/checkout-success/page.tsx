@@ -45,7 +45,9 @@ export default function CheckoutSuccessPage() {
   useEffect(() => {
     if (autoCountdown === null) return
     if (autoCountdown <= 0) {
-      router.push(`/event/${eventId}/hub`)
+      // Route into the thinking screen rather than straight to the Hub —
+      // the rule engine reveal sits between unlock and Hub.
+      router.push(`/event/${eventId}/building-plan`)
       return
     }
     const t = setTimeout(() => setAutoCountdown((n) => (n === null ? null : n - 1)), 1000)
@@ -299,29 +301,29 @@ export default function CheckoutSuccessPage() {
               animate={reduced ? undefined : { scale: [1, 1.08, 1] }}
               transition={reduced ? undefined : { duration: 2.2, repeat: Infinity, ease: 'easeInOut' }}
             >
-              🚪
+              ✦
             </motion.div>
             <div className="flex-1 min-w-0">
-              <div className="font-bold text-sm">Open your Event Day Hub</div>
+              <div className="font-bold text-sm">Build my event day plan</div>
               <div className="text-xs text-slate-300 mt-0.5">
                 {autoCountdown !== null
-                  ? `Continuing in ${autoCountdown}s…`
-                  : 'Set up readiness preferences for a personalized plan.'}
+                  ? `Starting in ${autoCountdown}s…`
+                  : 'See how FanFlow picks your gate, leave-by time, and route.'}
               </div>
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-2 mt-4">
+          <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-2 mt-4">
             <Link
-              href={`/event/${eventId}/hub`}
+              href={`/event/${eventId}/building-plan`}
               onClick={() => setAutoCountdown(null)}
-              className="inline-flex items-center justify-center gap-1 min-h-[44px] px-4 rounded-full bg-white text-slate-900 font-bold text-sm hover:bg-slate-100 transition"
+              className="inline-flex items-center justify-center gap-1 min-h-[44px] px-5 rounded-full bg-white text-slate-900 font-bold text-sm hover:bg-slate-100 transition"
             >
-              Open Hub →
+              Build my event day plan →
             </Link>
             <Link
               href={`/event/${eventId}/readiness`}
               onClick={() => setAutoCountdown(null)}
-              className="inline-flex items-center justify-center gap-1 min-h-[44px] px-4 rounded-full bg-violet-600 text-white font-bold text-sm hover:bg-violet-700 transition"
+              className="inline-flex items-center justify-center gap-1 min-h-[44px] px-5 rounded-full bg-violet-600 text-white font-bold text-sm hover:bg-violet-700 transition"
             >
               Personalize first
             </Link>

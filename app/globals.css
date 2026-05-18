@@ -185,7 +185,13 @@ body {
 }
 
 /* Subtle page entry — applied to a route's root content wrapper for a calm
-   fade-up on each navigation. Respects prefers-reduced-motion. */
+   fade-up on each navigation. Respects prefers-reduced-motion.
+   IMPORTANT: uses `backwards` (not `both`) so we keep the pre-animation
+   state but DO NOT retain `transform: translateY(0)` after the animation
+   ends. A persistent transform on the root would create a containing
+   block, which would break `position: fixed` for any modal descendant
+   (e.g. HelpSheet) — modals would render relative to this root instead
+   of the viewport. `backwards` avoids that trap. */
 @keyframes ff-page-enter {
   from {
     opacity: 0;
@@ -197,7 +203,7 @@ body {
   }
 }
 .page-enter {
-  animation: ff-page-enter 320ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation: ff-page-enter 320ms cubic-bezier(0.16, 1, 0.3, 1) backwards;
 }
 
 /* Premium hover lift — applied to flagship cards on the Hub.

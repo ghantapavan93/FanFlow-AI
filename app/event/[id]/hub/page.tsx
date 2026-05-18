@@ -175,6 +175,7 @@ export default function EventHubPage() {
   const visibleSignals = signals.slice(0, 5)
 
   return (
+    <>
     <div className="min-h-screen page-bg page-enter">
       <div className="page-header px-4 h-14 flex items-center justify-between">
         <h1 className="font-bold text-slate-900">Event Day Hub</h1>
@@ -841,13 +842,69 @@ export default function EventHubPage() {
         </div>
         </Reveal>
 
+        {/* Need Help — a proper architected module, not a plain button.
+            Shows the six help categories so the recruiter sees what the
+            sheet actually does before clicking. Big violet CTA at bottom
+            opens the contextual HelpSheet. Safety note pinned below. */}
         <Reveal>
-        <button
-          onClick={() => setHelpOpen(true)}
-          className="btn-secondary w-full !min-h-[56px]"
-        >
-          Need help? Contact support
-        </button>
+        <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden">
+          {/* Top accent strip — rose, signals urgency without alarming */}
+          <div className="h-1 bg-gradient-to-r from-rose-400 via-rose-500 to-rose-400" />
+          <div className="p-5 sm:p-6">
+            <div className="flex items-start justify-between gap-3 mb-4">
+              <div className="min-w-0">
+                <div className="kicker text-rose-700">Need help during the event?</div>
+                <h3 className="font-bold text-slate-900 text-base sm:text-lg leading-tight mt-1">
+                  Context-aware support, one tap away
+                </h3>
+                <p className="text-sm text-slate-600 mt-1 leading-relaxed">
+                  FanFlow points you to the right help based on your gate, section, and group.
+                </p>
+              </div>
+              <span className="w-10 h-10 rounded-full bg-rose-50 border border-rose-200 flex items-center justify-center text-base flex-shrink-0">
+                🤝
+              </span>
+            </div>
+
+            {/* Help categories grid — preview of what the sheet covers */}
+            <div className="grid grid-cols-2 gap-2 mb-4">
+              {[
+                { emoji: '🚪', label: 'Wrong gate' },
+                { emoji: '⏰', label: 'Running late' },
+                { emoji: '♿', label: 'Accessibility' },
+                { emoji: '➕', label: 'Medical / family' },
+                { emoji: '🎟️', label: 'Ticket issue' },
+                { emoji: '🧩', label: 'Calmer route' },
+              ].map((c) => (
+                <button
+                  key={c.label}
+                  onClick={() => setHelpOpen(true)}
+                  className="flex items-center gap-2 p-2.5 rounded-xl border border-slate-200 bg-slate-50 hover:border-rose-300 hover:bg-rose-50/50 active:bg-rose-100/50 transition text-left"
+                >
+                  <span className="text-base flex-shrink-0">{c.emoji}</span>
+                  <span className="text-xs font-semibold text-slate-700 leading-snug truncate">
+                    {c.label}
+                  </span>
+                </button>
+              ))}
+            </div>
+
+            <button
+              onClick={() => setHelpOpen(true)}
+              className="btn-primary w-full !min-h-[52px] !bg-rose-600 hover:!bg-rose-700 active:!bg-rose-800"
+            >
+              Open Need Help center →
+            </button>
+
+            <div className="mt-3 flex items-start gap-2 text-[11px] text-slate-500 leading-relaxed">
+              <span className="flex-shrink-0 mt-0.5">⚠️</span>
+              <span>
+                For urgent medical or safety issues, call <strong>911</strong> or flag any
+                staff member. FanFlow provides guidance, not emergency response.
+              </span>
+            </div>
+          </div>
+        </div>
         </Reveal>
 
         {/* Compact FanFlow does / doesn't trust panel */}
@@ -890,38 +947,43 @@ export default function EventHubPage() {
           <p className="mt-1">For emergencies, call 911.</p>
         </div>
       </div>
+    </div>
 
-      <HelpSheet
-        open={helpOpen}
-        onClose={() => setHelpOpen(false)}
-        plan={plan}
-        eventId={eventId}
-      />
+    {/* HelpSheet + Staff toast deliberately rendered OUTSIDE the
+        .page-enter wrapper. Any transform on an ancestor creates a
+        containing block that breaks `position: fixed` for descendants —
+        which used to make this modal render at the page top instead of
+        the viewport center when the user had scrolled down. Keeping
+        fixed-positioned overlays as siblings of the .page-enter root
+        avoids that trap regardless of what animations get added later. */}
+    <HelpSheet
+      open={helpOpen}
+      onClose={() => setHelpOpen(false)}
+      plan={plan}
+      eventId={eventId}
+    />
 
-      {/* Staff-signal-applied toast — fires when a fresh staff signal lands
-          via the cross-tab storage event. Makes the architecturally
-          impressive moment observable. */}
-      <AnimatePresence>
-        {staffToast && (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 10 }}
-            transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
-            className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[90] max-w-[90vw]"
-          >
-            <div className="bg-slate-900 text-white text-sm px-4 py-3 rounded-2xl shadow-2xl flex items-start gap-2.5 max-w-md">
-              <span className="text-emerald-400 flex-shrink-0 mt-0.5">🔄</span>
-              <div className="min-w-0">
-                <div className="font-semibold">Staff update applied</div>
-                <div className="text-slate-300 text-xs mt-0.5 leading-snug">
-                  &ldquo;{staffToast.message}&rdquo; · plan refreshed
-                </div>
+    <AnimatePresence>
+      {staffToast && (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: 10 }}
+          transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+          className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[90] max-w-[90vw]"
+        >
+          <div className="bg-slate-900 text-white text-sm px-4 py-3 rounded-2xl shadow-2xl flex items-start gap-2.5 max-w-md">
+            <span className="text-emerald-400 flex-shrink-0 mt-0.5">🔄</span>
+            <div className="min-w-0">
+              <div className="font-semibold">Staff update applied</div>
+              <div className="text-slate-300 text-xs mt-0.5 leading-snug">
+                &ldquo;{staffToast.message}&rdquo; · plan refreshed
               </div>
             </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
+          </div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+    </>
   )
 }
