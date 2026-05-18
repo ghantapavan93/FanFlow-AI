@@ -18,6 +18,58 @@ The two layers don't share state. The vision route is for storytelling; everythi
 
 ---
 
+## FanFlow data model
+
+FanFlow's arrival plan is computed from **four layers of context**, in order of reliability:
+
+1. **Ticket context** — `event_id`, `venue_id`, `section`, `row`, `seat`, `quantity`, `gate_hint`, `status`. The fan's seat is the anchor for every routing decision. In the prototype this is `lib/seed.ts:demoTicket`; in production it would be a `tickets` row keyed by `user_id`.
+2. **Venue context** — `gates` (with `sections_served`, `accessibility`, `family_friendly`, `typical_wait_minutes`, `map_x/y`) and `support_locations` (first aid, family services, accessibility, quiet space, restrooms, guest services). In the prototype this is `lib/seed.ts:demoVenue`; in production it would be `gates` + `support_locations` tables keyed by `venue_id`.
+3. **Fan readiness profile** — optional answers to a four-step flow: transport mode, group type, accessibility needs (`wheelchair`, `slow_pace`, `stroller`, `hearing`, `visual`, `sensory_sensitive`, `first_time`), free-form note. Stored in `localStorage` today; would be `readiness_profiles` keyed by `user_id` + `event_id`.
+4. **Live signals** — staff updates (weighted 3×) and fan pulse (weighted 1×). Today: `localStorage` + same-tab + cross-tab events via `lib/store.ts:subscribeToFanflowChanges`. Production: `live_signals` table with Supabase Realtime channels.
+
+The deterministic rule engine in `lib/seed.ts:deriveArrivalPlan` consumes all four layers and produces a structured `ArrivalPlan` (recommended gate, leave-by time, arrival time, confidence, support points, score breakdown). The AI endpoint `/api/explain-arrival-plan` only **words** the resulting plan — it never decides anything.
+
+## Operating modes
+
+FanFlow degrades gracefully across three modes, each surfaced as a chip on the Hub via the existing signals (no new state — pure projection):
+
+| Mode | Condition | Confidence | Copy |
+|---|---|---|---|
+| **Staff verified** | At least one `staff` signal in the last 60 min | High | *"Staff signals carry higher trust than fan reports."* |
+| **Fan pulse only** | `fan` signals only, no recent staff | Moderate | *"Fan reports inform conditions. Staff or venue signage should still be followed."* |
+| **Baseline guidance** | No recent signals | Lower (still useful) | *"No staff updates yet. This plan uses ticket and venue context."* |
+
+This is the answer to the *"what if StubHub can't provide staff people for every event?"* objection — **the system still works**, just with different framing on the confidence claim. Skip-readiness is similar: even with no prefs, `deriveArrivalPlan(null, signals)` returns a valid baseline plan from ticket section + venue layout.
+
+## Production path — Supabase schema (documentation only)
+
+The prototype intentionally uses `localStorage` so the demo works without any backend. The data layer is abstracted behind `lib/data/FanflowStore` so the swap to Supabase is a one-file change. The target schema:
+
+| Table | Purpose |
+|---|---|
+| `events` | id, name, venue_id, starts_at, doors_open_at, status |
+| `venues` | id, name, city, timezone |
+| `tickets` | id, user_id, event_id, section, row, seat, quantity, gate_hint, status |
+| `gates` | id, venue_id, name, sections_served, accessibility, family_friendly, typical_wait_minutes, map_x/y |
+| `support_locations` | id, venue_id, type, name, near_gate_id, walk_time_minutes, map_x/y |
+| `readiness_profiles` | id, user_id, ticket_id, transport, group, needs[], notes, updated_at |
+| `live_signals` | id, event_id, gate_id, source_type, sentiment, message, created_at, expires_at |
+| `incidents` | id, event_id, gate_id, type, status, severity, note, action, created_by |
+| `fan_pulse` | id, event_id, ticket_id, gate_id, signal, note, created_at |
+| `arrival_plans` (cache) | id, ticket_id, readiness_profile_id, recommended_gate, leave_by_time, plan_hash |
+
+Supabase Realtime broadcasts `live_signals` and `incidents` changes; the Hub re-derives the plan client-side from the new signal set. The rule engine and AI endpoint **stay identical** — only the storage layer swaps. See `docs/ARCHITECTURE.md` for the full swap path.
+
+## Safety boundary
+
+FanFlow provides **guidance, not emergency response**. The product never claims guaranteed safety, exact wait times, exact crowd prediction, or medical authority. Every safety-relevant surface carries the same line:
+
+> *"Always follow venue signage and staff instructions. For urgent medical or safety issues, contact venue staff or local emergency services."*
+
+This wording is enforced by `lib/explain/arrivalExplanation.ts:sanitizeExplanation` (regex-based banned-phrase scrubber) and tested by `tests/explanation.test.ts`. Any AI output that mentions a non-recommended gate triggers `mentionsWrongGate` and falls back to the template.
+
+---
+
 ## Honest limitations (read first)
 
 This is a 3-day prototype, not production. Each of the following is a **documented seam, not an oversight** — the architecture is deliberately shaped to swap each piece out:

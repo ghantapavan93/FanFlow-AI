@@ -332,6 +332,12 @@ export default function Home() {
               ✨ Vision walkthrough
             </Link>
             <Link
+              href="/my-tickets"
+              className="hidden lg:inline-flex btn-ghost text-sm"
+            >
+              My Tickets
+            </Link>
+            <Link
               href="/staff/wc2026-final"
               className="hidden sm:inline-flex btn-ghost text-sm"
             >

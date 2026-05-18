@@ -252,6 +252,10 @@ export default function ReadinessPage() {
               >
                 Skip for now
               </Link>
+              <p className="text-[11px] text-slate-500 text-center px-2 leading-relaxed">
+                Skip is never a dead end. We'll still build a baseline plan from your ticket
+                and venue context — personalize anytime to raise confidence.
+              </p>
             </div>
           </motion.div>
         )}

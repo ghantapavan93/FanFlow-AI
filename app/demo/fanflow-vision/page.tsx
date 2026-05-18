@@ -854,6 +854,122 @@ function StageConfirmed({ onAdvance, onBack }: { onAdvance: () => void; onBack: 
           ))}
         </div>
 
+        {/* === Ticket companion entry points ============================
+            FanFlow is not a separate page — it's attached to the ticket
+            lifecycle. These 4 tiles show where it appears across the
+            confirmation flow. My Tickets is a real route; the other
+            three are concept mocks (Wallet/email/push need provider
+            integration we don't have in a 3-day prototype). */}
+        <motion.div
+          initial={reduced ? false : { opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: reduced ? 0 : 3.4 }}
+          className="mt-6 rounded-2xl border border-slate-200 bg-slate-50 p-4 sm:p-5"
+        >
+          <div className="kicker mb-3">FanFlow is now attached to your ticket</div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+            {/* 1. My Tickets — REAL route */}
+            <Link
+              href="/my-tickets"
+              className="rounded-xl bg-white border border-violet-200 p-3 hover:border-violet-300 transition flex items-start gap-3"
+            >
+              <span className="w-9 h-9 rounded-full bg-violet-600 text-white flex items-center justify-center text-sm flex-shrink-0">
+                🎟️
+              </span>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-1.5">
+                  <span className="font-bold text-slate-900 text-sm leading-tight">My Tickets</span>
+                  <span className="inline-flex items-center px-1.5 py-0 rounded-full bg-emerald-100 text-emerald-700 text-[9px] font-bold uppercase tracking-wider">
+                    real
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-500 mt-0.5 leading-snug">
+                  Saved-tickets tab with an "Open Event Day Hub" CTA. Click to visit.
+                </p>
+              </div>
+              <span className="text-violet-600 flex-shrink-0">→</span>
+            </Link>
+
+            {/* 2. Email confirmation — concept mock */}
+            <div className="rounded-xl bg-white border border-slate-200 p-3 flex items-start gap-3">
+              <span className="w-9 h-9 rounded-full bg-sky-600 text-white flex items-center justify-center text-sm flex-shrink-0">
+                ✉️
+              </span>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="font-bold text-slate-900 text-sm leading-tight">
+                    Confirmation email
+                  </span>
+                  <span className="inline-flex items-center px-1.5 py-0 rounded-full bg-slate-100 text-slate-600 text-[9px] font-bold uppercase tracking-wider">
+                    concept · demo
+                  </span>
+                </div>
+                <div className="mt-1.5 rounded-md bg-slate-50 border border-slate-200 p-2 text-[10px] text-slate-700 leading-snug">
+                  <div className="font-semibold text-slate-900">
+                    Your ticket is confirmed · World Cup Final
+                  </div>
+                  <div className="mt-1 text-violet-700 font-semibold underline">
+                    Plan your arrival with FanFlow AI →
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* 3. Wallet companion — concept mock */}
+            <div className="rounded-xl bg-white border border-slate-200 p-3 flex items-start gap-3">
+              <span className="w-9 h-9 rounded-full bg-slate-900 text-white flex items-center justify-center text-sm flex-shrink-0">
+                💳
+              </span>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="font-bold text-slate-900 text-sm leading-tight">
+                    Wallet companion
+                  </span>
+                  <span className="inline-flex items-center px-1.5 py-0 rounded-full bg-slate-100 text-slate-600 text-[9px] font-bold uppercase tracking-wider">
+                    concept · demo
+                  </span>
+                </div>
+                <div className="mt-1.5 rounded-md bg-slate-900 text-white p-2 text-[10px] leading-snug">
+                  <div className="font-bold opacity-90">Event Day Guide</div>
+                  <div className="opacity-70 mt-0.5">
+                    Gate · route · support · live updates
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* 4. Push notification — concept mock */}
+            <div className="rounded-xl bg-white border border-slate-200 p-3 flex items-start gap-3">
+              <span className="w-9 h-9 rounded-full bg-rose-600 text-white flex items-center justify-center text-sm flex-shrink-0">
+                🔔
+              </span>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="font-bold text-slate-900 text-sm leading-tight">
+                    Pre-event update
+                  </span>
+                  <span className="inline-flex items-center px-1.5 py-0 rounded-full bg-slate-100 text-slate-600 text-[9px] font-bold uppercase tracking-wider">
+                    concept · demo
+                  </span>
+                </div>
+                <div className="mt-1.5 rounded-md bg-slate-100 border border-slate-200 p-2 text-[10px] text-slate-700 leading-snug">
+                  <div className="font-semibold text-slate-900">FanFlow · 2h before kickoff</div>
+                  <div className="mt-0.5">
+                    Staff signal: Gate 3 moving smoothly. Plan refreshed.
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <p className="text-[10px] text-slate-500 mt-3 leading-relaxed">
+            Items labeled "concept · demo" are visual mocks. Real Wallet / email / push
+            integration requires provider signing certs and is intentionally out of scope
+            for this prototype.
+          </p>
+        </motion.div>
+
         {/* Safety note */}
         <p className="text-[11px] text-slate-500 text-center mt-5 leading-relaxed max-w-md mx-auto">
           Always follow venue signage and staff instructions. FanFlow provides guidance, not emergency response.

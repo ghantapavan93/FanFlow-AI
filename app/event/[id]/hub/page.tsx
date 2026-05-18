@@ -449,14 +449,50 @@ export default function EventHubPage() {
                   body: 'No staff updates yet. This plan uses ticket and venue context.',
                 }
           return (
-            <div className={`rounded-2xl border ${mode.tone} px-4 py-3 flex items-start gap-3`}>
-              <span className={`w-2 h-2 rounded-full ${mode.dot} mt-1.5 flex-shrink-0`} />
-              <div className="min-w-0 flex-1">
-                <div className="text-[10px] font-bold uppercase tracking-wider">
-                  Guidance mode · {mode.label}
+            <div className={`rounded-2xl border ${mode.tone} px-4 py-3`}>
+              <div className="flex items-start gap-3">
+                <span className={`w-2 h-2 rounded-full ${mode.dot} mt-1.5 flex-shrink-0`} />
+                <div className="min-w-0 flex-1">
+                  <div className="text-[10px] font-bold uppercase tracking-wider">
+                    Guidance mode · {mode.label}
+                  </div>
+                  <p className="text-xs mt-0.5 leading-relaxed opacity-80">{mode.body}</p>
                 </div>
-                <p className="text-xs mt-0.5 leading-relaxed opacity-80">{mode.body}</p>
               </div>
+              {/* Collapsible: all three modes side-by-side so the recruiter
+                  can see how guidance degrades gracefully. No claims, just
+                  what each mode means and what stays true. */}
+              <details className="mt-2">
+                <summary className="cursor-pointer text-[10px] font-semibold opacity-70 hover:opacity-100">
+                  How the three modes work
+                </summary>
+                <div className="mt-2 grid grid-cols-1 sm:grid-cols-3 gap-2 text-[11px]">
+                  <div className="rounded-lg bg-white/60 border border-emerald-200 px-2.5 py-2">
+                    <div className="font-bold text-emerald-700 uppercase tracking-wider text-[9px]">
+                      Staff verified
+                    </div>
+                    <p className="text-slate-700 mt-1 leading-snug">
+                      Recent staff signal exists. Weighted 3× over fan reports. Highest confidence.
+                    </p>
+                  </div>
+                  <div className="rounded-lg bg-white/60 border border-amber-200 px-2.5 py-2">
+                    <div className="font-bold text-amber-700 uppercase tracking-wider text-[9px]">
+                      Fan pulse only
+                    </div>
+                    <p className="text-slate-700 mt-1 leading-snug">
+                      Only fan reports recently. Moderate confidence. Always follow staff and signage.
+                    </p>
+                  </div>
+                  <div className="rounded-lg bg-white/60 border border-slate-200 px-2.5 py-2">
+                    <div className="font-bold text-slate-700 uppercase tracking-wider text-[9px]">
+                      Baseline guidance
+                    </div>
+                    <p className="text-slate-700 mt-1 leading-snug">
+                      No recent signals. Plan uses your ticket section + venue layout + readiness.
+                    </p>
+                  </div>
+                </div>
+              </details>
             </div>
           )
         })()}

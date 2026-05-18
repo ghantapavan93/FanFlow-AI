@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { demoVenue } from '@/lib/seed'
 import {
@@ -45,12 +45,30 @@ function timeAgo(iso: string): string {
   return `${hrs}h ago`
 }
 
+// Structured-field options — let staff click facts rather than write prose.
+// The submitted LiveSignal.message is auto-composed from these unless the
+// staff member overrides it with the free-text "Additional note" field.
+const BAG_CHECK_OPTIONS = ['short', 'moderate', 'long', 'closed'] as const
+const ACCESS_OPTIONS = ['open', 'limited', 'closed'] as const
+const FAMILY_OPTIONS = ['clear', 'moderate', 'crowded'] as const
+const DURATION_OPTIONS = ['next 5 min', 'next 15 min', 'next 30 min', '1 hour+'] as const
+
+type BagCheck = (typeof BAG_CHECK_OPTIONS)[number]
+type AccessRoute = (typeof ACCESS_OPTIONS)[number]
+type FamilyEntrance = (typeof FAMILY_OPTIONS)[number]
+type Duration = (typeof DURATION_OPTIONS)[number]
+
 export default function StaffConsolePage() {
   const [signals, setSignals] = useState<LiveSignal[]>([])
   const [incidents, setIncidents] = useState<Incident[]>([])
   const [incidentFilter, setIncidentFilter] = useState<'all' | 'open'>('all')
   const [gateId, setGateId] = useState<string>(demoVenue.gates[0].id)
   const [sentiment, setSentiment] = useState<LiveSignal['sentiment']>('smooth')
+  const [bagCheck, setBagCheck] = useState<BagCheck | null>(null)
+  const [accessRoute, setAccessRoute] = useState<AccessRoute | null>(null)
+  const [familyEntrance, setFamilyEntrance] = useState<FamilyEntrance | null>(null)
+  const [duration, setDuration] = useState<Duration | null>(null)
+  const [note, setNote] = useState('')
   const [message, setMessage] = useState('')
   const [toast, setToast] = useState<string | null>(null)
 
@@ -86,18 +104,41 @@ export default function StaffConsolePage() {
 
   const openCount = incidents.filter((i) => i.status === 'open').length
 
+  // Auto-compose a clean factual message from the structured fields.
+  // Staff can override by typing their own message; otherwise we
+  // build something like:
+  //   "Smooth. Bag check: short. Accessibility route: open. Next 15 min."
+  const composedMessage = useMemo(() => {
+    const parts: string[] = []
+    const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1)
+    parts.push(cap(sentiment))
+    if (bagCheck) parts.push(`Bag check: ${bagCheck}`)
+    if (accessRoute) parts.push(`Accessibility route: ${accessRoute}`)
+    if (familyEntrance) parts.push(`Family entrance: ${familyEntrance}`)
+    if (duration) parts.push(cap(duration))
+    if (note.trim()) parts.push(note.trim())
+    return parts.join('. ') + '.'
+  }, [sentiment, bagCheck, accessRoute, familyEntrance, duration, note])
+
   const submit = (e: React.FormEvent) => {
     e.preventDefault()
-    if (!message.trim()) return
+    const final = message.trim() || composedMessage
+    if (!final) return
     publishSignal({
       id: `staff-${Date.now()}`,
       gate_id: gateId,
       source: 'staff',
       sentiment,
-      message: message.trim(),
+      message: final,
       created_at: new Date().toISOString(),
     })
+    // Reset all structured + free fields
     setMessage('')
+    setNote('')
+    setBagCheck(null)
+    setAccessRoute(null)
+    setFamilyEntrance(null)
+    setDuration(null)
     setToast('Update published to fans')
     setTimeout(() => setToast(null), 2200)
   }
@@ -473,24 +514,139 @@ export default function StaffConsolePage() {
                 </div>
               </div>
 
+              {/* Structured fields — let staff click facts rather than write
+                  prose. The composed message previews below in real time. */}
               <div>
                 <label className="text-xs font-semibold text-slate-300 uppercase tracking-wide">
-                  Message
+                  Bag check line
                 </label>
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {BAG_CHECK_OPTIONS.map((o) => (
+                    <button
+                      type="button"
+                      key={o}
+                      onClick={() => setBagCheck(bagCheck === o ? null : o)}
+                      className={`px-2.5 py-1 rounded-full text-xs font-semibold border transition ${
+                        bagCheck === o
+                          ? 'bg-violet-600 text-white border-transparent'
+                          : 'bg-slate-950 border-slate-700 text-slate-300 hover:border-slate-500'
+                      }`}
+                    >
+                      {o}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-slate-300 uppercase tracking-wide">
+                  Accessibility route
+                </label>
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {ACCESS_OPTIONS.map((o) => (
+                    <button
+                      type="button"
+                      key={o}
+                      onClick={() => setAccessRoute(accessRoute === o ? null : o)}
+                      className={`px-2.5 py-1 rounded-full text-xs font-semibold border transition ${
+                        accessRoute === o
+                          ? 'bg-violet-600 text-white border-transparent'
+                          : 'bg-slate-950 border-slate-700 text-slate-300 hover:border-slate-500'
+                      }`}
+                    >
+                      {o}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-slate-300 uppercase tracking-wide">
+                  Family entrance
+                </label>
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {FAMILY_OPTIONS.map((o) => (
+                    <button
+                      type="button"
+                      key={o}
+                      onClick={() => setFamilyEntrance(familyEntrance === o ? null : o)}
+                      className={`px-2.5 py-1 rounded-full text-xs font-semibold border transition ${
+                        familyEntrance === o
+                          ? 'bg-violet-600 text-white border-transparent'
+                          : 'bg-slate-950 border-slate-700 text-slate-300 hover:border-slate-500'
+                      }`}
+                    >
+                      {o}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-slate-300 uppercase tracking-wide">
+                  Expected duration
+                </label>
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {DURATION_OPTIONS.map((o) => (
+                    <button
+                      type="button"
+                      key={o}
+                      onClick={() => setDuration(duration === o ? null : o)}
+                      className={`px-2.5 py-1 rounded-full text-xs font-semibold border transition ${
+                        duration === o
+                          ? 'bg-violet-600 text-white border-transparent'
+                          : 'bg-slate-950 border-slate-700 text-slate-300 hover:border-slate-500'
+                      }`}
+                    >
+                      {o}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-slate-300 uppercase tracking-wide">
+                  Additional note (optional)
+                </label>
+                <input
+                  type="text"
+                  value={note}
+                  onChange={(e) => setNote(e.target.value)}
+                  placeholder="e.g. Stroller lane open"
+                  className="mt-2 w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm focus:border-violet-500 focus:outline-none"
+                  maxLength={120}
+                />
+              </div>
+
+              {/* Live preview of the composed message */}
+              <div className="rounded-lg border border-slate-700 bg-slate-950/60 p-3">
+                <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
+                  Fans will see
+                </div>
+                <p className="text-xs text-slate-200 leading-snug">
+                  &ldquo;{message.trim() || composedMessage}&rdquo;
+                </p>
+              </div>
+
+              {/* Override box — collapsed by default since structured fields
+                  cover the common case */}
+              <details className="text-xs">
+                <summary className="cursor-pointer text-slate-400 hover:text-slate-200">
+                  Override with custom message
+                </summary>
                 <textarea
                   value={message}
                   onChange={(e) => setMessage(e.target.value)}
-                  placeholder="e.g. Family entrance clear, moving smoothly"
-                  className="mt-2 w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-white focus:border-violet-500 focus:outline-none min-h-24"
+                  placeholder="Write your own message instead"
+                  className="mt-2 w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm focus:border-violet-500 focus:outline-none min-h-16"
                   maxLength={140}
                 />
-                <div className="text-xs text-slate-500 text-right mt-1">{message.length} / 140</div>
-              </div>
+                <div className="text-[10px] text-slate-500 text-right">{message.length} / 140</div>
+              </details>
 
               <button
                 type="submit"
-                disabled={!message.trim()}
-                className="w-full py-3 rounded-lg bg-violet-600 hover:bg-violet-500 disabled:bg-slate-700 disabled:cursor-not-allowed text-white font-bold transition"
+                className="w-full py-3 rounded-lg bg-violet-600 hover:bg-violet-500 text-white font-bold transition"
               >
                 Publish to fans
               </button>
