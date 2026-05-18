@@ -71,22 +71,35 @@ const STAGE_LABELS: Record<Stage, string> = {
 const CATEGORIES = ['Sports', 'Concerts', 'Theater', 'Festivals', 'Top Cities']
 const NAV_RIGHT = ['Explore', 'Sell', 'Favorites', 'My Tickets']
 
-const HERO_EVENTS = [
+type CardEvent = {
+  id: string
+  title: string
+  sub?: string
+  date?: string
+  venue?: string
+  views?: string
+  rank?: number
+  bg?: string
+  brand?: string
+  img?: string
+  fanflow?: boolean
+  trending?: boolean
+}
+
+const HERO_EVENTS: CardEvent[] = [
   {
     id: 'nba',
     title: 'NBA Playoffs',
     sub: 'May 17 – Jun 19',
     bg: 'from-slate-900 to-slate-800',
     brand: 'Playoffs',
-    fanflow: false,
   },
   {
     id: 'nfl',
     title: 'NFL',
     sub: 'Season',
     bg: 'from-amber-700 via-amber-800 to-stone-900',
-    brand: 'NFL',
-    fanflow: false,
+    img: 'https://images.unsplash.com/photo-1566577739112-5180d4bf9390?w=600&h=600&fit=crop',
   },
   {
     id: 'wc',
@@ -101,16 +114,35 @@ const HERO_EVENTS = [
     title: 'BTS',
     sub: 'May 17 – Oct 31',
     bg: 'from-rose-500 via-pink-600 to-fuchsia-700',
-    brand: 'BTS',
-    fanflow: false,
+    img: 'https://images.unsplash.com/photo-1501386761578-eac5c94b800a?w=600&h=600&fit=crop',
   },
 ]
 
-const SECONDARY_ROWS = [
-  { kicker: 'Last minute deals', items: ['Coldplay tonight', 'Knicks vs Celtics', 'Hamilton Sun'] },
-  { kicker: 'Trending near you', items: ['World Cup Final', 'NBA Finals Game 5', 'Taylor Swift'] },
-  { kicker: 'Recommended for you', items: ['Dallas Cowboys', 'Texas Rangers', 'Sooners FB'] },
+// Recently viewed — small cards with view-count pills like the real StubHub
+const RECENTLY_VIEWED: CardEvent[] = [
+  { id: 'wc-rv', title: 'World Cup', views: '60.7k', bg: 'from-violet-600 to-indigo-800', brand: 'WORLD\nCUP', fanflow: true },
+  { id: 'bottlerock', title: 'BottleRock Napa Valley', views: '5.3k', bg: 'from-lime-400 to-sky-400', brand: 'B' },
+  { id: 'tcu', title: 'TCU Horned Frogs Football', views: '285', bg: 'from-amber-700 to-stone-900', img: 'https://images.unsplash.com/photo-1566577739112-5180d4bf9390?w=400&h=400&fit=crop' },
+  { id: 'rangers-rv', title: 'Texas Rangers', views: '31.9k', bg: 'from-blue-700 to-blue-900', brand: 'T' },
 ]
+
+// Trending Events near Denton — numbered #1..#4
+const TRENDING_NEAR: CardEvent[] = [
+  { id: 'bts-t', title: 'BTS', rank: 1, date: 'Sat, 15 Aug · 8:00 PM', venue: 'AT&T Stadium', img: 'https://images.unsplash.com/photo-1501386761578-eac5c94b800a?w=400&h=400&fit=crop' },
+  { id: 'wc-t', title: 'Netherlands vs Japan · World Cup Group F', rank: 2, date: 'Sun, 14 Jun · 3:00 PM', venue: 'AT&T Stadium', bg: 'from-violet-600 to-indigo-800', brand: 'WORLD\nCUP', fanflow: true },
+  { id: 'usher', title: 'Usher and Chris Brown', rank: 3, date: 'Thu, 10 Sep · 7:00 PM', venue: 'AT&T Stadium', img: 'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=400&h=400&fit=crop' },
+  { id: 'forrest', title: 'Forrest Frank', rank: 4, date: 'Sat, 01 Aug · 7:00 PM', venue: 'Globe Life Field', img: 'https://images.unsplash.com/photo-1470229722913-7c0e2dbbafd3?w=400&h=400&fit=crop' },
+]
+
+// Last-minute deals
+const LAST_MINUTE: CardEvent[] = [
+  { id: 'behemoth', title: 'Behemoth', date: 'Mon, 18 May · 18:30', venue: 'The Bomb Factory', img: 'https://images.unsplash.com/photo-1429962714451-bb934ecdc4ec?w=400&h=400&fit=crop' },
+  { id: 'mystics', title: 'Washington Mystics at Dallas Wings', date: 'Mon, 18 May · 19:00', venue: 'College Park Center', img: 'https://images.unsplash.com/photo-1546519638-68e109498ffc?w=400&h=400&fit=crop' },
+  { id: 'pubchoir', title: 'Pub Choir', date: 'Mon, 18 May · 19:00', venue: 'Texas Theatre', img: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=400&h=400&fit=crop' },
+  { id: 'sanantonio', title: 'San Antonio Missions at Frisco Roughriders', date: 'Tue, 19 May · 11:05', venue: 'Riders Field', img: 'https://images.unsplash.com/photo-1508098682722-e99c43a406b2?w=400&h=400&fit=crop' },
+]
+
+const DISCOVERY_FILTERS = ['All types', 'Sports', 'Concerts', 'Theatre & Comedy']
 
 const MATCHES = [
   {
@@ -256,28 +288,110 @@ function CheckTick({ delay = 0 }: { delay?: number }) {
   )
 }
 
-function NavBar() {
+/**
+ * StubHub-style nav bar. The brand block looks like the real StubHub
+ * purple-rounded-square mark; the "+ FanFlow AI" pill makes clear this
+ * is the FanFlow integration concept, not the actual StubHub site.
+ *
+ * `compact` mode (used on Listing / Seatmap / Confirmed / Building /
+ * Preview) shrinks the search bar and hides the category row so the
+ * stage's own content gets more vertical room.
+ */
+function NavBar({ compact = false }: { compact?: boolean }) {
   return (
-    <div className="border-b border-slate-100 bg-white">
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between gap-4">
+    <header className="sticky top-12 z-30 bg-white border-b border-slate-100">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 h-14 sm:h-16 flex items-center justify-between gap-3">
         <div className="flex items-center gap-2 flex-shrink-0">
-          <div className="w-7 h-7 rounded-md bg-gradient-to-br from-violet-600 to-violet-800" />
-          <span className="font-bold text-slate-900 text-sm">Marketplace</span>
+          <div className="bg-violet-700 text-white font-extrabold text-sm sm:text-base px-2.5 py-1 rounded-md leading-none tracking-tight">
+            StubHub
+          </div>
           <span className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-violet-50 border border-violet-100 text-[10px] font-bold uppercase tracking-wider text-violet-700">
             + FanFlow AI
           </span>
         </div>
-        <div className="hidden md:flex flex-1 max-w-md items-center gap-2 px-3 h-9 rounded-full bg-slate-100 border border-slate-200 text-sm text-slate-400">
-          <span>🔍</span>
-          <span className="truncate">Search events, artists, teams…</span>
-        </div>
-        <div className="flex items-center gap-4 text-sm font-semibold text-slate-600">
+        {!compact && (
+          <div className="hidden md:flex flex-1 max-w-md items-center gap-2 px-3 h-9 rounded-full bg-slate-100 border border-slate-200 text-sm text-slate-400">
+            <span>🔍</span>
+            <span className="truncate">Search events, artists, teams…</span>
+          </div>
+        )}
+        <div className="flex items-center gap-3 sm:gap-4 text-sm font-semibold text-slate-600">
           {NAV_RIGHT.map((n) => (
             <span key={n} className="hidden lg:inline">{n}</span>
           ))}
           <div className="w-7 h-7 rounded-full bg-rose-500 text-white flex items-center justify-center text-[10px] font-bold">M</div>
         </div>
       </div>
+      {!compact && (
+        <div className="border-t border-slate-100">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 h-10 flex items-center gap-5 text-sm font-semibold text-slate-700 overflow-x-auto">
+            {CATEGORIES.map((c) => (
+              <button key={c} className="hover:text-slate-900 whitespace-nowrap">
+                {c}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </header>
+  )
+}
+
+/**
+ * Reusable card primitives used by every section of Stage 1.
+ */
+function HeartIcon({ tone = 'light' }: { tone?: 'light' | 'on-image' }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      className="w-3.5 h-3.5"
+      fill="none"
+      stroke={tone === 'on-image' ? 'white' : '#475569'}
+      strokeWidth="2"
+    >
+      <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+    </svg>
+  )
+}
+
+function CardCorner({ views }: { views?: string }) {
+  return (
+    <div className="absolute top-2.5 right-2.5 flex items-center gap-1 z-10">
+      {views && (
+        <span className="bg-slate-900/80 backdrop-blur-sm text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
+          {views}
+        </span>
+      )}
+      <button
+        onClick={(e) => e.preventDefault()}
+        className="w-7 h-7 rounded-full bg-slate-900/40 backdrop-blur-sm hover:bg-slate-900/60 flex items-center justify-center transition"
+        aria-label="Favorite"
+      >
+        <HeartIcon tone="on-image" />
+      </button>
+    </div>
+  )
+}
+
+function CardTile({ ev }: { ev: CardEvent }) {
+  if (ev.img) {
+    return (
+      <div
+        className="relative aspect-square rounded-2xl bg-cover bg-center overflow-hidden"
+        style={{ backgroundImage: `url(${ev.img})` }}
+      />
+    )
+  }
+  return (
+    <div
+      className={`relative aspect-square rounded-2xl overflow-hidden flex items-center justify-center bg-gradient-to-br ${ev.bg ?? 'from-slate-700 to-slate-900'}`}
+    >
+      {ev.brand && (
+        <div className="text-white font-bold leading-[0.85] tracking-tighter whitespace-pre-line text-center text-[28px] sm:text-[40px]">
+          {ev.brand}
+        </div>
+      )}
+      <div className="absolute inset-0 opacity-25 bg-[radial-gradient(circle_at_20%_30%,rgba(255,255,255,0.4),transparent_60%),radial-gradient(circle_at_80%_70%,rgba(0,0,0,0.4),transparent_60%)]" />
     </div>
   )
 }
@@ -288,91 +402,247 @@ function NavBar() {
 
 function StageDiscovery({ onAdvance }: { onAdvance: () => void }) {
   const reduced = useReducedMotion()
+  const [activeFilter, setActiveFilter] = useState('All types')
+
+  // Reusable section header
+  const SectionHead = ({ title, cta }: { title: string; cta?: string }) => (
+    <div className="flex items-center justify-between mb-4 px-1">
+      <h2 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">{title}</h2>
+      {cta && <button className="text-sm font-semibold text-sky-600 hover:underline">{cta}</button>}
+    </div>
+  )
+
+  // Compact card used by Recently viewed / Last-minute deals
+  const CompactCard = ({ ev }: { ev: CardEvent }) => {
+    const Inner = (
+      <div className="group">
+        <div className="relative">
+          <CardCorner views={ev.views} />
+          {ev.fanflow && (
+            <span className="absolute top-2.5 left-2.5 z-10">
+              <FanflowBadge subtle />
+            </span>
+          )}
+          <CardTile ev={ev} />
+        </div>
+        <div className="mt-2.5 px-0.5">
+          <div className="font-bold text-slate-900 text-sm leading-tight line-clamp-2">
+            {ev.title}
+          </div>
+          {ev.date && <div className="text-xs text-slate-600 mt-1">{ev.date}</div>}
+          {ev.venue && <div className="text-xs text-slate-500 mt-0.5">{ev.venue}</div>}
+        </div>
+      </div>
+    )
+    return ev.fanflow ? (
+      <button
+        onClick={onAdvance}
+        className="text-left rounded-2xl focus:outline-none focus:ring-2 focus:ring-violet-400"
+      >
+        {Inner}
+      </button>
+    ) : (
+      <div>{Inner}</div>
+    )
+  }
+
+  // Numbered card used by Trending Events near Denton
+  const NumberedCard = ({ ev }: { ev: CardEvent }) => {
+    const Inner = (
+      <div className="group">
+        <div className="relative">
+          <CardCorner />
+          {ev.fanflow && (
+            <span className="absolute top-2.5 left-9 z-10">
+              <FanflowBadge subtle />
+            </span>
+          )}
+          <span className="absolute top-2.5 left-2.5 inline-flex items-center justify-center w-7 h-7 rounded-full bg-violet-600 text-white text-xs font-bold z-10">
+            #{ev.rank}
+          </span>
+          <CardTile ev={ev} />
+        </div>
+        <div className="mt-2.5 px-0.5">
+          <div className="font-bold text-slate-900 text-sm leading-tight line-clamp-2">
+            {ev.title}
+          </div>
+          {ev.date && <div className="text-xs text-slate-600 mt-1">{ev.date}</div>}
+          {ev.venue && <div className="text-xs text-slate-500 mt-0.5">{ev.venue}</div>}
+        </div>
+      </div>
+    )
+    return ev.fanflow ? (
+      <button
+        onClick={onAdvance}
+        className="text-left rounded-2xl focus:outline-none focus:ring-2 focus:ring-violet-400"
+      >
+        {Inner}
+      </button>
+    ) : (
+      <div>{Inner}</div>
+    )
+  }
+
   return (
     <div className="min-h-screen bg-white">
       <NavBar />
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
-        {/* Categories row */}
-        <div className="flex flex-wrap gap-2 mb-6">
-          {CATEGORIES.map((c) => (
-            <span key={c} className="chip">{c}</span>
-          ))}
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
+        {/* Search bar — large rounded like StubHub */}
+        <div className="relative mb-6 sm:mb-8">
+          <input
+            type="text"
+            placeholder="Search events, artists, teams and more"
+            className="w-full h-12 sm:h-14 pl-12 pr-4 rounded-full border border-slate-200 bg-white text-sm sm:text-base placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-violet-400 focus:border-violet-400"
+          />
+          <span className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400 text-lg">🔍</span>
         </div>
 
-        {/* Hero — 4 cards */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-          {HERO_EVENTS.map((ev, i) => {
-            const Card = (
-              <motion.div
-                initial={reduced ? false : { opacity: 0, y: 12 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.5, delay: i * 0.06, ease: [0.16, 1, 0.3, 1] }}
-                whileHover={ev.fanflow && !reduced ? { y: -3 } : undefined}
-                className={`relative aspect-square rounded-2xl overflow-hidden bg-gradient-to-br ${ev.bg} flex items-center justify-center cursor-pointer`}
-              >
-                {ev.fanflow && (
-                  <span className="absolute top-2.5 left-2.5 z-10">
-                    <FanflowBadge subtle />
-                  </span>
-                )}
-                <div className="text-white font-bold leading-[0.9] tracking-tighter whitespace-pre-line text-center text-[28px] sm:text-[44px]">
-                  {ev.brand}
-                </div>
-                {ev.fanflow && !reduced && (
-                  <motion.span
-                    aria-hidden="true"
-                    className="pointer-events-none absolute inset-y-0 left-0 w-1/3 bg-gradient-to-r from-transparent via-white/40 to-transparent"
-                    animate={{ x: ['-100%', '400%'] }}
-                    transition={{ duration: 2.6, repeat: Infinity, ease: 'easeInOut', repeatDelay: 1.4 }}
-                  />
-                )}
-                <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent px-3 py-2.5">
-                  <div className="text-white font-bold text-sm sm:text-base leading-tight">{ev.title}</div>
-                  <div className="text-white/80 text-[10px] sm:text-xs mt-0.5">{ev.sub}</div>
-                </div>
-              </motion.div>
-            )
-            return ev.fanflow ? (
-              <button key={ev.id} onClick={onAdvance} className="text-left rounded-2xl focus:outline-none focus:ring-2 focus:ring-violet-400">
-                {Card}
-              </button>
-            ) : (
-              <div key={ev.id}>{Card}</div>
-            )
-          })}
-        </div>
-
-        {/* Three rows of secondary categories */}
-        {SECONDARY_ROWS.map((row, idx) => (
-          <motion.div
-            key={row.kicker}
-            initial={reduced ? false : { opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.3 + idx * 0.08 }}
-            className="mt-10"
-          >
-            <div className="kicker mb-3">{row.kicker}</div>
-            <div className="grid grid-cols-3 gap-3">
-              {row.items.map((it) => (
-                <div
-                  key={it}
-                  className="rounded-xl bg-slate-50 border border-slate-200 px-3 py-3 text-sm font-semibold text-slate-700 truncate"
+        {/* Hero — 4 large square cards */}
+        <section>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+            {HERO_EVENTS.map((ev, i) => {
+              const Inner = (
+                <motion.div
+                  initial={reduced ? false : { opacity: 0, y: 12 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.5, delay: i * 0.06, ease: [0.16, 1, 0.3, 1] }}
+                  whileHover={ev.fanflow && !reduced ? { y: -3 } : undefined}
+                  className="relative cursor-pointer"
                 >
-                  {it}
-                </div>
-              ))}
-            </div>
-          </motion.div>
-        ))}
+                  <CardCorner />
+                  {ev.fanflow && (
+                    <span className="absolute top-2.5 left-2.5 z-10">
+                      <FanflowBadge subtle />
+                    </span>
+                  )}
+                  <CardTile ev={ev} />
+                  {ev.fanflow && !reduced && (
+                    <motion.span
+                      aria-hidden="true"
+                      className="pointer-events-none absolute inset-y-0 left-0 w-1/3 rounded-2xl overflow-hidden bg-gradient-to-r from-transparent via-white/30 to-transparent"
+                      animate={{ x: ['-100%', '400%'] }}
+                      transition={{ duration: 2.6, repeat: Infinity, ease: 'easeInOut', repeatDelay: 1.6 }}
+                    />
+                  )}
+                  <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/75 to-transparent px-3 py-2.5 rounded-b-2xl">
+                    <div className="text-white font-bold text-base sm:text-lg leading-tight">{ev.title}</div>
+                    <div className="text-white/80 text-[11px] sm:text-xs mt-0.5">{ev.sub}</div>
+                  </div>
+                </motion.div>
+              )
+              return ev.fanflow ? (
+                <button
+                  key={ev.id}
+                  onClick={onAdvance}
+                  className="text-left rounded-2xl focus:outline-none focus:ring-2 focus:ring-violet-400"
+                >
+                  {Inner}
+                </button>
+              ) : (
+                <div key={ev.id}>{Inner}</div>
+              )
+            })}
+          </div>
+        </section>
 
-        {/* Inline FanFlow promo strip */}
-        <motion.div
+        {/* Filter row — location chip + filter chips */}
+        <section className="mt-6 sm:mt-8 flex flex-wrap items-center gap-3">
+          <button className="w-10 h-10 rounded-full bg-violet-100 hover:bg-violet-200 flex items-center justify-center transition">
+            📍
+          </button>
+          <button className="chip font-semibold !text-slate-700">
+            <span>📌</span> Denton <span className="text-slate-400">▾</span>
+          </button>
+          <button className="chip font-semibold !text-slate-700">
+            <span>📅</span> All dates <span className="text-slate-400">▾</span>
+          </button>
+          <div className="hidden sm:block h-6 w-px bg-slate-200" />
+          <div className="flex flex-wrap gap-2">
+            {DISCOVERY_FILTERS.map((f) => (
+              <button
+                key={f}
+                onClick={() => setActiveFilter(f)}
+                className={activeFilter === f ? 'chip-active' : 'chip'}
+              >
+                {f}
+              </button>
+            ))}
+          </div>
+        </section>
+
+        {/* Spotify connect banner */}
+        <section className="mt-8 rounded-2xl bg-slate-900 text-white p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center gap-4">
+          <div className="w-10 h-10 rounded-full bg-emerald-500 flex items-center justify-center text-xl flex-shrink-0">
+            🎵
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="font-bold text-base">
+              Connect your Spotify account and sync your favorite artists
+            </div>
+            <div className="text-sm text-slate-300 mt-0.5">
+              Discover events from who you actually listen to
+            </div>
+          </div>
+          <button className="inline-flex items-center justify-center min-h-[44px] px-5 rounded-full bg-emerald-500 hover:bg-emerald-400 text-slate-900 font-bold text-sm transition flex-shrink-0">
+            Connect Spotify
+          </button>
+        </section>
+
+        {/* Recently viewed */}
+        <motion.section
           initial={reduced ? false : { opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.6 }}
-          className="mt-10 rounded-2xl bg-gradient-to-br from-violet-50 to-fuchsia-50 border border-violet-200 p-5 sm:p-6 flex flex-col sm:flex-row items-start sm:items-center gap-4"
+          transition={{ duration: 0.5, delay: 0.2 }}
+          className="mt-10 sm:mt-12"
         >
-          <div className="w-12 h-12 rounded-full bg-violet-600 text-white flex items-center justify-center text-xl flex-shrink-0">✨</div>
+          <SectionHead title="Recently viewed" cta="Edit" />
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
+            {RECENTLY_VIEWED.map((ev) => (
+              <CompactCard key={ev.id} ev={ev} />
+            ))}
+          </div>
+        </motion.section>
+
+        {/* Trending Events near Denton — numbered */}
+        <motion.section
+          initial={reduced ? false : { opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.28 }}
+          className="mt-10 sm:mt-12"
+        >
+          <SectionHead title="Trending Events near Denton" />
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
+            {TRENDING_NEAR.map((ev) => (
+              <NumberedCard key={ev.id} ev={ev} />
+            ))}
+          </div>
+        </motion.section>
+
+        {/* Last-minute deals */}
+        <motion.section
+          initial={reduced ? false : { opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.36 }}
+          className="mt-10 sm:mt-12"
+        >
+          <SectionHead title="Last-minute deals" />
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
+            {LAST_MINUTE.map((ev) => (
+              <CompactCard key={ev.id} ev={ev} />
+            ))}
+          </div>
+        </motion.section>
+
+        {/* Inline FanFlow promo strip — the wedge story */}
+        <motion.section
+          initial={reduced ? false : { opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.5 }}
+          className="mt-10 sm:mt-12 rounded-2xl bg-gradient-to-br from-violet-50 to-fuchsia-50 border border-violet-200 p-5 sm:p-6 flex flex-col sm:flex-row items-start sm:items-center gap-4"
+        >
+          <div className="w-12 h-12 rounded-full bg-violet-600 text-white flex items-center justify-center text-xl flex-shrink-0">
+            ✨
+          </div>
           <div className="flex-1 min-w-0">
             <div className="kicker text-violet-700">New on selected events</div>
             <h3 className="text-lg sm:text-xl font-bold text-slate-900 tracking-tight mt-0.5">
@@ -383,14 +653,114 @@ function StageDiscovery({ onAdvance }: { onAdvance: () => void }) {
               Unlocks automatically on eligible events after checkout.
             </p>
           </div>
-          <button
-            onClick={onAdvance}
-            className="btn-primary !min-h-[44px] flex-shrink-0"
-          >
+          <button onClick={onAdvance} className="btn-primary !min-h-[44px] flex-shrink-0">
             See it on World Cup →
           </button>
-        </motion.div>
-      </div>
+        </motion.section>
+
+        {/* Download app banner */}
+        <section className="mt-12 rounded-2xl bg-violet-100 p-6 sm:p-8 flex flex-col sm:flex-row items-center justify-between gap-6">
+          <div className="flex-1">
+            <h3 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
+              Download the StubHub app
+            </h3>
+            <p className="text-sm text-slate-700 mt-1">
+              Discover your favourite events with ease
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2 items-center">
+            <button className="inline-flex items-center gap-2 px-4 py-2.5 bg-slate-900 text-white rounded-xl text-sm font-semibold">
+              <span>🍎</span>
+              <span className="text-left">
+                <span className="block text-[10px] opacity-70 leading-none">Download on the</span>
+                <span className="block leading-tight">App Store</span>
+              </span>
+            </button>
+            <button className="inline-flex items-center gap-2 px-4 py-2.5 bg-slate-900 text-white rounded-xl text-sm font-semibold">
+              <span>▶️</span>
+              <span className="text-left">
+                <span className="block text-[10px] opacity-70 leading-none">GET IT ON</span>
+                <span className="block leading-tight">Google Play</span>
+              </span>
+            </button>
+          </div>
+        </section>
+
+        {/* Email signup */}
+        <section className="mt-12 text-center">
+          <h3 className="text-base sm:text-lg font-bold text-slate-900">
+            Get hot events and deals delivered straight to your inbox
+          </h3>
+          <form
+            onSubmit={(e) => e.preventDefault()}
+            className="mt-4 flex flex-col sm:flex-row gap-2 max-w-md mx-auto"
+          >
+            <input
+              type="email"
+              placeholder="Email address"
+              className="flex-1 h-11 px-4 rounded-full border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-violet-400"
+            />
+            <button
+              type="submit"
+              className="h-11 px-6 rounded-full border-2 border-violet-600 text-violet-700 font-bold text-sm hover:bg-violet-50 transition"
+            >
+              Join the List
+            </button>
+          </form>
+          <p className="text-[11px] text-slate-500 mt-3 max-w-md mx-auto">
+            By signing up, you acknowledge and accept our privacy policy and consent to receiving
+            emails.
+          </p>
+        </section>
+      </main>
+
+      {/* Footer */}
+      <footer className="border-t border-slate-200 mt-12 bg-white">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-10 grid grid-cols-2 md:grid-cols-4 gap-8">
+          <div>
+            <div className="flex items-center gap-2 mb-4">
+              <span className="text-violet-700">🛡️</span>
+              <span className="font-bold text-slate-900">FanProtect</span>
+            </div>
+            <ul className="text-xs text-slate-600 space-y-2">
+              <li>✓ Buy and sell with confidence</li>
+              <li>✓ Customer service all the way to your seat</li>
+              <li>✓ Every order is 100% guaranteed</li>
+            </ul>
+          </div>
+          <div>
+            <div className="text-sm font-bold text-slate-900 mb-3">Our Company</div>
+            <ul className="text-sm text-slate-600 space-y-2">
+              <li>About Us</li>
+              <li>Open Distribution</li>
+              <li>Investors</li>
+              <li className="text-violet-700 font-semibold">Careers</li>
+            </ul>
+          </div>
+          <div>
+            <div className="text-sm font-bold text-slate-900 mb-3">Have Questions?</div>
+            <ul className="text-sm text-slate-600 space-y-2">
+              <li>Help Centre</li>
+              <li>Gift Cards</li>
+            </ul>
+          </div>
+          <div>
+            <div className="text-sm font-bold text-slate-900 mb-3">
+              Live events all over the world
+            </div>
+            <div className="border border-slate-200 rounded-xl p-3 text-xs space-y-1 text-slate-600">
+              <div>🇺🇸 United States</div>
+              <div>English (UK) · US$</div>
+            </div>
+          </div>
+        </div>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 pb-8 text-[11px] text-slate-500 leading-relaxed">
+          © 2000–2026 StubHub. All Rights Reserved.
+          <span className="block mt-1 text-violet-700 font-semibold">
+            Demo · StubHub-inspired surface for the FanFlow AI walkthrough. Only the World Cup card advances.
+          </span>
+        </div>
+      </footer>
     </div>
   )
 }
@@ -408,7 +778,7 @@ function StageListing({ onAdvance, onBack }: { onAdvance: () => void; onBack: ()
   }
   return (
     <div className="min-h-screen bg-slate-50">
-      <NavBar />
+      <NavBar compact />
       <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
         <button onClick={onBack} className="text-xs text-slate-500 hover:text-slate-700 mb-3">
           ← Back to discovery
@@ -521,7 +891,7 @@ function StageSeatmap({ onAdvance, onBack }: { onAdvance: () => void; onBack: ()
   const [selected, setSelected] = useState(true) // Section 117 pre-selected
   return (
     <div className="min-h-screen bg-slate-50">
-      <NavBar />
+      <NavBar compact />
       <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
         <button onClick={onBack} className="text-xs text-slate-500 hover:text-slate-700 mb-3">
           ← Back to listing
@@ -717,7 +1087,7 @@ function StageConfirmed({ onAdvance, onBack }: { onAdvance: () => void; onBack: 
   const reduced = useReducedMotion()
   return (
     <div className="min-h-screen bg-white">
-      <NavBar />
+      <NavBar compact />
       <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8 sm:py-12">
         <button onClick={onBack} className="text-xs text-slate-500 hover:text-slate-700 mb-4">
           ← Back to seat selection
@@ -1019,7 +1389,7 @@ function StageBuilding({ onAdvance, onBack }: { onAdvance: () => void; onBack: (
 
   return (
     <div className="min-h-screen bg-white">
-      <NavBar />
+      <NavBar compact />
       <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8 sm:py-12">
         <button onClick={onBack} className="text-xs text-slate-500 hover:text-slate-700 mb-4">
           ← Back to confirmation
@@ -1149,7 +1519,7 @@ function StagePreview({ onBack }: { onBack: () => void }) {
   const reduced = useReducedMotion()
   return (
     <div className="min-h-screen bg-slate-50">
-      <NavBar />
+      <NavBar compact />
       <div className="max-w-3xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-4">
         <button onClick={onBack} className="text-xs text-slate-500 hover:text-slate-700">
           ← Back to building
