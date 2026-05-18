@@ -1,0 +1,51 @@
+# Continuous integration — runs on every push and PR.
+#
+# Three gates:
+#   1. Typecheck (`tsc --noEmit`) — catches type drift across the 16 routes
+#   2. Tests (vitest, 33 assertions) — locks the rule engine + sanitizer
+#      + gate guard + persona-coverage behavior
+#   3. Lint (`next lint`) — react/hooks/a11y rules
+#
+# Build verification is deliberately NOT in CI here because Vercel runs
+# the production build on every push as part of its preview-deploy flow.
+# Duplicating it in GitHub Actions burns minutes for no extra signal.
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# Cancel earlier in-flight runs on the same ref — saves CI minutes on
+# rapid pushes (the rebased / amended commit is what matters).
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+      - name: Test
+        run: npm test
+
+      - name: Lint
+        run: npx next lint

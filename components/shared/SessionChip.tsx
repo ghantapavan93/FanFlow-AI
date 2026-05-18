@@ -18,14 +18,25 @@ import { getSessionId, resetSession } from '@/lib/session'
  */
 export function SessionChip({ tone = 'light' }: { tone?: 'light' | 'dark' }) {
   const [id, setId] = useState<string | null>(null)
+  const [justReset, setJustReset] = useState(false)
 
   useEffect(() => {
     setId(getSessionId())
   }, [])
 
+  // Visible-confirmation pulse for the Reset click. Without this the
+  // button feels broken — the underlying state DOES clear, but the
+  // user only sees the id shift, which is easy to miss.
+  useEffect(() => {
+    if (!justReset) return
+    const t = setTimeout(() => setJustReset(false), 1800)
+    return () => clearTimeout(t)
+  }, [justReset])
+
   const onReset = () => {
     const fresh = resetSession()
     setId(fresh)
+    setJustReset(true)
   }
 
   if (!id) return null
@@ -43,19 +54,35 @@ export function SessionChip({ tone = 'light' }: { tone?: 'light' | 'dark' }) {
 
   return (
     <div
-      className={`inline-flex items-center gap-2 px-2.5 py-1 rounded-full border text-[10px] font-mono ${cls}`}
+      className={`inline-flex items-center gap-2 px-2.5 py-1 rounded-full border text-[10px] font-mono transition-colors ${
+        justReset
+          ? 'bg-emerald-50 border-emerald-300 text-emerald-800'
+          : cls
+      }`}
+      role="status"
+      aria-live="polite"
     >
-      <span className="w-1.5 h-1.5 rounded-full bg-violet-500" />
-      Session
-      <span className={`font-bold ${valueCls}`}>{id.slice(0, 8)}</span>
-      <span className={sepCls}>·</span>
-      <button
-        onClick={onReset}
-        className={`font-semibold ${linkCls}`}
-        title="Wipe this session's readiness, signals, incidents, and checklist. Generates a new session id."
-      >
-        Reset
-      </button>
+      <span
+        className={`w-1.5 h-1.5 rounded-full ${
+          justReset ? 'bg-emerald-500' : 'bg-violet-500'
+        }`}
+      />
+      {justReset ? (
+        <span className="font-semibold">Session reset · new id {id.slice(0, 8)}</span>
+      ) : (
+        <>
+          Session
+          <span className={`font-bold ${valueCls}`}>{id.slice(0, 8)}</span>
+          <span className={sepCls}>·</span>
+          <button
+            onClick={onReset}
+            className={`font-semibold ${linkCls}`}
+            title="Wipe this session's readiness, signals, incidents, and checklist. Generates a new session id."
+          >
+            Reset
+          </button>
+        </>
+      )}
     </div>
   )
 }

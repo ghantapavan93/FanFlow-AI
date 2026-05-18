@@ -6,6 +6,30 @@ A post-purchase event-day guidance layer that turns a StubHub ticket confirmatio
 
 ---
 
+## Running it
+
+```bash
+npm install
+npm run dev           # http://localhost:3000
+npm test              # 33 vitest assertions
+npx tsc --noEmit      # type check
+npm run build         # production build (do not run while dev is up)
+```
+
+CI runs typecheck + tests + `next lint` on every push to `main` and every PR — see [.github/workflows/ci.yml](.github/workflows/ci.yml).
+
+### Optional: enable the live AI explanation
+
+Out of the box the Arrival Guide's explanation card uses a deterministic **Template** (zero network, never fails). Adding an LLM key flips the badge to `AI · groq` (or `AI · gemini`) without changing the plan — the rule engine still decides, the LLM only words the explanation, and the same sanitizer + gate-mismatch guard apply.
+
+```bash
+# .env.local — for local dev
+GROQ_API_KEY=gsk_...        # https://console.groq.com  (free tier, ~30 RPM)
+GEMINI_API_KEY=AIza...      # https://aistudio.google.com (free tier, fallback)
+```
+
+For Vercel deploys, set both keys in **Project Settings → Environment Variables** and redeploy. The endpoint cascades **Groq → Gemini → Template** with a 2500 ms timeout per provider, so missing keys or a slow upstream silently degrade to the template — the demo never breaks.
+
 ## Two prototype layers
 
 FanFlow has two prototype layers, and they live at different URLs by design:
