@@ -397,6 +397,257 @@ function CardTile({ ev }: { ev: CardEvent }) {
 }
 
 // ─────────────────────────────────────────────────────────────────────
+// Premium cinematic primitives — reused across Stages 2..6
+// ─────────────────────────────────────────────────────────────────────
+
+/**
+ * Soft purple ambient background — applied to whole-stage wrappers to
+ * give every cinematic stage a consistent "premium violet" atmosphere.
+ * Three layered radial gradients on a near-white base, no fixed bg-image
+ * so it stays perfectly performant.
+ */
+function AmbientBackdrop() {
+  return (
+    <div
+      aria-hidden="true"
+      className="pointer-events-none fixed inset-0 -z-10 bg-[radial-gradient(ellipse_80%_60%_at_50%_0%,rgba(124,58,237,0.10),transparent_60%),radial-gradient(ellipse_60%_40%_at_85%_30%,rgba(217,70,239,0.06),transparent_60%),radial-gradient(ellipse_60%_40%_at_15%_70%,rgba(99,102,241,0.05),transparent_60%)] bg-[#fafafe]"
+    />
+  )
+}
+
+/**
+ * Glassmorphic card wrapper. Semi-transparent white with a subtle
+ * backdrop blur, soft violet ring. Used by Stage 4/5/6 panels.
+ */
+function GlassCard({
+  children,
+  className = '',
+}: {
+  children: ReactNode
+  className?: string
+}) {
+  return (
+    <div
+      className={`rounded-3xl bg-white/75 backdrop-blur-md border border-white/60 shadow-[0_8px_40px_-12px_rgba(124,58,237,0.18)] ring-1 ring-violet-100/60 ${className}`}
+    >
+      {children}
+    </div>
+  )
+}
+
+/**
+ * Stylized 3D-perspective stadium illustration. SVG only — no raster,
+ * no external assets. Used in Listing, Seatmap, Preview, Building.
+ * `glow` lights a single section in violet (for Seatmap's Section 117).
+ */
+function StadiumIllustration({
+  size = 240,
+  glow = false,
+  showPin = true,
+}: {
+  size?: number
+  glow?: boolean
+  showPin?: boolean
+}) {
+  return (
+    <svg
+      viewBox="0 0 240 180"
+      width={size}
+      height={(size * 180) / 240}
+      aria-hidden="true"
+      className="select-none"
+    >
+      <defs>
+        <radialGradient id="stadium-glow" cx="50%" cy="55%" r="55%">
+          <stop offset="0%" stopColor="rgba(124,58,237,0.40)" />
+          <stop offset="60%" stopColor="rgba(124,58,237,0.10)" />
+          <stop offset="100%" stopColor="rgba(124,58,237,0)" />
+        </radialGradient>
+        <linearGradient id="stadium-bowl" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stopColor="#c4b5fd" />
+          <stop offset="100%" stopColor="#7c3aed" />
+        </linearGradient>
+        <linearGradient id="stadium-bowl-inner" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stopColor="#ede9fe" />
+          <stop offset="100%" stopColor="#a78bfa" />
+        </linearGradient>
+      </defs>
+      <circle cx="120" cy="100" r="100" fill="url(#stadium-glow)" />
+      {/* Outer ring (perspective ellipse) */}
+      <ellipse cx="120" cy="105" rx="95" ry="42" fill="url(#stadium-bowl)" opacity="0.85" />
+      <ellipse cx="120" cy="103" rx="95" ry="42" fill="none" stroke="white" strokeOpacity="0.5" strokeWidth="1" />
+      {/* Inner bowl */}
+      <ellipse cx="120" cy="100" rx="78" ry="33" fill="url(#stadium-bowl-inner)" />
+      <ellipse cx="120" cy="98" rx="78" ry="33" fill="none" stroke="white" strokeOpacity="0.6" strokeWidth="1" />
+      {/* Field */}
+      <ellipse cx="120" cy="95" rx="56" ry="22" fill="#34d399" />
+      <ellipse cx="120" cy="95" rx="56" ry="22" fill="none" stroke="white" strokeWidth="0.8" />
+      <line x1="120" y1="73" x2="120" y2="117" stroke="white" strokeWidth="0.6" />
+      <ellipse cx="120" cy="95" rx="8" ry="4" fill="none" stroke="white" strokeWidth="0.6" />
+      {/* Section glow (Maria's section 117) */}
+      {glow && (
+        <>
+          <path
+            d="M 90 65 L 150 65 L 158 78 L 82 78 Z"
+            fill="#7c3aed"
+            opacity="0.85"
+          />
+          <path
+            d="M 90 65 L 150 65 L 158 78 L 82 78 Z"
+            fill="none"
+            stroke="#ede9fe"
+            strokeWidth="1.5"
+          />
+        </>
+      )}
+      {/* Location pins around the bowl */}
+      {showPin && (
+        <>
+          <g transform="translate(120,30)">
+            <circle cx="0" cy="0" r="9" fill="#facc15" />
+            <text x="0" y="3" textAnchor="middle" fontSize="9" fontWeight="700" fill="white">★</text>
+          </g>
+          <circle cx="55" cy="80" r="4" fill="#7c3aed" opacity="0.6" />
+          <circle cx="185" cy="80" r="4" fill="#7c3aed" opacity="0.6" />
+          <circle cx="120" cy="148" r="4" fill="#7c3aed" opacity="0.6" />
+        </>
+      )}
+      {/* Stadium light beams */}
+      <line x1="20" y1="40" x2="60" y2="80" stroke="white" strokeOpacity="0.5" strokeWidth="2" strokeLinecap="round" />
+      <line x1="220" y1="40" x2="180" y2="80" stroke="white" strokeOpacity="0.5" strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  )
+}
+
+/**
+ * Circular confidence meter — SVG arc with violet→fuchsia gradient
+ * stroke. Animates its dashoffset on mount.
+ */
+function ConfidenceRing({
+  value,
+  size = 120,
+  label = 'Confidence',
+}: {
+  value: number
+  size?: number
+  label?: string
+}) {
+  const reduced = useReducedMotion()
+  const strokeWidth = size / 12
+  const radius = (size - strokeWidth) / 2
+  const circ = 2 * Math.PI * radius
+  const target = (value / 100) * circ
+  return (
+    <div className="relative inline-flex items-center justify-center" style={{ width: size, height: size }}>
+      <svg width={size} height={size} className="-rotate-90">
+        <defs>
+          <linearGradient id={`ring-grad-${size}`} x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stopColor="#7c3aed" />
+            <stop offset="100%" stopColor="#d946ef" />
+          </linearGradient>
+        </defs>
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={radius}
+          fill="none"
+          stroke="#ede9fe"
+          strokeWidth={strokeWidth}
+        />
+        <motion.circle
+          cx={size / 2}
+          cy={size / 2}
+          r={radius}
+          fill="none"
+          stroke={`url(#ring-grad-${size})`}
+          strokeWidth={strokeWidth}
+          strokeLinecap="round"
+          strokeDasharray={circ}
+          initial={reduced ? { strokeDashoffset: circ - target } : { strokeDashoffset: circ }}
+          animate={{ strokeDashoffset: circ - target }}
+          transition={{ duration: 1.2, ease: [0.16, 1, 0.3, 1] }}
+        />
+      </svg>
+      <div className="absolute inset-0 flex flex-col items-center justify-center">
+        <div className="text-2xl font-bold text-slate-900 tabular-nums">
+          <CountUpNum value={value} decimals={0} />
+          <span className="text-base">%</span>
+        </div>
+        <div className="text-[9px] uppercase tracking-wider text-slate-500 font-semibold mt-0.5">{label}</div>
+      </div>
+    </div>
+  )
+}
+
+/**
+ * Live pulse bar chart — N vertical bars, each animating from height 0
+ * to its target value. Bars use the violet/fuchsia gradient.
+ */
+function LivePulseBars({
+  count = 14,
+  height = 56,
+  delay = 0,
+}: {
+  count?: number
+  height?: number
+  delay?: number
+}) {
+  const reduced = useReducedMotion()
+  // Deterministic pseudo-random heights so SSR === client
+  const heights = Array.from({ length: count }, (_, i) => 30 + ((i * 37) % 70))
+  return (
+    <div className="flex items-end gap-[3px]" style={{ height }}>
+      {heights.map((h, i) => (
+        <motion.div
+          key={i}
+          className="w-1.5 rounded-full bg-gradient-to-t from-violet-300 to-fuchsia-500"
+          initial={reduced ? false : { height: 0 }}
+          animate={{ height: `${h}%` }}
+          transition={{
+            duration: 0.5,
+            delay: reduced ? 0 : delay + i * 0.025,
+            ease: [0.16, 1, 0.3, 1],
+          }}
+        />
+      ))}
+    </div>
+  )
+}
+
+/**
+ * Horizontal "trust strip" used at the bottom of Listing and Seatmap.
+ * Four mini cells with icon + label + subtitle.
+ */
+function TrustStrip({
+  items,
+}: {
+  items: { icon: string; label: string; sub: string }[]
+}) {
+  return (
+    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 rounded-2xl bg-white/80 backdrop-blur-sm border border-slate-200 p-4 sm:p-5">
+      {items.map((it) => (
+        <div key={it.label} className="flex items-start gap-2.5">
+          <span className="w-9 h-9 rounded-full bg-violet-50 border border-violet-100 flex items-center justify-center text-base flex-shrink-0">
+            {it.icon}
+          </span>
+          <div className="min-w-0">
+            <div className="text-sm font-bold text-slate-900 leading-tight">{it.label}</div>
+            <div className="text-[11px] text-slate-500 leading-snug mt-0.5">{it.sub}</div>
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+const TRUST_ITEMS = [
+  { icon: '🛡️', label: '100% Fan Guarantee', sub: "We're here if your plans change." },
+  { icon: '🎟️', label: 'Millions of tickets', sub: "The world's largest marketplace." },
+  { icon: '🔒', label: 'Secure checkout', sub: 'Your data is always protected.' },
+  { icon: '✨', label: 'FanFlow AI available', sub: 'Smarter insights for high-friction events.' },
+]
+
+// ─────────────────────────────────────────────────────────────────────
 // Stage 1: Discovery
 // ─────────────────────────────────────────────────────────────────────
 
@@ -777,50 +1028,100 @@ function StageListing({ onAdvance, onBack }: { onAdvance: () => void; onBack: ()
     setTimeout(onAdvance, 700)
   }
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen relative">
+      <AmbientBackdrop />
       <NavBar compact />
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
-        <button onClick={onBack} className="text-xs text-slate-500 hover:text-slate-700 mb-3">
-          ← Back to discovery
-        </button>
-        <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight">
-          World Cup Tickets
-        </h1>
-        <div className="text-xs text-slate-500 mt-1">70,962 people viewing World Cup events in the past hour</div>
 
-        <div className="flex flex-wrap gap-2 mt-4 mb-5">
-          {['📍 Denton', 'Team', 'All Rounds', 'All dates', 'Parking', 'Price'].map((f) => (
-            <span key={f} className="chip text-xs">
-              {f} <span className="text-slate-400">▾</span>
-            </span>
-          ))}
+      {/* === Purple hero strip with stadium light beams ============== */}
+      <div className="relative overflow-hidden bg-gradient-to-b from-violet-100/80 via-violet-50 to-transparent">
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(124,58,237,0.18),transparent_60%)]" />
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8 sm:py-10 relative">
+          <button onClick={onBack} className="text-xs text-slate-500 hover:text-slate-700 mb-3">
+            ← Back to discovery
+          </button>
+          <div className="grid lg:grid-cols-[1fr_auto] gap-4 items-center">
+            <div>
+              <div className="kicker text-violet-700">Discover</div>
+              <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-slate-900 tracking-tight leading-[1.05] mt-2">
+                World Cup Tickets
+              </h1>
+              <div className="text-sm text-slate-600 mt-3 flex items-center gap-2">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                70,962 people viewing World Cup events in the past hour
+              </div>
+            </div>
+            <motion.div
+              initial={reduced ? false : { opacity: 0, scale: 0.92, y: 8 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: 0.1, ease: [0.16, 1, 0.3, 1] }}
+              className="hidden lg:flex items-start gap-3 rounded-2xl bg-white/85 backdrop-blur border border-violet-200 p-4 max-w-xs shadow-[0_4px_24px_-4px_rgba(124,58,237,0.2)]"
+            >
+              <span className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500 to-fuchsia-600 text-white flex items-center justify-center text-base flex-shrink-0">
+                ✨
+              </span>
+              <div className="min-w-0">
+                <div className="font-bold text-slate-900 text-sm leading-tight">FanFlow AI</div>
+                <p className="text-[11px] text-slate-600 mt-0.5 leading-snug">
+                  Real-time arrival intelligence for a smoother event day.
+                </p>
+                <div className="text-[10px] font-bold text-violet-700 mt-1.5">Learn how it works →</div>
+              </div>
+            </motion.div>
+          </div>
+
+          <div className="flex flex-wrap gap-2 mt-6">
+            {['📍 Denton, TX', 'Team', 'All Rounds', 'All dates', 'Parking', 'Price'].map((f) => (
+              <span key={f} className="chip text-xs">
+                {f} <span className="text-slate-400">▾</span>
+              </span>
+            ))}
+          </div>
         </div>
+      </div>
 
-        {/* Mini intelligence preview for the World Cup overall */}
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
+
+        {/* === FanFlow AI Intelligence Preview with stadium graphic === */}
         <motion.div
-          initial={reduced ? false : { opacity: 0, y: 8 }}
+          initial={reduced ? false : { opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.45 }}
-          className="rounded-2xl border border-violet-200 bg-gradient-to-br from-violet-50/60 to-white p-4 sm:p-5 mb-5"
+          transition={{ duration: 0.5 }}
+          className="mb-5"
         >
-          <div className="flex items-center gap-2 mb-3">
-            <span className="text-base">✨</span>
-            <span className="kicker text-violet-700">FanFlow intelligence preview</span>
-          </div>
-          <div className="grid grid-cols-3 gap-3">
-            <div>
-              <div className="text-[10px] text-slate-500 uppercase tracking-wider font-semibold">Expected entry load</div>
-              <div className="text-sm font-bold text-slate-900 mt-1">{MARIA_PLAN.expectedLoad}</div>
+          <GlassCard className="p-5 sm:p-6">
+            <div className="grid lg:grid-cols-[1fr_auto] gap-4 items-center">
+              <div>
+                <div className="flex items-center gap-2 mb-3 flex-wrap">
+                  <span className="kicker text-violet-700">FanFlow AI Intelligence Preview</span>
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-violet-100 border border-violet-200 text-[9px] font-bold uppercase tracking-wider text-violet-700">
+                    Beta
+                  </span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div className="rounded-xl bg-gradient-to-br from-amber-50 to-amber-100/30 border border-amber-200 p-3">
+                    <div className="text-[10px] text-amber-800 uppercase tracking-wider font-bold">Expected entry load</div>
+                    <div className="text-base font-bold text-amber-900 mt-1">{MARIA_PLAN.expectedLoad}</div>
+                    <div className="text-[10px] text-amber-800/70 mt-0.5">Manageable traffic expected</div>
+                  </div>
+                  <div className="rounded-xl bg-gradient-to-br from-violet-50 to-violet-100/30 border border-violet-200 p-3">
+                    <div className="text-[10px] text-violet-800 uppercase tracking-wider font-bold">Peak arrival window</div>
+                    <div className="text-base font-bold text-violet-900 mt-1 font-mono">{MARIA_PLAN.peakWindow}</div>
+                    <div className="text-[10px] text-violet-800/70 mt-0.5">Plan to arrive within this window</div>
+                  </div>
+                  <div className="rounded-xl bg-gradient-to-br from-slate-50 to-slate-100/30 border border-slate-200 p-3">
+                    <div className="text-[10px] text-slate-700 uppercase tracking-wider font-bold flex items-center gap-1">
+                      <span>🔒</span> Live signals
+                    </div>
+                    <div className="text-base font-bold text-slate-900 mt-1">Unlock after checkout</div>
+                    <div className="text-[10px] text-slate-500 mt-0.5">Real-time updates on event day</div>
+                  </div>
+                </div>
+              </div>
+              <div className="hidden lg:flex flex-shrink-0">
+                <StadiumIllustration size={180} />
+              </div>
             </div>
-            <div>
-              <div className="text-[10px] text-slate-500 uppercase tracking-wider font-semibold">Peak arrival window</div>
-              <div className="text-sm font-bold text-slate-900 mt-1 font-mono">{MARIA_PLAN.peakWindow}</div>
-            </div>
-            <div>
-              <div className="text-[10px] text-slate-500 uppercase tracking-wider font-semibold">Live entry signals</div>
-              <div className="text-sm font-bold text-slate-900 mt-1">Unlock after checkout</div>
-            </div>
-          </div>
+          </GlassCard>
         </motion.div>
 
         {/* Match rows */}
@@ -877,6 +1178,46 @@ function StageListing({ onAdvance, onBack }: { onAdvance: () => void; onBack: ()
             </motion.div>
           ))}
         </div>
+
+        {/* === "Why fans choose FanFlow AI" sidebar callout ========== */}
+        <motion.div
+          initial={reduced ? false : { opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.3 }}
+          className="mt-6"
+        >
+          <GlassCard className="p-5 sm:p-6">
+            <div className="kicker text-violet-700 mb-3">Why fans choose FanFlow AI</div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              {[
+                { icon: '🛡️', title: 'Smarter arrival planning', body: 'AI predicts traffic and crowd flow to help you arrive on time.' },
+                { icon: '📡', title: 'Live event day signals', body: 'Real-time updates on gates, congestion, and more.' },
+                { icon: '🔓', title: 'Unlocks after checkout', body: 'Exclusive details available only to ticket holders.' },
+              ].map((b) => (
+                <div key={b.title} className="flex items-start gap-3">
+                  <span className="w-9 h-9 rounded-xl bg-gradient-to-br from-violet-100 to-violet-50 border border-violet-200 flex items-center justify-center text-base flex-shrink-0">
+                    {b.icon}
+                  </span>
+                  <div>
+                    <div className="font-bold text-slate-900 text-sm leading-tight">{b.title}</div>
+                    <p className="text-[11px] text-slate-600 mt-1 leading-snug">{b.body}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="mt-4 pt-4 border-t border-violet-100/70 text-xs text-slate-600 flex items-center justify-between flex-wrap gap-2">
+              <span>Trusted by fans. Powered by AI.</span>
+              <a className="font-semibold text-violet-700 hover:underline" href="#">
+                How FanFlow AI works →
+              </a>
+            </div>
+          </GlassCard>
+        </motion.div>
+
+        {/* Trust strip — same as bottom of /discover */}
+        <div className="mt-6">
+          <TrustStrip items={TRUST_ITEMS} />
+        </div>
       </div>
     </div>
   )
@@ -889,15 +1230,73 @@ function StageListing({ onAdvance, onBack }: { onAdvance: () => void; onBack: ()
 function StageSeatmap({ onAdvance, onBack }: { onAdvance: () => void; onBack: () => void }) {
   const reduced = useReducedMotion()
   const [selected, setSelected] = useState(true) // Section 117 pre-selected
+  void setSelected // currently always selected; setSelected kept for future seat-swap UI
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen relative">
+      <AmbientBackdrop />
       <NavBar compact />
       <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
         <button onClick={onBack} className="text-xs text-slate-500 hover:text-slate-700 mb-3">
           ← Back to listing
         </button>
-        <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight">Pick your seat</h1>
-        <div className="text-xs text-slate-500 mt-1">MetLife Stadium · World Cup Final · Sat Jul 19, 7:00 PM</div>
+
+        {/* === Breadcrumb + Headline + High Demand summary ============ */}
+        <div className="grid lg:grid-cols-[1fr_auto] gap-3 items-start">
+          <div>
+            <div className="kicker text-violet-700">FIFA World Cup 2026™</div>
+            <h1 className="text-3xl sm:text-4xl font-bold text-slate-900 tracking-tight mt-1 flex items-center gap-3 flex-wrap">
+              World Cup Final
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-violet-50 border border-violet-200 text-[10px] font-bold uppercase tracking-wider text-violet-700">
+                ✨ FanFlow AI
+              </span>
+            </h1>
+            <div className="text-sm text-slate-600 mt-2 flex flex-wrap items-center gap-2">
+              <span>MetLife Stadium · East Rutherford, NJ</span>
+              <span className="text-slate-300">·</span>
+              <span className="font-mono">Sun, Jul 19 · 7:00 PM · Final</span>
+            </div>
+            <div className="mt-3 flex items-center gap-2 text-[11px] text-slate-500">
+              {[
+                { n: '1', label: 'Choose Event', done: true },
+                { n: '2', label: 'Seat Map & Eligibility', active: true },
+                { n: '3', label: 'Confirm & Checkout' },
+              ].map((s, i, arr) => (
+                <span key={s.n} className="inline-flex items-center gap-1.5">
+                  <span
+                    className={`w-5 h-5 rounded-full inline-flex items-center justify-center text-[10px] font-bold ${
+                      s.active
+                        ? 'bg-violet-600 text-white'
+                        : s.done
+                          ? 'bg-violet-100 text-violet-700'
+                          : 'bg-slate-100 text-slate-500'
+                    }`}
+                  >
+                    {s.n}
+                  </span>
+                  <span className={s.active ? 'text-violet-700 font-bold' : ''}>{s.label}</span>
+                  {i < arr.length - 1 && <span className="text-slate-300 mx-1">›</span>}
+                </span>
+              ))}
+            </div>
+          </div>
+
+          <div className="hidden lg:flex items-center gap-3 rounded-2xl bg-white/85 backdrop-blur border border-violet-200 px-4 py-3">
+            <div className="text-right">
+              <div className="text-[10px] font-bold uppercase tracking-wider text-rose-700">
+                🔥 High demand
+              </div>
+              <div className="text-xs text-slate-600">Tickets are moving fast</div>
+            </div>
+            <div className="h-8 w-px bg-slate-200" />
+            <div>
+              <ConfidenceRing value={95} size={64} label="95%" />
+            </div>
+            <div>
+              <div className="text-xs font-bold text-emerald-700">95% Confidence</div>
+              <div className="text-[10px] text-slate-500">Great arrival experience</div>
+            </div>
+          </div>
+        </div>
 
         <div className="mt-6 grid lg:grid-cols-[1.4fr_1fr] gap-5">
           {/* Stadium SVG */}
@@ -1080,145 +1479,212 @@ function StageSeatmap({ onAdvance, onBack }: { onAdvance: () => void; onBack: ()
 }
 
 // ─────────────────────────────────────────────────────────────────────
-// Stage 4: Ticket confirmed
+// Stage 4: Ticket confirmed — premium cinematic version
 // ─────────────────────────────────────────────────────────────────────
 
 function StageConfirmed({ onAdvance, onBack }: { onAdvance: () => void; onBack: () => void }) {
   const reduced = useReducedMotion()
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen relative">
+      <AmbientBackdrop />
       <NavBar compact />
-      <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8 sm:py-12">
-        <button onClick={onBack} className="text-xs text-slate-500 hover:text-slate-700 mb-4">
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 py-8 sm:py-12">
+        <button onClick={onBack} className="text-xs text-slate-500 hover:text-slate-700 mb-6">
           ← Back to seat selection
         </button>
 
-        {/* Checkmark stamp */}
-        <div className="text-center mb-6">
+        {/* === Headline + glowing checkmark =========================== */}
+        <div className="text-center mb-8 sm:mb-10">
           <motion.div
-            className="relative inline-flex items-center justify-center w-20 h-20 rounded-full bg-emerald-50 border-4 border-emerald-200 mb-3"
-            initial={reduced ? false : { scale: 0.7, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
-          >
-            {!reduced && (
-              <motion.span
-                className="absolute inset-0 rounded-full border-2 border-emerald-400"
-                initial={{ scale: 1, opacity: 0.6 }}
-                animate={{ scale: 1.6, opacity: 0 }}
-                transition={{ duration: 1.6, repeat: 1, ease: 'easeOut', delay: 0.2 }}
-              />
-            )}
-            <motion.svg viewBox="0 0 24 24" className="w-10 h-10 text-emerald-600">
-              <motion.path
-                d="M4 12.5l5 5L20 6.5"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="3"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                initial={reduced ? false : { pathLength: 0 }}
-                animate={{ pathLength: 1 }}
-                transition={{ duration: 0.6, delay: 0.25, ease: [0.16, 1, 0.3, 1] }}
-              />
-            </motion.svg>
-          </motion.div>
-          <motion.h2
-            initial={reduced ? false : { opacity: 0, y: 6 }}
+            className="kicker text-violet-700 mb-3"
+            initial={reduced ? false : { opacity: 0, y: -4 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.5 }}
-            className="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight"
+            transition={{ duration: 0.4 }}
           >
             Ticket confirmed
-          </motion.h2>
-          <motion.p
-            initial={reduced ? false : { opacity: 0, y: 6 }}
+          </motion.div>
+          <motion.h1
+            initial={reduced ? false : { opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.65 }}
-            className="text-sm text-slate-500 mt-1"
+            transition={{ duration: 0.55, delay: 0.1, ease: [0.16, 1, 0.3, 1] }}
+            className="text-4xl sm:text-5xl lg:text-6xl font-bold text-slate-900 tracking-tight leading-[1.05]"
           >
-            Your seat is locked in. A receipt was sent to your email.
-          </motion.p>
+            FanFlow Unlocked{' '}
+            <motion.span
+              className="inline-block text-violet-600"
+              animate={reduced ? undefined : { rotate: [0, -10, 10, -6, 0] }}
+              transition={reduced ? undefined : { duration: 1.4, delay: 0.6, ease: 'easeInOut' }}
+            >
+              ✨
+            </motion.span>
+          </motion.h1>
+
+          {/* Big checkmark with concentric glow rings */}
+          <div className="relative inline-flex items-center justify-center mt-8 mb-6">
+            {!reduced && (
+              <>
+                <motion.span
+                  className="absolute w-32 h-32 sm:w-40 sm:h-40 rounded-full bg-violet-500/20 blur-2xl"
+                  initial={{ scale: 0.6, opacity: 0 }}
+                  animate={{ scale: 1.2, opacity: 1 }}
+                  transition={{ duration: 1.2, delay: 0.3, ease: 'easeOut' }}
+                />
+                <motion.span
+                  className="absolute w-24 h-24 sm:w-28 sm:h-28 rounded-full border-2 border-violet-300"
+                  initial={{ scale: 0.9, opacity: 0.6 }}
+                  animate={{ scale: 1.8, opacity: 0 }}
+                  transition={{ duration: 2, delay: 0.4, repeat: 1, ease: 'easeOut' }}
+                />
+              </>
+            )}
+            <motion.div
+              className="relative w-20 h-20 sm:w-24 sm:h-24 rounded-full bg-gradient-to-br from-violet-500 via-violet-600 to-fuchsia-600 flex items-center justify-center shadow-[0_8px_32px_-4px_rgba(124,58,237,0.6)]"
+              initial={reduced ? false : { scale: 0.5, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              transition={{ duration: 0.55, delay: 0.4, ease: [0.16, 1, 0.3, 1] }}
+            >
+              <motion.svg viewBox="0 0 24 24" className="w-10 h-10 sm:w-12 sm:h-12 text-white">
+                <motion.path
+                  d="M4 12.5l5 5L20 6.5"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="3"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  initial={reduced ? false : { pathLength: 0 }}
+                  animate={{ pathLength: 1 }}
+                  transition={{ duration: 0.7, delay: 0.65, ease: [0.16, 1, 0.3, 1] }}
+                />
+              </motion.svg>
+            </motion.div>
+          </div>
         </div>
 
-        {/* Ticket card */}
+        {/* === Iridescent ticket card ================================ */}
         <motion.div
-          initial={reduced ? false : { opacity: 0, y: 14 }}
+          initial={reduced ? false : { opacity: 0, y: 18 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.55, delay: 0.85, ease: [0.16, 1, 0.3, 1] }}
-          className="relative rounded-2xl bg-white border border-slate-200 overflow-hidden shadow-sm"
+          transition={{ duration: 0.6, delay: 1.0, ease: [0.16, 1, 0.3, 1] }}
+          className="relative max-w-2xl mx-auto rounded-3xl overflow-hidden shadow-[0_24px_60px_-20px_rgba(124,58,237,0.4)]"
         >
-          <div className="bg-slate-900 text-white px-5 py-3 flex items-center justify-between text-[10px]">
-            <span className="font-bold uppercase tracking-[0.15em] opacity-70">FIFA World Cup 2026</span>
-            <span className="font-mono opacity-70">Jul 19, 2026</span>
-          </div>
-          <div className="p-5">
-            <div className="font-bold text-slate-900 text-lg">World Cup Final</div>
-            <div className="text-sm text-slate-500">MetLife Stadium · East Rutherford, NJ</div>
-            <div className="mt-4 pt-4 border-t border-dashed border-slate-200 grid grid-cols-3 gap-3 text-center">
-              {[
-                { k: 'Section', v: MARIA_PLAN.section },
-                { k: 'Row', v: MARIA_PLAN.row },
-                { k: 'Qty', v: String(MARIA_PLAN.qty) },
-              ].map((c) => (
-                <div key={c.k}>
-                  <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">{c.k}</div>
-                  <div className="font-bold text-slate-900 text-lg mt-0.5 font-mono">{c.v}</div>
+          {/* Layered gradient backdrop */}
+          <div className="absolute inset-0 bg-gradient-to-br from-violet-100 via-fuchsia-50 to-violet-200" />
+          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_70%_30%,rgba(217,70,239,0.25),transparent_60%),radial-gradient(ellipse_at_30%_80%,rgba(99,102,241,0.20),transparent_60%)]" />
+
+          <div className="relative grid grid-cols-[1fr_auto] items-stretch">
+            {/* Left: ticket details */}
+            <div className="p-6 sm:p-8">
+              <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-violet-700 opacity-80">
+                FIFA World Cup 2026™
+              </div>
+              <div className="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight mt-1">
+                World Cup Final
+              </div>
+              <div className="text-sm text-slate-600 mt-1">
+                MetLife Stadium · East Rutherford, NJ
+              </div>
+              <div className="text-xs text-slate-500 mt-2 flex items-center gap-2 flex-wrap">
+                <span className="font-mono">📅 Sat, Jul 19</span>
+                <span>·</span>
+                <span className="font-mono">⏰ 7:00 PM</span>
+                <span>·</span>
+                <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-white/70 border border-violet-200 text-[10px] font-bold uppercase tracking-wider text-violet-700">
+                  🏆 Final
+                </span>
+              </div>
+              <div className="mt-6 pt-5 border-t border-dashed border-violet-300/60 grid grid-cols-3 gap-3">
+                {[
+                  { k: 'Section', v: MARIA_PLAN.section },
+                  { k: 'Row', v: MARIA_PLAN.row },
+                  { k: 'Tickets', v: String(MARIA_PLAN.qty) },
+                ].map((c) => (
+                  <div key={c.k}>
+                    <div className="text-[10px] font-semibold uppercase tracking-wider text-violet-700/70">
+                      {c.k}
+                    </div>
+                    <div className="font-bold text-violet-700 text-2xl sm:text-3xl mt-0.5 font-mono">
+                      {c.v}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Stadium graphic + perforation + barcode */}
+            <div className="relative flex items-center pr-3 sm:pr-4">
+              <div className="hidden sm:block opacity-50 -mr-4">
+                <StadiumIllustration size={140} showPin={false} />
+              </div>
+              {/* Perforation line */}
+              <div
+                aria-hidden="true"
+                className="h-full w-px border-l-2 border-dashed border-violet-300/70 mx-2"
+              />
+              {/* Barcode strip */}
+              <div className="flex flex-col items-center gap-1.5 py-6 px-2 sm:px-3">
+                <div className="flex gap-[1.5px]" aria-hidden="true">
+                  {[2, 1, 3, 1, 2, 1, 1, 2, 3, 1, 2, 1, 1, 3, 1, 2, 1].map((w, i) => (
+                    <span
+                      key={i}
+                      className="h-20 sm:h-24 bg-slate-900/85 rounded-sm"
+                      style={{ width: `${w}px` }}
+                    />
+                  ))}
                 </div>
-              ))}
+                <div className="text-[8px] font-mono text-slate-500 tracking-widest mt-1">
+                  TK-MARIA-001
+                </div>
+              </div>
             </div>
           </div>
+
           {/* Shimmer sweep */}
           {!reduced && (
             <motion.span
               aria-hidden="true"
-              className="pointer-events-none absolute inset-y-0 left-0 w-1/3 bg-gradient-to-r from-transparent via-violet-200/50 to-transparent"
+              className="pointer-events-none absolute inset-y-0 left-0 w-1/3 bg-gradient-to-r from-transparent via-white/50 to-transparent"
               initial={{ x: '-100%' }}
               animate={{ x: '400%' }}
-              transition={{ duration: 1.3, delay: 1.6, ease: 'easeOut' }}
+              transition={{ duration: 1.6, delay: 1.6, ease: 'easeOut' }}
             />
           )}
         </motion.div>
 
-        {/* FanFlow unlock */}
-        <motion.div
-          initial={reduced ? false : { opacity: 0, y: 14 }}
+        {/* === Tagline =============================================== */}
+        <motion.p
+          initial={reduced ? false : { opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.55, delay: 1.9, ease: [0.16, 1, 0.3, 1] }}
-          className="mt-6 text-center"
+          transition={{ duration: 0.5, delay: 1.6 }}
+          className="text-center text-base sm:text-lg font-semibold text-slate-700 mt-8 sm:mt-10 max-w-md mx-auto"
         >
-          <motion.div
-            initial={reduced ? false : { scale: 0.95, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            transition={{ duration: 0.5, delay: 2.0 }}
-            className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-violet-50 border border-violet-200 mb-3"
-          >
-            <span>✨</span>
-            <span className="text-xs font-bold uppercase tracking-[0.12em] text-violet-700">FanFlow AI · unlocked</span>
-          </motion.div>
-          <h3 className="text-lg sm:text-xl font-bold text-slate-900 tracking-tight">
-            FanFlow AI is unlocked for your group.
-          </h3>
-          <p className="text-sm text-slate-600 mt-1 max-w-md mx-auto">
-            Your ticket gets you in. FanFlow helps you arrive ready.
-          </p>
-        </motion.div>
+          Your ticket gets you in. FanFlow helps you arrive ready.
+        </motion.p>
 
-        {/* Four module cards light up */}
-        <div className="mt-5 grid grid-cols-2 gap-2.5">
+        {/* === Four numbered module cards ============================ */}
+        <div className="mt-6 sm:mt-8 grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
           {UNLOCK_MODULES.map((m, i) => (
             <motion.div
               key={m.id}
-              initial={reduced ? false : { opacity: 0, y: 12, scale: 0.96 }}
+              initial={reduced ? false : { opacity: 0, y: 14, scale: 0.95 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
-              transition={{ duration: 0.5, delay: reduced ? 0 : 2.4 + i * 0.18, ease: [0.16, 1, 0.3, 1] }}
-              className="relative rounded-2xl border border-violet-200 bg-gradient-to-br from-violet-50 to-white p-3.5 overflow-hidden"
+              transition={{
+                duration: 0.5,
+                delay: reduced ? 0 : 2.0 + i * 0.15,
+                ease: [0.16, 1, 0.3, 1],
+              }}
+              className="relative rounded-2xl bg-white/80 backdrop-blur-sm border border-violet-100 shadow-[0_4px_20px_-8px_rgba(124,58,237,0.15)] p-4 sm:p-5"
             >
-              <div className="w-9 h-9 rounded-full bg-violet-600 text-white flex items-center justify-center mb-2">
-                {m.icon}
+              {/* Numbered badge floating at top */}
+              <div className="absolute -top-3 left-1/2 -translate-x-1/2 w-7 h-7 rounded-full bg-gradient-to-br from-violet-500 to-fuchsia-600 text-white text-xs font-bold flex items-center justify-center shadow-md">
+                {i + 1}
               </div>
-              <div className="font-bold text-sm text-slate-900 leading-tight">{m.title}</div>
-              <div className="text-[11px] text-slate-500 mt-0.5 leading-snug">{m.sub}</div>
+              <div className="text-center pt-2">
+                <div className="w-12 h-12 mx-auto rounded-2xl bg-gradient-to-br from-violet-100 to-violet-50 border border-violet-200 flex items-center justify-center text-xl mb-2">
+                  {m.icon}
+                </div>
+                <div className="font-bold text-sm text-slate-900 leading-tight">{m.title}</div>
+                <div className="text-[11px] text-slate-500 mt-1 leading-snug">{m.sub}</div>
+              </div>
               {!reduced && <Shimmer />}
             </motion.div>
           ))}
@@ -1230,137 +1696,110 @@ function StageConfirmed({ onAdvance, onBack }: { onAdvance: () => void; onBack: 
             confirmation flow. My Tickets is a real route; the other
             three are concept mocks (Wallet/email/push need provider
             integration we don't have in a 3-day prototype). */}
+        {/* === Horizontal "FanFlow is with you" strip ================ */}
         <motion.div
-          initial={reduced ? false : { opacity: 0, y: 12 }}
+          initial={reduced ? false : { opacity: 0, y: 14 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: reduced ? 0 : 3.4 }}
-          className="mt-6 rounded-2xl border border-slate-200 bg-slate-50 p-4 sm:p-5"
+          transition={{ duration: 0.55, delay: reduced ? 0 : 3.0 }}
+          className="mt-8 sm:mt-10"
         >
-          <div className="kicker mb-3">FanFlow is now attached to your ticket</div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-            {/* 1. My Tickets — REAL route */}
-            <Link
-              href="/my-tickets"
-              className="rounded-xl bg-white border border-violet-200 p-3 hover:border-violet-300 transition flex items-start gap-3"
-            >
-              <span className="w-9 h-9 rounded-full bg-violet-600 text-white flex items-center justify-center text-sm flex-shrink-0">
-                🎟️
-              </span>
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-1.5">
-                  <span className="font-bold text-slate-900 text-sm leading-tight">My Tickets</span>
-                  <span className="inline-flex items-center px-1.5 py-0 rounded-full bg-emerald-100 text-emerald-700 text-[9px] font-bold uppercase tracking-wider">
-                    real
-                  </span>
+          <GlassCard className="p-4 sm:p-5">
+            <div className="grid grid-cols-1 sm:grid-cols-[auto_1fr] items-center gap-4 sm:gap-6">
+              <div className="sm:max-w-[14rem]">
+                <div className="font-bold text-slate-900 text-sm leading-tight">
+                  FanFlow is with you
                 </div>
-                <p className="text-[11px] text-slate-500 mt-0.5 leading-snug">
-                  Saved-tickets tab with an "Open Event Day Hub" CTA. Click to visit.
-                </p>
+                <div className="text-[11px] text-slate-500 mt-0.5">every step of the way</div>
               </div>
-              <span className="text-violet-600 flex-shrink-0">→</span>
-            </Link>
-
-            {/* 2. Email confirmation — concept mock */}
-            <div className="rounded-xl bg-white border border-slate-200 p-3 flex items-start gap-3">
-              <span className="w-9 h-9 rounded-full bg-sky-600 text-white flex items-center justify-center text-sm flex-shrink-0">
-                ✉️
-              </span>
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  <span className="font-bold text-slate-900 text-sm leading-tight">
-                    Confirmation email
-                  </span>
-                  <span className="inline-flex items-center px-1.5 py-0 rounded-full bg-slate-100 text-slate-600 text-[9px] font-bold uppercase tracking-wider">
-                    concept · demo
-                  </span>
-                </div>
-                <div className="mt-1.5 rounded-md bg-slate-50 border border-slate-200 p-2 text-[10px] text-slate-700 leading-snug">
-                  <div className="font-semibold text-slate-900">
-                    Your ticket is confirmed · World Cup Final
-                  </div>
-                  <div className="mt-1 text-violet-700 font-semibold underline">
-                    Plan your arrival with FanFlow AI →
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* 3. Wallet companion — concept mock */}
-            <div className="rounded-xl bg-white border border-slate-200 p-3 flex items-start gap-3">
-              <span className="w-9 h-9 rounded-full bg-slate-900 text-white flex items-center justify-center text-sm flex-shrink-0">
-                💳
-              </span>
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  <span className="font-bold text-slate-900 text-sm leading-tight">
-                    Wallet companion
-                  </span>
-                  <span className="inline-flex items-center px-1.5 py-0 rounded-full bg-slate-100 text-slate-600 text-[9px] font-bold uppercase tracking-wider">
-                    concept · demo
-                  </span>
-                </div>
-                <div className="mt-1.5 rounded-md bg-slate-900 text-white p-2 text-[10px] leading-snug">
-                  <div className="font-bold opacity-90">Event Day Guide</div>
-                  <div className="opacity-70 mt-0.5">
-                    Gate · route · support · live updates
-                  </div>
-                </div>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                {[
+                  { icon: '🎟️', label: 'My Tickets', sub: 'Access in your account anytime.', tone: 'real' as const, href: '/my-tickets' },
+                  { icon: '✉️', label: 'Confirmation Email', sub: 'Details + FanFlow tools delivered to you.' },
+                  { icon: '💳', label: 'Wallet Companion', sub: 'Syncs to your mobile wallet for easy access.' },
+                  { icon: '🔔', label: 'Pre-event Update', sub: 'Timely reminders & updates as event day approaches.' },
+                ].map((m) => {
+                  const Inner = (
+                    <div className="flex items-start gap-2.5">
+                      <span className="w-9 h-9 rounded-full bg-gradient-to-br from-violet-100 to-violet-50 border border-violet-200 flex items-center justify-center text-base flex-shrink-0">
+                        {m.icon}
+                      </span>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="font-bold text-slate-900 text-xs leading-tight">
+                            {m.label}
+                          </span>
+                          {m.tone === 'real' ? (
+                            <span className="inline-flex items-center px-1.5 py-0 rounded-full bg-emerald-100 text-emerald-700 text-[9px] font-bold uppercase tracking-wider">
+                              real
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center px-1.5 py-0 rounded-full bg-slate-100 text-slate-600 text-[9px] font-bold uppercase tracking-wider">
+                              demo
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[10px] text-slate-500 mt-0.5 leading-snug">{m.sub}</p>
+                      </div>
+                    </div>
+                  )
+                  return m.href ? (
+                    <Link key={m.label} href={m.href} className="hover:opacity-80 transition">
+                      {Inner}
+                    </Link>
+                  ) : (
+                    <div key={m.label}>{Inner}</div>
+                  )
+                })}
               </div>
             </div>
-
-            {/* 4. Push notification — concept mock */}
-            <div className="rounded-xl bg-white border border-slate-200 p-3 flex items-start gap-3">
-              <span className="w-9 h-9 rounded-full bg-rose-600 text-white flex items-center justify-center text-sm flex-shrink-0">
-                🔔
-              </span>
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  <span className="font-bold text-slate-900 text-sm leading-tight">
-                    Pre-event update
-                  </span>
-                  <span className="inline-flex items-center px-1.5 py-0 rounded-full bg-slate-100 text-slate-600 text-[9px] font-bold uppercase tracking-wider">
-                    concept · demo
-                  </span>
-                </div>
-                <div className="mt-1.5 rounded-md bg-slate-100 border border-slate-200 p-2 text-[10px] text-slate-700 leading-snug">
-                  <div className="font-semibold text-slate-900">FanFlow · 2h before kickoff</div>
-                  <div className="mt-0.5">
-                    Staff signal: Gate 3 moving smoothly. Plan refreshed.
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <p className="text-[10px] text-slate-500 mt-3 leading-relaxed">
-            Items labeled "concept · demo" are visual mocks. Real Wallet / email / push
-            integration requires provider signing certs and is intentionally out of scope
-            for this prototype.
-          </p>
+          </GlassCard>
         </motion.div>
 
-        {/* Safety note */}
-        <p className="text-[11px] text-slate-500 text-center mt-5 leading-relaxed max-w-md mx-auto">
-          Always follow venue signage and staff instructions. FanFlow provides guidance, not emergency response.
-        </p>
-
-        {/* CTAs */}
+        {/* === Big gradient CTA + secondary link ===================== */}
         <motion.div
-          initial={reduced ? false : { opacity: 0, y: 10 }}
+          initial={reduced ? false : { opacity: 0, y: 14 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.55, delay: reduced ? 0 : 3.6 }}
-          className="mt-5 grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-2"
+          transition={{ duration: 0.55, delay: reduced ? 0 : 3.5 }}
+          className="mt-8 sm:mt-10 max-w-2xl mx-auto"
         >
-          <button onClick={onAdvance} className="btn-primary !min-h-[52px] text-base">
-            Build my event day plan →
-          </button>
-          <Link
-            href="/event/wc2026-final/hub"
-            className="btn-secondary !min-h-[52px] text-sm"
+          <button
+            onClick={onAdvance}
+            className="group relative w-full overflow-hidden rounded-full bg-gradient-to-r from-violet-600 via-violet-700 to-fuchsia-600 text-white font-bold text-base sm:text-lg min-h-[60px] sm:min-h-[64px] shadow-[0_12px_32px_-8px_rgba(124,58,237,0.5)] hover:shadow-[0_16px_40px_-8px_rgba(124,58,237,0.6)] transition-shadow"
           >
-            Open real Event Day Hub
-          </Link>
+            <span className="relative z-10 inline-flex items-center justify-center gap-2.5">
+              Build my event day plan
+              <motion.span
+                className="inline-block text-base"
+                animate={reduced ? undefined : { rotate: [0, -15, 15, -8, 0] }}
+                transition={reduced ? undefined : { duration: 1.6, repeat: Infinity, repeatDelay: 2, ease: 'easeInOut' }}
+              >
+                ✨
+              </motion.span>
+            </span>
+            {!reduced && (
+              <motion.span
+                aria-hidden="true"
+                className="pointer-events-none absolute inset-y-0 left-0 w-1/3 bg-gradient-to-r from-transparent via-white/30 to-transparent"
+                animate={{ x: ['-100%', '400%'] }}
+                transition={{ duration: 2.8, repeat: Infinity, ease: 'easeInOut', repeatDelay: 1.5 }}
+              />
+            )}
+          </button>
+          <div className="text-center mt-3">
+            <Link
+              href="/event/wc2026-final/hub"
+              className="text-xs text-slate-500 hover:text-violet-700 transition"
+            >
+              Or open the real Event Day Hub →
+            </Link>
+          </div>
+          <p className="text-[11px] text-slate-500 text-center mt-4 leading-relaxed flex items-center justify-center gap-1.5">
+            <span className="text-emerald-600">🔒</span>
+            100% Secure Checkout. Your data is always protected.
+          </p>
+          <p className="text-[10px] text-slate-400 text-center mt-1 leading-relaxed">
+            Always follow venue signage and staff instructions. FanFlow provides guidance, not emergency response.
+          </p>
         </motion.div>
       </div>
     </div>
@@ -1388,25 +1827,54 @@ function StageBuilding({ onAdvance, onBack }: { onAdvance: () => void; onBack: (
   const allDone = tick >= BUILDING_STEPS.length
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen relative">
+      <AmbientBackdrop />
       <NavBar compact />
-      <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8 sm:py-12">
-        <button onClick={onBack} className="text-xs text-slate-500 hover:text-slate-700 mb-4">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8 sm:py-12">
+        <button onClick={onBack} className="text-xs text-slate-500 hover:text-slate-700 mb-6">
           ← Back to confirmation
         </button>
 
-        <div className="text-center mb-8">
-          <div className="kicker text-violet-700 mb-2">Personalizing your arrival</div>
-          <h2 className="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight">
+        {/* === Headline + stadium ambient ============================ */}
+        <div className="relative text-center mb-8 sm:mb-10">
+          {/* Stadium illustration absolutely positioned behind */}
+          <div className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-1/4 sm:-translate-x-1/2 opacity-30 sm:opacity-40 pointer-events-none hidden md:block">
+            <StadiumIllustration size={200} showPin={false} />
+          </div>
+          <motion.div
+            initial={reduced ? false : { opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.5 }}
+            className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-violet-50 border border-violet-200 mb-4"
+          >
+            <span className="text-base">✨</span>
+            <span className="text-[11px] font-bold uppercase tracking-[0.12em] text-violet-700">
+              FanFlow AI · Concierge
+            </span>
+          </motion.div>
+          <motion.h2
+            initial={reduced ? false : { opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.55, delay: 0.1 }}
+            className="text-3xl sm:text-4xl lg:text-5xl font-bold text-slate-900 tracking-tight leading-[1.05]"
+          >
             FanFlow is building your plan
-          </h2>
-          <p className="text-sm text-slate-500 mt-2 max-w-md mx-auto">
-            Guidance based on your ticket, group, venue context, and live staff/fan signals.
-          </p>
+          </motion.h2>
+          <motion.p
+            initial={reduced ? false : { opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.25 }}
+            className="text-sm sm:text-base text-slate-500 mt-3 max-w-xl mx-auto leading-relaxed"
+          >
+            Our multi-layer reasoning engine analyzes your ticket, venue context, and
+            live signals to create the smartest way for you to arrive.
+          </motion.p>
         </div>
 
-        <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden">
-          <div className="h-1 bg-gradient-to-r from-violet-500 via-violet-600 to-violet-500" />
+        {/* === Two-column: steps card + side intelligence panel ====== */}
+        <div className="grid lg:grid-cols-[1.4fr_1fr] gap-5 sm:gap-6">
+          <GlassCard className="overflow-hidden">
+          <div className="h-1 bg-gradient-to-r from-violet-500 via-fuchsia-500 to-violet-500" />
           <div className="p-5 sm:p-7 space-y-5">
             {BUILDING_STEPS.map((s, i) => {
               const isScoring = s.n === 4
@@ -1473,38 +1941,136 @@ function StageBuilding({ onAdvance, onBack }: { onAdvance: () => void; onBack: (
                 </motion.div>
               )
             })}
+
+            {/* Bottom "Rules decide. AI only explains." pinned line */}
+            <div className="pt-4 border-t border-violet-100/70 flex items-center justify-center gap-2 text-[11px] text-slate-500">
+              <span>🔒</span>
+              <span className="font-semibold">Rules decide the plan. AI only explains.</span>
+            </div>
+          </div>
+          </GlassCard>
+
+          {/* === Right-side intelligence panel ====================== */}
+          <div className="space-y-4">
+            {/* Confidence meter */}
+            <motion.div
+              initial={reduced ? false : { opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: 0.3 }}
+            >
+              <GlassCard className="p-4 sm:p-5">
+                <div className="flex items-start gap-3 mb-3">
+                  <span className="w-9 h-9 rounded-xl bg-gradient-to-br from-violet-100 to-violet-50 border border-violet-200 flex items-center justify-center text-base flex-shrink-0">
+                    🛡️
+                  </span>
+                  <div>
+                    <div className="font-bold text-slate-900 text-sm">Confidence Meter</div>
+                    <div className="text-[11px] text-slate-500 mt-0.5">
+                      Entry-day arrival certainty
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-center justify-between gap-3">
+                  <ConfidenceRing value={MARIA_PLAN.confidence} size={100} label="Plan score" />
+                  <div className="flex-1">
+                    <LivePulseBars count={14} height={56} delay={0.4} />
+                    <div className="text-[10px] text-slate-500 mt-1.5 font-mono tabular-nums">
+                      Updated 10:20:14 PM
+                    </div>
+                  </div>
+                </div>
+              </GlassCard>
+            </motion.div>
+
+            {/* Live pulse summary */}
+            <motion.div
+              initial={reduced ? false : { opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: 0.45 }}
+            >
+              <GlassCard className="p-4 sm:p-5">
+                <div className="font-bold text-slate-900 text-sm mb-1">Live Pulse</div>
+                <div className="text-[11px] text-slate-500 mb-3">
+                  Real-time signals shaping your plan
+                </div>
+                <LivePulseBars count={22} height={48} delay={0.5} />
+                <div className="grid grid-cols-3 gap-2 mt-3 text-[10px]">
+                  {[
+                    { dot: 'bg-emerald-500', label: 'Traffic' },
+                    { dot: 'bg-violet-500', label: 'Crowd' },
+                    { dot: 'bg-fuchsia-500', label: 'Transit' },
+                  ].map((l) => (
+                    <div key={l.label} className="flex items-center gap-1.5">
+                      <span className={`w-1.5 h-1.5 rounded-full ${l.dot}`} />
+                      <span className="text-slate-600 font-semibold">{l.label}</span>
+                    </div>
+                  ))}
+                </div>
+              </GlassCard>
+            </motion.div>
+
+            {/* AI Explanation card — appears when scoring finishes */}
+            <motion.div
+              initial={{ opacity: 0, y: 8 }}
+              animate={tick >= 5 ? { opacity: 1, y: 0 } : { opacity: 0, y: 8 }}
+              transition={{ duration: 0.55 }}
+            >
+              <GlassCard className="p-4 sm:p-5">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-base">✨</span>
+                  <div className="font-bold text-slate-900 text-sm">AI Explanation</div>
+                </div>
+                <p className="text-xs text-slate-700 leading-relaxed">
+                  Gate 3 has the highest confidence: lighter foot traffic, direct transit
+                  access, and proximity to your Section 117. Leaving by{' '}
+                  <span className="font-mono font-bold">{MARIA_PLAN.leaveBy}</span> balances
+                  arrival timing with current congestion trends.
+                </p>
+                <div className="flex items-center gap-2 mt-3">
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-[10px] font-bold uppercase tracking-wider text-emerald-700">
+                    ✓ Plan optimal
+                  </span>
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-[10px] font-bold uppercase tracking-wider text-emerald-700">
+                    Low risk
+                  </span>
+                </div>
+              </GlassCard>
+            </motion.div>
           </div>
         </div>
 
-        {/* Final card */}
+        {/* === Final hand-off card — big gradient CTA ================ */}
         <motion.div
           initial={{ opacity: 0, y: 14 }}
           animate={allDone ? { opacity: 1, y: 0 } : { opacity: 0, y: 14 }}
           transition={{ duration: 0.55, ease: [0.16, 1, 0.3, 1] }}
-          className="mt-6 rounded-2xl bg-gradient-to-br from-violet-50 via-white to-white border border-violet-200 p-5 sm:p-6"
+          className="mt-6 sm:mt-8 max-w-3xl mx-auto rounded-3xl overflow-hidden relative bg-gradient-to-br from-violet-600 via-violet-700 to-fuchsia-700 text-white p-6 sm:p-7 shadow-[0_20px_60px_-20px_rgba(124,58,237,0.5)]"
         >
-          <div className="flex items-start gap-3 mb-4">
-            <span className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-violet-600 text-white flex-shrink-0">
-              <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M4 12.5l5 5L20 6.5" />
-              </svg>
-            </span>
-            <div>
-              <div className="kicker text-violet-700">Plan ready</div>
-              <h3 className="text-lg sm:text-xl font-bold text-slate-900 tracking-tight mt-0.5">
-                Your event day plan is ready.
-              </h3>
-              <p className="text-sm text-slate-600 mt-1">
-                {MARIA_PLAN.gate} · Leave by {MARIA_PLAN.leaveBy} · Arrive at {MARIA_PLAN.arriveBy}.
-              </p>
-            </div>
+          <div className="absolute -right-10 -top-10 opacity-20 hidden sm:block">
+            <StadiumIllustration size={220} showPin={false} />
           </div>
-          <button onClick={onAdvance} className="btn-primary w-full !min-h-[48px]">
-            See your Event Day Hub preview →
-          </button>
-          <p className="text-[11px] text-slate-500 mt-3">
-            Always follow venue signage and staff instructions.
-          </p>
+          <div className="relative">
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-base">✓</span>
+              <div className="kicker !text-white/80">Plan ready</div>
+            </div>
+            <h3 className="text-xl sm:text-2xl font-bold tracking-tight leading-tight">
+              Your event day plan is ready.
+            </h3>
+            <p className="text-sm text-white/80 mt-1">
+              {MARIA_PLAN.gate} · Leave by {MARIA_PLAN.leaveBy} · Arrive at {MARIA_PLAN.arriveBy}.
+            </p>
+            <button
+              onClick={onAdvance}
+              className="mt-4 inline-flex items-center gap-2 px-5 py-3 rounded-full bg-white text-violet-700 font-bold text-sm hover:bg-violet-50 transition shadow-md"
+            >
+              See your Event Day Hub preview
+              <span>→</span>
+            </button>
+            <p className="text-[11px] text-white/70 mt-3">
+              Always follow venue signage and staff instructions.
+            </p>
+          </div>
         </motion.div>
       </div>
     </div>
@@ -1518,230 +2084,354 @@ function StageBuilding({ onAdvance, onBack }: { onAdvance: () => void; onBack: (
 function StagePreview({ onBack }: { onBack: () => void }) {
   const reduced = useReducedMotion()
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen relative">
+      <AmbientBackdrop />
       <NavBar compact />
-      <div className="max-w-3xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-4">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6 sm:py-10 space-y-5 sm:space-y-6">
         <button onClick={onBack} className="text-xs text-slate-500 hover:text-slate-700">
           ← Back to building
         </button>
 
-        {/* Preview disclaimer */}
-        <div className="rounded-2xl bg-violet-50 border border-violet-100 px-4 py-2.5 flex items-center gap-2 text-xs text-violet-800">
-          <span className="font-bold">Preview:</span>
-          <span>This is the cinematic Hub preview. The fully working version lives below — open it any time.</span>
+        {/* === Premium hero ====================================== */}
+        <div className="relative grid lg:grid-cols-[1.6fr_1fr] gap-4 items-center">
+          <div>
+            <div className="kicker text-violet-700">Premium Hub preview</div>
+            <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-slate-900 tracking-tight mt-2 leading-[1.05]">
+              You're all set for Event Day
+            </h1>
+            <p className="text-sm sm:text-base text-slate-600 mt-3 max-w-xl leading-relaxed flex flex-wrap items-center gap-2">
+              <span className="inline-flex items-center gap-1 text-emerald-700 font-semibold">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                Everything is aligned for a smooth arrival.
+              </span>
+              <span>Here's your personalized plan.</span>
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-violet-50 border border-violet-200 text-[10px] font-bold uppercase tracking-wider text-violet-700">
+                ✨ Vision route
+              </span>
+            </p>
+          </div>
+          <div className="flex justify-end opacity-90 hidden lg:flex">
+            <StadiumIllustration size={240} />
+          </div>
         </div>
 
-        {/* Event card with countdown */}
+        {/* === Event card — premium quick info row ================= */}
         <motion.div
           initial={reduced ? false : { opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
-          className="rounded-2xl bg-white border border-slate-200 overflow-hidden"
         >
-          <div className="h-1 bg-gradient-to-r from-violet-500 to-fuchsia-500" />
-          <div className="p-5">
-            <div className="flex items-center justify-between mb-1">
-              <div className="kicker text-violet-700">Your event</div>
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-[10px] font-bold uppercase tracking-wider text-emerald-700">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> Live
-              </span>
-            </div>
-            <div className="font-bold text-slate-900 text-lg">World Cup Final</div>
-            <div className="text-xs text-slate-500">MetLife Stadium · Sat, Jul 19 · 7:00 PM</div>
-            <div className="mt-3 flex items-end gap-3 font-mono">
-              {['62', '03', '14', '27'].map((d, i) => (
-                <div key={i} className="text-center">
-                  <div className="text-2xl font-bold text-slate-900">{d}</div>
-                  <div className="text-[9px] text-slate-500 tracking-wider">
-                    {['DAYS', 'HRS', 'MINS', 'SECS'][i]}
-                  </div>
+          <GlassCard className="p-4 sm:p-5">
+            <div className="grid grid-cols-1 sm:grid-cols-[auto_1fr_auto_auto_auto_auto] gap-3 sm:gap-4 items-center">
+              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-violet-500 to-fuchsia-600 flex items-center justify-center text-2xl flex-shrink-0">
+                🏆
+              </div>
+              <div>
+                <div className="font-bold text-slate-900 text-sm sm:text-base">
+                  FIFA World Cup 2026™ Final
+                </div>
+                <div className="text-xs text-slate-500 mt-0.5">
+                  Sat, Jul 19 · 7:00 PM · MetLife Stadium · East Rutherford, NJ
+                </div>
+              </div>
+              {[
+                { k: 'Tickets', v: `${MARIA_PLAN.qty}`, sub: `Section ${MARIA_PLAN.section}, Row ${MARIA_PLAN.row}` },
+                { k: 'Entry', v: 'Mobile', sub: '2 Adults, 1 Child' },
+                { k: 'Weather', v: '🌤 78°F', sub: 'Clear skies' },
+                { k: 'Parking', v: 'Lot A', sub: 'Premium Parking' },
+              ].map((c) => (
+                <div key={c.k} className="hidden sm:block">
+                  <div className="text-[9px] font-bold uppercase tracking-wider text-slate-500">{c.k}</div>
+                  <div className="text-sm font-bold text-slate-900 mt-0.5">{c.v}</div>
+                  <div className="text-[10px] text-slate-500">{c.sub}</div>
                 </div>
               ))}
             </div>
-          </div>
+          </GlassCard>
         </motion.div>
 
-        {/* Arrival Plan command card */}
-        <motion.div
-          initial={reduced ? false : { opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.1 }}
-          className="rounded-2xl bg-white border border-slate-200 p-5"
-        >
-          <div className="flex items-center justify-between mb-3">
-            <div className="kicker text-violet-700">Your arrival plan</div>
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-[10px] font-bold text-emerald-700">
-              High confidence · <CountUpNum value={MARIA_PLAN.confidence} decimals={0} />%
-            </span>
-          </div>
-          <div className="space-y-1">
-            {[
-              { icon: '⏰', label: 'Leave by', value: MARIA_PLAN.leaveBy },
-              { icon: '🎯', label: 'Arrive at', value: MARIA_PLAN.arriveBy },
-              { icon: '📍', label: 'Gate', value: MARIA_PLAN.gate, emphasis: true },
-            ].map((r, i, arr) => (
-              <div key={r.label} className={`flex justify-between items-center py-2.5 ${i < arr.length - 1 ? 'border-b border-slate-100' : ''}`}>
-                <span className="flex items-center gap-2 text-sm text-slate-600 font-medium">
-                  <span className="w-6 h-6 rounded-full bg-slate-50 border border-slate-100 flex items-center justify-center text-xs">{r.icon}</span>
-                  {r.label}
+        {/* === Arrival Plan + Event Intelligence side-by-side ====== */}
+        <div className="grid lg:grid-cols-2 gap-5">
+          <motion.div
+            initial={reduced ? false : { opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.1 }}
+          >
+            <GlassCard className="p-5 sm:p-6 h-full">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <span className="text-violet-600">👑</span>
+                  <div className="kicker text-violet-700">Your arrival plan</div>
+                </div>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                  Recommended for you
                 </span>
-                <span className={`font-bold text-base ${r.emphasis ? 'text-violet-700' : 'text-slate-900'}`}>{r.value}</span>
               </div>
-            ))}
-          </div>
-        </motion.div>
+              <div className="grid grid-cols-[1fr_auto] items-center gap-4">
+                <div className="space-y-2">
+                  {[
+                    { icon: '🚗', label: 'Leave by', value: MARIA_PLAN.leaveBy, sub: 'From Home' },
+                    { icon: '🚶', label: 'Arrive at', value: MARIA_PLAN.arriveBy, sub: 'Including walk time' },
+                    { icon: '📍', label: 'Recommended Gate', value: MARIA_PLAN.gate, sub: 'Shortest walk', emphasis: true },
+                  ].map((r) => (
+                    <div key={r.label} className="flex items-center gap-3 py-1.5">
+                      <span className="w-9 h-9 rounded-xl bg-gradient-to-br from-violet-100 to-violet-50 border border-violet-200 flex items-center justify-center text-base flex-shrink-0">
+                        {r.icon}
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                          {r.label}
+                        </div>
+                        <div className={`font-bold text-base ${r.emphasis ? 'text-violet-700' : 'text-slate-900'}`}>
+                          {r.value}
+                        </div>
+                        <div className="text-[10px] text-slate-500">{r.sub}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <div className="flex flex-col items-center gap-2">
+                  <ConfidenceRing value={MARIA_PLAN.confidence} size={108} label="Confidence" />
+                  <div className="text-[10px] text-emerald-700 font-bold uppercase tracking-wider">
+                    High confidence
+                  </div>
+                </div>
+              </div>
+              <ul className="mt-4 pt-4 border-t border-violet-100/70 grid grid-cols-2 gap-1.5 text-[11px] text-slate-700">
+                {[
+                  '✓ Traffic is light',
+                  '✓ Shorter lines expected',
+                  '✓ Optimal gate choice',
+                  '✓ Real-time staff input',
+                ].map((b) => (
+                  <li key={b} className="font-semibold">{b}</li>
+                ))}
+              </ul>
+            </GlassCard>
+          </motion.div>
 
-        {/* Event Intelligence */}
+          {/* Event Intelligence — moved here for the side-by-side layout */}
+          <motion.div
+            initial={reduced ? false : { opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.15 }}
+          >
+            <GlassCard className="p-5 sm:p-6 h-full">
+              <div className="flex items-center justify-between mb-3">
+                <div>
+                  <div className="kicker text-violet-700">Event intelligence</div>
+                  <h3 className="font-bold text-slate-900 text-sm mt-0.5">Conditions at your gate</h3>
+                </div>
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-[10px] font-bold text-emerald-700">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                  Live updates
+                </span>
+              </div>
+              <div className="grid grid-cols-2 gap-2 mb-3">
+                <div className="rounded-xl bg-gradient-to-br from-amber-50 to-amber-100/40 border border-amber-200 p-3">
+                  <div className="text-[9px] uppercase tracking-wider text-amber-800 font-semibold">Expected load</div>
+                  <div className="text-sm font-bold text-amber-900 mt-1">{MARIA_PLAN.expectedLoad}</div>
+                  <div className="text-[10px] text-amber-800/70 mt-0.5">Manageable traffic</div>
+                </div>
+                <div className="rounded-xl bg-gradient-to-br from-violet-50 to-violet-100/40 border border-violet-200 p-3">
+                  <div className="text-[9px] uppercase tracking-wider text-violet-800 font-semibold">Peak window</div>
+                  <div className="text-sm font-bold text-violet-900 mt-1 font-mono">{MARIA_PLAN.peakWindow}</div>
+                  <div className="text-[10px] text-violet-800/70 mt-0.5">Plan to arrive within</div>
+                </div>
+                <div className="rounded-xl bg-gradient-to-br from-emerald-50 to-emerald-100/40 border border-emerald-200 p-3">
+                  <div className="text-[9px] uppercase tracking-wider text-emerald-800 font-semibold">Fan pulse</div>
+                  <div className="text-sm font-bold text-emerald-900 mt-1">{MARIA_PLAN.fanPulse.smooth}% smooth</div>
+                  <div className="text-[10px] text-emerald-800/70 mt-0.5">Happy &amp; relaxed</div>
+                </div>
+                <div className="rounded-xl bg-gradient-to-br from-sky-50 to-sky-100/40 border border-sky-200 p-3">
+                  <div className="text-[9px] uppercase tracking-wider text-sky-800 font-semibold">Staff update</div>
+                  <div className="text-sm font-bold text-sky-900 mt-1">Weighted 3×</div>
+                  <div className="text-[10px] text-sky-800/70 mt-0.5">More reliable insights</div>
+                </div>
+              </div>
+              <div className="rounded-xl bg-emerald-50 border border-emerald-200 p-3 flex items-start gap-2">
+                <span className="text-emerald-700 text-sm">👮</span>
+                <div className="min-w-0">
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-emerald-700">
+                    Staff update applied
+                  </div>
+                  <p className="text-xs text-emerald-900 mt-1 leading-snug">
+                    &ldquo;Gate 3 moving smoothly.&rdquo; Confidence increased for your route.
+                  </p>
+                </div>
+              </div>
+            </GlassCard>
+          </motion.div>
+        </div>
+
+        {/* === Live Pulse — full-width pulse signal chart ============ */}
         <motion.div
           initial={reduced ? false : { opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.2 }}
-          className="rounded-2xl bg-white border border-slate-200 overflow-hidden"
         >
-          <div className="h-1 bg-gradient-to-r from-violet-500 to-violet-600" />
-          <div className="p-5">
-            <div className="flex items-center justify-between mb-3">
+          <GlassCard className="p-5 sm:p-6">
+            <div className="flex items-center justify-between mb-4">
               <div>
-                <div className="kicker text-violet-700">Event intelligence</div>
-                <h3 className="font-bold text-slate-900 text-sm mt-0.5">Conditions at your gate</h3>
+                <div className="kicker text-violet-700">Live pulse</div>
+                <h3 className="font-bold text-slate-900 text-sm mt-0.5">
+                  Real-time conditions around the venue
+                </h3>
               </div>
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-50 border border-slate-200 text-[10px] font-bold text-slate-700">
-                <CountUpNum value={MARIA_PLAN.confidence} decimals={0} />% confidence
-              </span>
-            </div>
-            <div className="grid grid-cols-3 gap-2 mb-3">
-              <div className="rounded-lg bg-amber-50 border border-amber-200 p-2.5">
-                <div className="text-[9px] uppercase tracking-wider text-amber-800 font-semibold">Expected load</div>
-                <div className="text-sm font-bold text-amber-900 mt-1">{MARIA_PLAN.expectedLoad}</div>
-              </div>
-              <div className="rounded-lg bg-slate-50 border border-slate-200 p-2.5">
-                <div className="text-[9px] uppercase tracking-wider text-slate-500 font-semibold">Peak window</div>
-                <div className="text-sm font-bold text-slate-900 mt-1 font-mono">{MARIA_PLAN.peakWindow}</div>
-              </div>
-              <div className="rounded-lg bg-emerald-50 border border-emerald-200 p-2.5">
-                <div className="text-[9px] uppercase tracking-wider text-emerald-800 font-semibold">Fan pulse</div>
-                <div className="text-sm font-bold text-emerald-900 mt-1">{MARIA_PLAN.fanPulse.smooth}% smooth</div>
+              <div className="hidden sm:flex items-center gap-2">
+                <ConfidenceRing value={MARIA_PLAN.confidence} size={72} label="Overall" />
               </div>
             </div>
-            <div className="rounded-lg bg-emerald-50 border border-emerald-200 p-3 flex items-start gap-2">
-              <span className="text-emerald-700 text-sm">👮</span>
-              <div className="min-w-0">
-                <div className="text-[10px] font-bold uppercase tracking-wider text-emerald-700">
-                  Staff update applied · weighted 3× over fan reports
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+              {[
+                { k: 'Traffic', v: 'Light', dot: 'bg-emerald-500' },
+                { k: 'Entry Lines', v: 'Moderate', dot: 'bg-amber-500' },
+                { k: 'Concessions', v: 'Smooth', dot: 'bg-emerald-500' },
+                { k: 'Restrooms', v: 'Low Wait', dot: 'bg-emerald-500' },
+                { k: 'Exits', v: 'Clear', dot: 'bg-emerald-500' },
+              ].map((p, i) => (
+                <motion.div
+                  key={p.k}
+                  initial={reduced ? false : { opacity: 0, y: 6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.4, delay: 0.3 + i * 0.07 }}
+                  className="rounded-xl bg-white/60 border border-slate-200/70 p-3"
+                >
+                  <div className="text-[9px] font-bold uppercase tracking-wider text-slate-500">{p.k}</div>
+                  <div className="flex items-center gap-1.5 mt-1.5 mb-2">
+                    <span className={`w-1.5 h-1.5 rounded-full ${p.dot}`} />
+                    <span className="text-sm font-bold text-slate-900">{p.v}</span>
+                  </div>
+                  <LivePulseBars count={8} height={28} delay={0.4 + i * 0.05} />
+                </motion.div>
+              ))}
+            </div>
+          </GlassCard>
+        </motion.div>
+
+        {/* === Nearby support + Context-aware support side-by-side === */}
+        <div className="grid lg:grid-cols-[1.4fr_1fr] gap-5">
+          <motion.div
+            initial={reduced ? false : { opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.3 }}
+          >
+            <GlassCard className="p-5 sm:p-6 h-full">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <div className="kicker text-violet-700">Nearby support</div>
+                  <h3 className="font-bold text-slate-900 text-sm mt-0.5">Help is close by</h3>
                 </div>
-                <p className="text-xs text-emerald-900 mt-1 leading-snug">
-                  &ldquo;Gate 3 moving smoothly.&rdquo; This increased confidence for your route.
-                </p>
+                <button className="text-xs font-semibold text-sky-600 hover:underline">
+                  View on map →
+                </button>
               </div>
-            </div>
-          </div>
-        </motion.div>
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                {[
+                  { id: 'family', icon: '👶', label: 'Family Services', sub: '2 min walk', tone: 'bg-violet-600' },
+                  { id: 'aid', icon: '➕', label: 'First Aid', sub: '3 min walk', tone: 'bg-rose-600' },
+                  { id: 'quiet', icon: '🧩', label: 'Quiet Space', sub: '3 min walk', tone: 'bg-emerald-600' },
+                  { id: 'access', icon: '♿', label: 'Accessibility', sub: '2 min walk', tone: 'bg-sky-600' },
+                  { id: 'restroom', icon: '🚻', label: 'Family Restroom', sub: '2 min walk', tone: 'bg-slate-600' },
+                ].map((s, i) => (
+                  <motion.div
+                    key={s.id}
+                    initial={reduced ? false : { opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.35, delay: 0.4 + i * 0.05 }}
+                    className="rounded-xl bg-white/60 border border-slate-200/70 p-3 text-center"
+                  >
+                    <span
+                      className={`inline-flex w-10 h-10 rounded-full ${s.tone} text-white items-center justify-center text-base mx-auto mb-2`}
+                    >
+                      {s.icon}
+                    </span>
+                    <div className="text-xs font-bold text-slate-900 leading-tight">{s.label}</div>
+                    <div className="text-[10px] text-slate-500 mt-0.5">{s.sub}</div>
+                  </motion.div>
+                ))}
+              </div>
+            </GlassCard>
+          </motion.div>
 
-        {/* Fan pulse bars */}
-        <motion.div
-          initial={reduced ? false : { opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.3 }}
-          className="rounded-2xl bg-white border border-slate-200 p-5"
-        >
-          <div className="kicker mb-3">Fan pulse · last 30 minutes</div>
-          <div className="flex h-2.5 rounded-full overflow-hidden bg-slate-100">
-            <motion.div
-              className="bg-emerald-500"
-              initial={{ width: 0 }}
-              animate={{ width: `${MARIA_PLAN.fanPulse.smooth}%` }}
-              transition={{ duration: 0.8, delay: 0.5, ease: [0.16, 1, 0.3, 1] }}
-            />
-            <motion.div
-              className="bg-amber-500"
-              initial={{ width: 0 }}
-              animate={{ width: `${MARIA_PLAN.fanPulse.slow}%` }}
-              transition={{ duration: 0.8, delay: 0.6, ease: [0.16, 1, 0.3, 1] }}
-            />
-            <motion.div
-              className="bg-rose-500"
-              initial={{ width: 0 }}
-              animate={{ width: `${MARIA_PLAN.fanPulse.needHelp}%` }}
-              transition={{ duration: 0.8, delay: 0.7, ease: [0.16, 1, 0.3, 1] }}
-            />
-          </div>
-          <div className="grid grid-cols-3 gap-2 mt-2.5 text-[11px]">
-            <div className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-emerald-500" /><span className="font-semibold">{MARIA_PLAN.fanPulse.smooth}%</span> smooth</div>
-            <div className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-amber-500" /><span className="font-semibold">{MARIA_PLAN.fanPulse.slow}%</span> slow</div>
-            <div className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-rose-500" /><span className="font-semibold">{MARIA_PLAN.fanPulse.needHelp}%</span> need help</div>
-          </div>
-        </motion.div>
-
-        {/* Nearby support */}
-        <motion.div
-          initial={reduced ? false : { opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.4 }}
-          className="rounded-2xl bg-white border border-slate-200 p-5"
-        >
-          <div className="kicker mb-3">Nearby support</div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-            {SUPPORT_MODULES.map((s, i) => (
+          {/* Context-aware support card with floating headset graphic */}
+          <motion.div
+            initial={reduced ? false : { opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.4 }}
+          >
+            <GlassCard className="relative p-5 sm:p-6 h-full overflow-hidden">
+              <div className="kicker text-violet-700">Context-aware support</div>
+              <h3 className="font-bold text-slate-900 text-base mt-1">We've got your back</h3>
+              <p className="text-xs text-slate-600 mt-2 leading-relaxed">
+                Personalized help based on your tickets, plans, and real-time conditions.
+              </p>
+              <button className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-full bg-violet-600 hover:bg-violet-700 text-white text-sm font-bold transition">
+                🎧 One tap for help
+              </button>
+              {/* Floating headset glow */}
               <motion.div
-                key={s.id}
-                initial={reduced ? false : { opacity: 0, x: -6 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ duration: 0.4, delay: 0.5 + i * 0.06 }}
-                className="flex items-center gap-2.5 p-2.5 rounded-xl bg-slate-50 border border-slate-200"
-              >
-                <span className={`w-9 h-9 rounded-full ${s.tone} text-white flex items-center justify-center flex-shrink-0`}>
-                  {s.icon}
-                </span>
-                <span className="text-sm font-semibold text-slate-900">{s.label}</span>
-              </motion.div>
-            ))}
-          </div>
-        </motion.div>
+                aria-hidden="true"
+                className="absolute -right-6 -bottom-6 w-32 h-32 rounded-full bg-gradient-to-br from-violet-400/40 to-fuchsia-400/40 blur-2xl"
+                animate={reduced ? undefined : { scale: [1, 1.15, 1] }}
+                transition={reduced ? undefined : { duration: 3, repeat: Infinity, ease: 'easeInOut' }}
+              />
+              <div className="absolute right-2 bottom-2 w-16 h-16 rounded-full bg-gradient-to-br from-violet-500 to-fuchsia-600 flex items-center justify-center text-3xl shadow-lg">
+                🎧
+              </div>
+              <p className="text-[10px] text-slate-400 mt-4">
+                FanFlow provides guidance, not emergency response. For urgent issues call 911.
+              </p>
+            </GlassCard>
+          </motion.div>
+        </div>
 
-        {/* Need Help preview */}
-        <motion.div
-          initial={reduced ? false : { opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.5 }}
-          className="rounded-2xl bg-white border border-slate-200 overflow-hidden"
-        >
-          <div className="h-1 bg-gradient-to-r from-rose-400 via-rose-500 to-rose-400" />
-          <div className="p-5">
-            <div className="kicker text-rose-700">Need help during the event?</div>
-            <h3 className="font-bold text-slate-900 text-base mt-1">Context-aware support, one tap away</h3>
-            <p className="text-xs text-slate-500 mt-2 leading-relaxed">
-              For urgent medical or safety issues, contact venue staff or local emergency services.
-              FanFlow provides guidance, not emergency response.
-            </p>
-          </div>
-        </motion.div>
-
-        {/* Hand-off CTA */}
+        {/* === Dark hand-off card ===================================== */}
         <motion.div
           initial={reduced ? false : { opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.55, delay: 0.6 }}
-          className="rounded-2xl bg-slate-900 text-white p-5 sm:p-6"
+          transition={{ duration: 0.55, delay: 0.5 }}
+          className="relative rounded-3xl overflow-hidden p-6 sm:p-8 text-white shadow-[0_20px_60px_-20px_rgba(15,23,42,0.5)]"
         >
-          <div className="flex items-center gap-3 mb-3">
-            <div className="w-10 h-10 rounded-full bg-violet-600 flex items-center justify-center text-base">🚪</div>
+          <div className="absolute inset-0 bg-gradient-to-br from-slate-900 via-slate-800 to-violet-900" />
+          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(124,58,237,0.4),transparent_50%),radial-gradient(ellipse_at_bottom_left,rgba(217,70,239,0.2),transparent_50%)]" />
+          <div className="relative grid lg:grid-cols-[1fr_auto] gap-6 items-center">
             <div>
-              <div className="font-bold text-sm">Hand-off to the real system</div>
-              <div className="text-xs text-slate-300 mt-0.5">
-                Live signals · cross-tab staff updates · score breakdown · tests
-              </div>
+              <div className="kicker !text-white/70 mb-2">You're ready. We'll handle the rest.</div>
+              <h3 className="text-2xl sm:text-3xl font-bold tracking-tight leading-tight">
+                Your real-time hub is moments away.
+              </h3>
+              <p className="text-sm text-white/80 mt-2 max-w-md">
+                We'll keep monitoring conditions and guide you in with confidence.
+              </p>
+              <ul className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-white/90">
+                {[
+                  '✓ Real-time updates as conditions change',
+                  '✓ Smarter routing around peak surges',
+                  '✓ Priority alerts that matter most',
+                  '✓ Cross-tab staff signals · weighted 3×',
+                ].map((b) => (
+                  <li key={b} className="font-semibold">{b}</li>
+                ))}
+              </ul>
+            </div>
+            <div className="flex flex-col items-center sm:items-end gap-2 flex-shrink-0">
+              <Link
+                href="/event/wc2026-final/hub"
+                className="inline-flex items-center justify-center min-h-[56px] px-8 rounded-full bg-white text-slate-900 font-bold text-base hover:bg-slate-100 transition shadow-md"
+              >
+                Open real FanFlow Hub
+                <span className="ml-2">→</span>
+              </Link>
+              <p className="text-[11px] text-white/60 flex items-center gap-1.5">
+                <span>🔒</span> Secure. Private. Yours.
+              </p>
             </div>
           </div>
-          <Link
-            href="/event/wc2026-final/hub"
-            className="inline-flex items-center justify-center w-full min-h-[48px] px-5 rounded-full bg-white text-slate-900 font-bold text-sm hover:bg-slate-100 transition"
-          >
-            Open real FanFlow Hub →
-          </Link>
-          <p className="text-[11px] text-slate-400 text-center mt-3 leading-relaxed">
-            The real Hub uses the deterministic rule engine, AI explanation endpoint, and live staff/fan signals.
-          </p>
         </motion.div>
+
+        {/* === Bottom trust strip ===================================== */}
+        <TrustStrip items={TRUST_ITEMS} />
       </div>
     </div>
   )
