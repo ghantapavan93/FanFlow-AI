@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { demoVenue } from '@/lib/seed'
+import { SessionChip } from '@/components/shared/SessionChip'
 import {
   clearPublishedSignals,
   getAllSignals,
@@ -163,12 +164,15 @@ export default function StaffConsolePage() {
             <div className="text-xs text-slate-400">MetLife Stadium · Operations</div>
           </div>
         </div>
-        <Link
-          href="/event/wc2026-final/hub"
-          className="text-sm text-slate-400 hover:text-white"
-        >
-          Fan view →
-        </Link>
+        <div className="flex items-center gap-3">
+          <SessionChip tone="dark" />
+          <Link
+            href="/event/wc2026-final/hub"
+            className="text-sm text-slate-400 hover:text-white"
+          >
+            Fan view →
+          </Link>
+        </div>
       </div>
 
       {/* KPI dashboard top row — dashboard credibility signal */}

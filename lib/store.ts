@@ -14,19 +14,24 @@
 
 import type { Incident, IncidentStatus, LiveSignal, ReadinessPrefs } from './types'
 import { demoIncidents, demoLiveSignals } from './seed'
+import { getSessionId, sessionKey } from './session'
 
-const READINESS_KEY = 'fanflow_readiness'
-const SIGNALS_KEY = 'fanflow_published_signals'
-const CHECKLIST_KEY = 'fanflow_checklist'
-const INCIDENTS_OVERRIDE_KEY = 'fanflow_incidents_overrides'
+// Suffixes are intentionally short — the full key is computed lazily
+// per-call as `fanflow:<sessionId>:<suffix>` via sessionKey(). The session
+// id can change at runtime (URL ?session= override, reset), so we never
+// cache the resolved key at module load.
+const READINESS_SUFFIX = 'readiness'
+const SIGNALS_SUFFIX = 'signals'
+const CHECKLIST_SUFFIX = 'checklist'
+const INCIDENTS_OVERRIDE_SUFFIX = 'incidents'
+
+const SUFFIX_TO_EVENT: Record<string, FanflowEvent> = {
+  [READINESS_SUFFIX]: 'fanflow:readiness',
+  [SIGNALS_SUFFIX]: 'fanflow:signals',
+  [INCIDENTS_OVERRIDE_SUFFIX]: 'fanflow:incidents',
+}
 
 export type FanflowEvent = 'fanflow:readiness' | 'fanflow:signals' | 'fanflow:incidents'
-
-const STORAGE_KEY_TO_EVENT: Record<string, FanflowEvent> = {
-  [READINESS_KEY]: 'fanflow:readiness',
-  [SIGNALS_KEY]: 'fanflow:signals',
-  [INCIDENTS_OVERRIDE_KEY]: 'fanflow:incidents',
-}
 
 /**
  * Write a JSON value to localStorage with hardened error handling.
@@ -71,7 +76,7 @@ function safeRemoveItem(key: string): void {
 export function loadReadiness(): ReadinessPrefs | null {
   if (typeof window === 'undefined') return null
   try {
-    const raw = window.localStorage.getItem(READINESS_KEY)
+    const raw = window.localStorage.getItem(sessionKey(READINESS_SUFFIX))
     if (!raw) return null
     return JSON.parse(raw) as ReadinessPrefs
   } catch {
@@ -81,20 +86,20 @@ export function loadReadiness(): ReadinessPrefs | null {
 
 export function saveReadiness(prefs: ReadinessPrefs): void {
   if (typeof window === 'undefined') return
-  safeSetItem(READINESS_KEY, JSON.stringify(prefs))
+  safeSetItem(sessionKey(READINESS_SUFFIX), JSON.stringify(prefs))
   window.dispatchEvent(new Event('fanflow:readiness'))
 }
 
 export function clearReadiness(): void {
   if (typeof window === 'undefined') return
-  safeRemoveItem(READINESS_KEY)
+  safeRemoveItem(sessionKey(READINESS_SUFFIX))
   window.dispatchEvent(new Event('fanflow:readiness'))
 }
 
 export function loadPublishedSignals(): LiveSignal[] {
   if (typeof window === 'undefined') return []
   try {
-    const raw = window.localStorage.getItem(SIGNALS_KEY)
+    const raw = window.localStorage.getItem(sessionKey(SIGNALS_SUFFIX))
     if (!raw) return []
     return JSON.parse(raw) as LiveSignal[]
   } catch {
@@ -106,13 +111,13 @@ export function publishSignal(signal: LiveSignal): void {
   if (typeof window === 'undefined') return
   const existing = loadPublishedSignals()
   const next = [signal, ...existing].slice(0, 30)
-  safeSetItem(SIGNALS_KEY, JSON.stringify(next))
+  safeSetItem(sessionKey(SIGNALS_SUFFIX), JSON.stringify(next))
   window.dispatchEvent(new Event('fanflow:signals'))
 }
 
 export function clearPublishedSignals(): void {
   if (typeof window === 'undefined') return
-  safeRemoveItem(SIGNALS_KEY)
+  safeRemoveItem(sessionKey(SIGNALS_SUFFIX))
   window.dispatchEvent(new Event('fanflow:signals'))
 }
 
@@ -131,7 +136,7 @@ type IncidentOverride = {
 function loadIncidentOverrides(): Record<string, IncidentOverride> {
   if (typeof window === 'undefined') return {}
   try {
-    const raw = window.localStorage.getItem(INCIDENTS_OVERRIDE_KEY)
+    const raw = window.localStorage.getItem(sessionKey(INCIDENTS_OVERRIDE_SUFFIX))
     if (!raw) return {}
     return JSON.parse(raw) as Record<string, IncidentOverride>
   } catch {
@@ -141,7 +146,7 @@ function loadIncidentOverrides(): Record<string, IncidentOverride> {
 
 function saveIncidentOverrides(map: Record<string, IncidentOverride>): void {
   if (typeof window === 'undefined') return
-  safeSetItem(INCIDENTS_OVERRIDE_KEY, JSON.stringify(map))
+  safeSetItem(sessionKey(INCIDENTS_OVERRIDE_SUFFIX), JSON.stringify(map))
   window.dispatchEvent(new Event('fanflow:incidents'))
 }
 
@@ -175,14 +180,14 @@ export function updateIncident(
 
 export function clearIncidentOverrides(): void {
   if (typeof window === 'undefined') return
-  safeRemoveItem(INCIDENTS_OVERRIDE_KEY)
+  safeRemoveItem(sessionKey(INCIDENTS_OVERRIDE_SUFFIX))
   window.dispatchEvent(new Event('fanflow:incidents'))
 }
 
 export function loadChecklist(): Record<string, boolean> {
   if (typeof window === 'undefined') return {}
   try {
-    const raw = window.localStorage.getItem(CHECKLIST_KEY)
+    const raw = window.localStorage.getItem(sessionKey(CHECKLIST_SUFFIX))
     if (!raw) return {}
     return JSON.parse(raw) as Record<string, boolean>
   } catch {
@@ -192,7 +197,7 @@ export function loadChecklist(): Record<string, boolean> {
 
 export function saveChecklist(state: Record<string, boolean>): void {
   if (typeof window === 'undefined') return
-  safeSetItem(CHECKLIST_KEY, JSON.stringify(state))
+  safeSetItem(sessionKey(CHECKLIST_SUFFIX), JSON.stringify(state))
 }
 
 /**
@@ -222,7 +227,13 @@ export function subscribeToFanflowChanges(
 
   const onStorage = (e: StorageEvent) => {
     if (!e.key) return
-    const mapped = STORAGE_KEY_TO_EVENT[e.key]
+    // Cross-tab keys are session-scoped: fanflow:<sessionId>:<suffix>
+    // Only react to keys belonging to the CURRENT session — otherwise a
+    // tab on a different demo session would re-render this tab's UI.
+    const prefix = `fanflow:${getSessionId()}:`
+    if (!e.key.startsWith(prefix)) return
+    const suffix = e.key.slice(prefix.length)
+    const mapped = SUFFIX_TO_EVENT[suffix]
     if (mapped && events.includes(mapped)) handler()
   }
   window.addEventListener('storage', onStorage)

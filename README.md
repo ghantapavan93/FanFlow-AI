@@ -60,6 +60,39 @@ The prototype intentionally uses `localStorage` so the demo works without any ba
 
 Supabase Realtime broadcasts `live_signals` and `incidents` changes; the Hub re-derives the plan client-side from the new signal set. The rule engine and AI endpoint **stay identical** — only the storage layer swaps. See `docs/ARCHITECTURE.md` for the full swap path.
 
+## Demo session isolation
+
+The public demo is **session-scoped**. Each visitor receives a unique session id, and all readiness answers, demo signals, incidents, and checklist state are stored under that session:
+
+```
+fanflow:<sessionId>:readiness
+fanflow:<sessionId>:signals
+fanflow:<sessionId>:incidents
+fanflow:<sessionId>:checklist
+```
+
+Session id resolution (in priority order):
+1. **URL override** — `?session=<id>` pins a sharable demo session. Useful for repeatable demos: `/event/wc2026-final/hub?session=maria-demo`.
+2. **localStorage** — `fanflow:session-id` persists the default across page reloads.
+3. **Fresh generation** — `crypto.randomUUID().slice(0, 8)` on first visit.
+
+The session id is exposed via a **visible chip** on the Hub footer and the Staff Console header (`Session abc12345 · Reset`). Clicking *Reset* wipes every `fanflow:<currentSession>:*` key, generates a new id, and re-renders the UI against an empty state — without a page reload.
+
+**Cross-tab demo still works.** Two tabs in the same browser read the same `fanflow:session-id` from localStorage, so they converge on the same session and the Hub ↔ Staff signal flow still propagates via the native `storage` event. The cross-tab listener was hardened to only react to keys belonging to the current session — see [lib/store.ts](lib/store.ts):`subscribeToFanflowChanges`.
+
+**What's session-scoped vs. event-scoped.** This is the production architecture distinction:
+
+| Data | Demo scope | Production scope |
+|---|---|---|
+| Readiness profile | session | `user_id` + `ticket_id` |
+| Checklist | session | `user_id` + `ticket_id` |
+| Staff signals | session (for demo isolation) | `event_id` + `gate_id` — shared across all fans at that gate |
+| Fan pulse | session (for demo isolation) | `event_id` + `gate_id`, aggregated + rate-limited |
+| Incident overrides | session | `event_id` + `gate_id` — shared event truth |
+| Event + venue + gates + support points | global seed | `events` / `venues` / `gates` / `support_locations` tables — shared across all visitors |
+
+In the demo, staff signals are session-scoped so one visitor's clicks don't pollute another's experience. In production, verified staff signals are event-scoped — all fans at Gate 13 should see the same update when staff reports the line is moving. The swap is one config flip in `lib/data/FanflowStore` plus a Supabase Realtime channel subscription.
+
 ## Safety boundary
 
 FanFlow provides **guidance, not emergency response**. The product never claims guaranteed safety, exact wait times, exact crowd prediction, or medical authority. Every safety-relevant surface carries the same line:

@@ -14,6 +14,7 @@ import {
 } from '@/lib/store'
 import type { LiveSignal, ReadinessPrefs } from '@/lib/types'
 import { HelpSheet } from '@/components/shared/HelpSheet'
+import { SessionChip } from '@/components/shared/SessionChip'
 import { ImpactCards } from '@/components/impact/ImpactCards'
 import { EventIntelligenceCard } from '@/components/intelligence/EventIntelligenceCard'
 import { computeEventIntelligence, computeFanPulse } from '@/lib/intelligence'
@@ -1092,11 +1093,13 @@ export default function EventHubPage() {
         </Reveal>
 
         {/* Trust pill — mirrors StubHub's "Prices include all fees" */}
-        <div className="flex justify-center pt-2">
+        <div className="flex flex-col items-center gap-2 pt-2">
           <span className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-violet-50 border border-violet-100 text-xs font-semibold text-violet-700">
             <span className="dot bg-violet-600" />
             Plan updates live · Free, always
           </span>
+          {/* Visible demo-session chip — proves state is per-visitor */}
+          <SessionChip />
         </div>
 
         <div className="text-xs text-slate-500 text-center pb-4">
