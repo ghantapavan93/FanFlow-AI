@@ -266,6 +266,14 @@ function scoreGateBreakdown(
     if (prefs.needs.includes('wheelchair') && gate.accessibility) {
       components.accessibility_match += 6
     }
+    // slow_pace covers pregnancy / post-surgery / cane / older adult — anyone
+    // who prefers a shorter walk without needing full step-free routing.
+    // Lower weight than wheelchair (+3 vs +6) and additionally prefers gates
+    // with shorter typical waits so they don't stand in long lines.
+    if (prefs.needs.includes('slow_pace')) {
+      if (gate.accessibility) components.accessibility_match += 3
+      if (gate.typical_wait_minutes <= 8) components.accessibility_match += 1
+    }
     if (prefs.needs.includes('stroller') && gate.family_friendly) {
       components.family_match += 4
     }
@@ -278,6 +286,9 @@ function scoreGateBreakdown(
     if (prefs.needs.includes('sensory_sensitive') && gate.typical_wait_minutes <= 6) {
       components.sensory_match += 2
     }
+    // first_time intentionally does NOT modify scoring — it surfaces an
+    // orientation card on the Hub instead. Keeps the rule engine free of
+    // soft UX flags.
   }
 
   components.wait_penalty = -gate.typical_wait_minutes / 3
@@ -332,6 +343,13 @@ function buildExplanation(
   }
   if (prefs.needs.includes('wheelchair') && gate.accessibility) {
     parts.push('step-free accessible entry')
+  }
+  if (
+    prefs.needs.includes('slow_pace') &&
+    !prefs.needs.includes('wheelchair') &&
+    gate.accessibility
+  ) {
+    parts.push('shorter walk preferred')
   }
   if (prefs.needs.includes('stroller') && gate.family_friendly) {
     parts.push('stroller-friendly lanes')

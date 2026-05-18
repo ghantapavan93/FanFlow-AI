@@ -118,3 +118,83 @@ describe('rule engine — section proximity tiers', () => {
     expect(gate7.components.section_proximity).toBe(0) // outside 20
   })
 })
+
+describe('rule engine — new persona coverage (slow_pace, first_time)', () => {
+  it('slow_pace adds accessibility_match on accessible gates (lower weight than wheelchair)', () => {
+    const slowPlan = deriveArrivalPlan(
+      {
+        transport: 'transit',
+        group: 'solo',
+        needs: ['slow_pace'],
+        updated_at: new Date().toISOString(),
+      },
+      [],
+    )
+    const wheelchairPlan = deriveArrivalPlan(
+      {
+        transport: 'transit',
+        group: 'solo',
+        needs: ['wheelchair'],
+        updated_at: new Date().toISOString(),
+      },
+      [],
+    )
+    const slowGate3 = slowPlan.gate_scores!.find((g) => g.gate_id === 'gate-3')!
+    const wcGate3 = wheelchairPlan.gate_scores!.find((g) => g.gate_id === 'gate-3')!
+    // Both gates are accessibility:true, so both get a boost.
+    expect(slowGate3.components.accessibility_match).toBeGreaterThan(0)
+    expect(wcGate3.components.accessibility_match).toBeGreaterThan(0)
+    // Wheelchair must score higher than slow_pace — it's a stricter need.
+    expect(wcGate3.components.accessibility_match).toBeGreaterThan(
+      slowGate3.components.accessibility_match,
+    )
+  })
+
+  it('slow_pace boost on non-step-free gate is smaller than on step-free gate', () => {
+    // Gate 7 has accessibility:false, typical_wait_minutes:8 → only the
+    // short-wait sub-rule applies (+1). Gate 3 has accessibility:true,
+    // typical_wait_minutes:5 → both sub-rules apply (+3 + +1 = +4).
+    const plan = deriveArrivalPlan(
+      {
+        transport: 'transit',
+        group: 'solo',
+        needs: ['slow_pace'],
+        updated_at: new Date().toISOString(),
+      },
+      [],
+    )
+    const gate3 = plan.gate_scores!.find((g) => g.gate_id === 'gate-3')!
+    const gate7 = plan.gate_scores!.find((g) => g.gate_id === 'gate-7')!
+    expect(gate7.components.accessibility_match).toBeLessThan(
+      gate3.components.accessibility_match,
+    )
+  })
+
+  it('first_time does NOT modify gate scoring — pure UX flag', () => {
+    const withFirstTime = deriveArrivalPlan(
+      {
+        transport: 'transit',
+        group: 'solo',
+        needs: ['first_time'],
+        updated_at: new Date().toISOString(),
+      },
+      [],
+    )
+    const without = deriveArrivalPlan(
+      {
+        transport: 'transit',
+        group: 'solo',
+        needs: [],
+        updated_at: new Date().toISOString(),
+      },
+      [],
+    )
+    // Same recommended gate
+    expect(withFirstTime.recommended_gate.id).toBe(without.recommended_gate.id)
+    // Every score component must match exactly
+    for (const g of withFirstTime.gate_scores!) {
+      const same = without.gate_scores!.find((x) => x.gate_id === g.gate_id)!
+      expect(g.total).toBe(same.total)
+    }
+  })
+})

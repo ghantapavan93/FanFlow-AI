@@ -54,10 +54,12 @@ export type TransportMode = 'transit' | 'driving' | 'rideshare' | 'walking'
 export type GroupType = 'solo' | 'couple' | 'family_young_kids' | 'family_teens' | 'large_group'
 export type AccessibilityNeed =
   | 'wheelchair'
+  | 'slow_pace'
   | 'stroller'
   | 'hearing'
   | 'visual'
   | 'sensory_sensitive'
+  | 'first_time'
   | 'none'
 
 export interface ReadinessPrefs {

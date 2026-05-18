@@ -418,6 +418,75 @@ export default function EventHubPage() {
           />
         )}
 
+        {/* Orientation tips — surfaces only when the fan flagged themselves
+            as first-time / out-of-town in Readiness. Doesn't affect the
+            gate score; provides anchor landmarks + signage cues so a new
+            visitor can orient quickly. */}
+        {hydrated && prefs?.needs.includes('first_time') && (
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+            className="rounded-2xl border border-sky-200 bg-gradient-to-br from-sky-50 to-white p-5 sm:p-6"
+          >
+            <div className="flex items-start gap-3 mb-3">
+              <span className="w-10 h-10 rounded-full bg-sky-600 text-white flex items-center justify-center text-base flex-shrink-0">
+                🧭
+              </span>
+              <div className="min-w-0">
+                <div className="kicker text-sky-700">First-time at MetLife</div>
+                <h3 className="font-bold text-slate-900 text-base leading-tight mt-0.5">
+                  Orientation tips for your arrival
+                </h3>
+              </div>
+            </div>
+            <ul className="space-y-2 text-sm text-slate-700">
+              {[
+                { icon: '📍', label: `Look for ${plan.recommended_gate.name} signage from the parking lot — the gate name appears on all overhead signs.` },
+                { icon: '🛂', label: 'Have your mobile ticket open before joining the entrance queue — saves 1–2 minutes at bag check.' },
+                { icon: '🦺', label: 'Any staff member in a high-visibility vest can answer questions and radio for support.' },
+                { icon: '🚻', label: `Once inside, follow Section ${demoTicket.section} signs along the main concourse to your seat.` },
+              ].map((tip) => (
+                <li key={tip.label} className="flex items-start gap-2">
+                  <span className="text-base leading-none mt-0.5 flex-shrink-0">{tip.icon}</span>
+                  <span className="leading-snug">{tip.label}</span>
+                </li>
+              ))}
+            </ul>
+            <p className="text-[11px] text-slate-500 mt-3 leading-relaxed">
+              Tips appear because you flagged yourself as a first-time visitor in Readiness.
+            </p>
+          </motion.div>
+        )}
+
+        {/* Free-text notes from Readiness — surfaced as a quoted line so
+            the fan sees that what they typed actually shows up. Only
+            renders when there's something to show. */}
+        {hydrated && prefs?.notes && prefs.notes.trim().length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+            className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 flex items-start gap-3"
+          >
+            <span className="text-slate-400 flex-shrink-0 mt-0.5">📝</span>
+            <div className="min-w-0 flex-1">
+              <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 mb-0.5">
+                Your note for today
+              </div>
+              <p className="text-sm text-slate-700 italic leading-snug">
+                &ldquo;{prefs.notes}&rdquo;
+              </p>
+            </div>
+            <Link
+              href={`/event/${eventId}/readiness`}
+              className="text-[11px] font-semibold text-violet-700 hover:text-violet-800 flex-shrink-0 self-center"
+            >
+              Edit
+            </Link>
+          </motion.div>
+        )}
+
         {/* Arrival Plan — premium card with subtle accent and icon-prefixed rows */}
         <div className="relative rounded-2xl border border-slate-200 bg-white overflow-hidden hover-lift">
           {/* Top accent strip */}
@@ -511,8 +580,17 @@ export default function EventHubPage() {
                 reasons.push({ label: `Closest to Section ${demoTicket.section}`, tone: 'pos' })
               else if (c.section_proximity >= 6)
                 reasons.push({ label: `Near your section`, tone: 'pos' })
-              if (c.accessibility_match > 0)
-                reasons.push({ label: 'Step-free accessible entry', tone: 'pos' })
+              if (c.accessibility_match > 0) {
+                const wheelchair = prefs?.needs.includes('wheelchair')
+                const slowPace = prefs?.needs.includes('slow_pace')
+                if (wheelchair) {
+                  reasons.push({ label: 'Step-free accessible entry', tone: 'pos' })
+                } else if (slowPace) {
+                  reasons.push({ label: 'Shorter walk preferred', tone: 'pos' })
+                } else {
+                  reasons.push({ label: 'Step-free accessible entry', tone: 'pos' })
+                }
+              }
               if (c.family_match > 0)
                 reasons.push({ label: 'Family-friendly lane', tone: 'pos' })
               if (c.sensory_match > 0)

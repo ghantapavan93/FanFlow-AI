@@ -60,12 +60,24 @@ const GROUP_OPTIONS: { value: GroupType; emoji: string; title: string; subtitle:
   { value: 'large_group', emoji: '👫👬', title: 'Larger group', subtitle: '4+ people' },
 ]
 
-const NEED_OPTIONS: { value: AccessibilityNeed; emoji: string; title: string }[] = [
+const NEED_OPTIONS: { value: AccessibilityNeed; emoji: string; title: string; subtitle?: string }[] = [
   { value: 'wheelchair', emoji: '♿', title: 'Wheelchair / step-free entry' },
+  {
+    value: 'slow_pace',
+    emoji: '🦯',
+    title: 'Shorter walk preferred',
+    subtitle: 'Pregnancy, recovery, cane, older adult',
+  },
   { value: 'stroller', emoji: '🍼', title: 'Stroller-friendly entry' },
   { value: 'hearing', emoji: '🦻', title: 'Hearing assistance' },
   { value: 'visual', emoji: '👁️', title: 'Visual assistance' },
   { value: 'sensory_sensitive', emoji: '🧩', title: 'Sensory-sensitive (quieter route)' },
+  {
+    value: 'first_time',
+    emoji: '🧭',
+    title: 'First-time / out-of-town visitor',
+    subtitle: "We'll surface orientation tips on the Hub",
+  },
 ]
 
 export default function ReadinessPage() {
@@ -121,10 +133,12 @@ export default function ReadinessPage() {
     if (!wasSelected) {
       const msg: Record<AccessibilityNeed, string> = {
         wheelchair: 'Accessibility-aware routing enabled.',
+        slow_pace: 'Shorter-walk preference saved.',
         stroller: 'Stroller-friendly support added.',
         hearing: 'Hearing-assistance resources surfaced.',
         visual: 'Visual-assistance resources surfaced.',
         sensory_sensitive: 'Calmer route preference saved.',
+        first_time: "Orientation tips will appear on your Hub.",
         none: 'Preferences updated.',
       }
       setFeedback(msg[n])
@@ -317,6 +331,7 @@ export default function ReadinessPage() {
                   onClick={() => toggleNeed(opt.value)}
                   emoji={opt.emoji}
                   title={opt.title}
+                  subtitle={opt.subtitle}
                 />
               ))}
             </div>
