@@ -316,17 +316,44 @@ function NavBar({ compact = false }: { compact?: boolean }) {
           </div>
         )}
         <div className="flex items-center gap-3 sm:gap-4 text-sm font-semibold text-slate-600">
-          {NAV_RIGHT.map((n) => (
-            <span key={n} className="hidden lg:inline">{n}</span>
-          ))}
-          <div className="w-7 h-7 rounded-full bg-rose-500 text-white flex items-center justify-center text-[10px] font-bold">M</div>
+          {NAV_RIGHT.map((n) =>
+            n === 'My Tickets' ? (
+              <Link
+                key={n}
+                href="/my-tickets"
+                className="hidden lg:inline hover:text-violet-700 transition"
+                target="_blank"
+              >
+                {n} ↗
+              </Link>
+            ) : (
+              <button
+                key={n}
+                onClick={() => toastDemo(`Demo · ${n} is a marketplace nav item, not part of FanFlow`)}
+                className="hidden lg:inline hover:text-violet-700 transition"
+              >
+                {n}
+              </button>
+            ),
+          )}
+          <button
+            onClick={() => toastDemo('Demo · profile menu — concept only')}
+            aria-label="Profile"
+            className="w-7 h-7 rounded-full bg-gradient-to-br from-rose-500 to-fuchsia-600 text-white flex items-center justify-center text-[10px] font-bold hover:scale-105 transition shadow-md"
+          >
+            M
+          </button>
         </div>
       </div>
       {!compact && (
         <div className="border-t border-slate-100">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 h-10 flex items-center gap-5 text-sm font-semibold text-slate-700 overflow-x-auto">
             {CATEGORIES.map((c) => (
-              <button key={c} className="hover:text-slate-900 whitespace-nowrap">
+              <button
+                key={c}
+                onClick={() => toastDemo(`Demo · ${c} category — focus stays on the World Cup flow`)}
+                className="hover:text-violet-700 transition whitespace-nowrap"
+              >
                 {c}
               </button>
             ))}
@@ -802,6 +829,60 @@ const TRUST_ITEMS = [
 ]
 
 // ─────────────────────────────────────────────────────────────────────
+// Demo toast — make every "dead" click feel alive
+// ─────────────────────────────────────────────────────────────────────
+
+/**
+ * Fire a friendly toast from anywhere on the vision route. The toast is
+ * delivered via a custom window event so no prop drilling is needed.
+ *
+ *   toastDemo("Filter UI is concept-only on the vision route")
+ *
+ * The single <DemoToast /> mounted at the route root listens and renders.
+ */
+function toastDemo(message: string): void {
+  if (typeof window === 'undefined') return
+  window.dispatchEvent(new CustomEvent('fanflow-demo-toast', { detail: message }))
+}
+
+function DemoToast() {
+  const [msg, setMsg] = useState<string | null>(null)
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const ce = e as CustomEvent<string>
+      setMsg(ce.detail)
+    }
+    window.addEventListener('fanflow-demo-toast', handler as EventListener)
+    return () => window.removeEventListener('fanflow-demo-toast', handler as EventListener)
+  }, [])
+  useEffect(() => {
+    if (!msg) return
+    const t = setTimeout(() => setMsg(null), 2600)
+    return () => clearTimeout(t)
+  }, [msg])
+  return (
+    <AnimatePresence>
+      {msg && (
+        <motion.div
+          initial={{ opacity: 0, y: 24, scale: 0.94 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          exit={{ opacity: 0, y: 12, scale: 0.96 }}
+          transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
+          className="fixed bottom-8 left-1/2 -translate-x-1/2 z-[200] max-w-[92vw]"
+          role="status"
+          aria-live="polite"
+        >
+          <div className="px-5 py-3 rounded-2xl bg-gradient-to-r from-violet-600 via-violet-700 to-fuchsia-600 text-white text-sm font-semibold shadow-[0_24px_50px_-12px_rgba(124,58,237,0.6)] ring-1 ring-white/20 flex items-center gap-2.5">
+            <span className="text-base">✨</span>
+            <span className="leading-snug">{msg}</span>
+          </div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────────
 // Stage 1: Discovery
 // ─────────────────────────────────────────────────────────────────────
 
@@ -813,7 +894,14 @@ function StageDiscovery({ onAdvance }: { onAdvance: () => void }) {
   const SectionHead = ({ title, cta }: { title: string; cta?: string }) => (
     <div className="flex items-center justify-between mb-4 px-1">
       <h2 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">{title}</h2>
-      {cta && <button className="text-sm font-semibold text-sky-600 hover:underline">{cta}</button>}
+      {cta && (
+        <button
+          onClick={() => toastDemo(`${cta} · marketplace surface · demo`)}
+          className="text-sm font-semibold text-sky-600 hover:underline"
+        >
+          {cta}
+        </button>
+      )}
     </div>
   )
 
@@ -897,6 +985,7 @@ function StageDiscovery({ onAdvance }: { onAdvance: () => void }) {
           <input
             type="text"
             placeholder="Search events, artists, teams and more"
+            onFocus={() => toastDemo('Search is concept-only · walkthrough stays focused on the World Cup flow')}
             className="w-full h-12 sm:h-14 pl-12 pr-4 rounded-full border border-slate-200 bg-white text-sm sm:text-base placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-violet-400 focus:border-violet-400"
           />
           <span className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400 text-lg">🔍</span>
@@ -988,7 +1077,10 @@ function StageDiscovery({ onAdvance }: { onAdvance: () => void }) {
               Discover events from who you actually listen to
             </div>
           </div>
-          <button className="inline-flex items-center justify-center min-h-[44px] px-5 rounded-full bg-emerald-500 hover:bg-emerald-400 text-slate-900 font-bold text-sm transition flex-shrink-0">
+          <button
+            onClick={() => toastDemo('Spotify connect is concept-only — needs OAuth in production')}
+            className="inline-flex items-center justify-center min-h-[44px] px-5 rounded-full bg-emerald-500 hover:bg-emerald-400 text-slate-900 font-bold text-sm transition flex-shrink-0 hover:scale-[1.02]"
+          >
             Connect Spotify
           </button>
         </section>
@@ -1260,12 +1352,13 @@ function StageListing({ onAdvance, onBack }: { onAdvance: () => void; onBack: ()
 
           <div className="flex flex-wrap gap-2 mt-6">
             {['📍 Denton, TX', 'Team', 'All Rounds', 'All dates', 'Parking', 'Price'].map((f) => (
-              <span
+              <button
                 key={f}
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-white/95 backdrop-blur border border-white/60 text-xs font-semibold text-slate-700 shadow-lg"
+                onClick={() => toastDemo(`${f} · filter UI is concept-only in this walkthrough`)}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-white/95 backdrop-blur border border-white/60 text-xs font-semibold text-slate-700 shadow-lg hover:bg-white hover:scale-[1.02] transition"
               >
                 {f} <span className="text-slate-400">▾</span>
-              </span>
+              </button>
             ))}
           </div>
         </div>
@@ -1363,9 +1456,12 @@ function StageListing({ onAdvance, onBack }: { onAdvance: () => void; onBack: ()
                   {pending ? 'Reading venue map…' : 'See tickets'}
                 </button>
               ) : (
-                <span className="inline-flex items-center justify-center px-4 py-2 rounded-full border border-slate-200 text-slate-400 text-sm flex-shrink-0">
+                <button
+                  onClick={() => toastDemo(`${m.teamA.replace(/^[^ ]+ /, '')} vs ${m.teamB.replace(/^[^ ]+ /, '')} · demo card. Click the highlighted Final to advance.`)}
+                  className="inline-flex items-center justify-center px-4 py-2 rounded-full border border-slate-200 text-slate-500 hover:border-violet-300 hover:text-violet-700 hover:bg-violet-50 text-sm flex-shrink-0 transition"
+                >
                   Demo card
-                </span>
+                </button>
               )}
             </motion.div>
           ))}
@@ -1399,9 +1495,12 @@ function StageListing({ onAdvance, onBack }: { onAdvance: () => void; onBack: ()
             </div>
             <div className="mt-4 pt-4 border-t border-violet-100/70 text-xs text-slate-600 flex items-center justify-between flex-wrap gap-2">
               <span>Trusted by fans. Powered by AI.</span>
-              <a className="font-semibold text-violet-700 hover:underline" href="#">
+              <button
+                onClick={() => toastDemo('FanFlow uses rules to decide and AI to explain — see the Building stage')}
+                className="font-semibold text-violet-700 hover:underline"
+              >
                 How FanFlow AI works →
-              </a>
+              </button>
             </div>
           </GlassCard>
         </motion.div>
@@ -1980,35 +2079,55 @@ function StageConfirmed({ onAdvance, onBack }: { onAdvance: () => void; onBack: 
           Your ticket gets you in. FanFlow helps you arrive ready.
         </motion.p>
 
-        {/* === Four numbered module cards ============================ */}
-        <div className="mt-6 sm:mt-8 grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-          {UNLOCK_MODULES.map((m, i) => (
-            <motion.div
-              key={m.id}
-              initial={reduced ? false : { opacity: 0, y: 14, scale: 0.95 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              transition={{
-                duration: 0.5,
-                delay: reduced ? 0 : 2.0 + i * 0.15,
-                ease: [0.16, 1, 0.3, 1],
-              }}
-              className="relative rounded-2xl bg-white/80 backdrop-blur-sm border border-violet-100 shadow-[0_4px_20px_-8px_rgba(124,58,237,0.15)] p-4 sm:p-5"
-            >
-              {/* Numbered badge floating at top */}
-              <div className="absolute -top-3 left-1/2 -translate-x-1/2 w-7 h-7 rounded-full bg-gradient-to-br from-violet-500 to-fuchsia-600 text-white text-xs font-bold flex items-center justify-center shadow-md">
-                {i + 1}
-              </div>
-              <div className="text-center pt-2">
-                <div className="w-12 h-12 mx-auto rounded-2xl bg-gradient-to-br from-violet-100 to-violet-50 border border-violet-200 flex items-center justify-center text-xl mb-2">
-                  {m.icon}
-                </div>
-                <div className="font-bold text-sm text-slate-900 leading-tight">{m.title}</div>
-                <div className="text-[11px] text-slate-500 mt-1 leading-snug">{m.sub}</div>
-              </div>
-              {!reduced && <Shimmer />}
-            </motion.div>
-          ))}
-        </div>
+        {/* === Four numbered module cards — each links to the real
+            destination, so clicking actually navigates */}
+        {(() => {
+          const moduleHrefs: Record<string, string> = {
+            plan: '/event/wc2026-final/guide',
+            map: '/event/wc2026-final/venue-map',
+            support: '/event/wc2026-final/venue-map',
+            signals: '/event/wc2026-final/hub',
+          }
+          return (
+            <div className="mt-6 sm:mt-8 grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+              {UNLOCK_MODULES.map((m, i) => (
+                <motion.div
+                  key={m.id}
+                  initial={reduced ? false : { opacity: 0, y: 14, scale: 0.95 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  transition={{
+                    duration: 0.5,
+                    delay: reduced ? 0 : 2.0 + i * 0.15,
+                    ease: [0.16, 1, 0.3, 1],
+                  }}
+                  className="relative"
+                >
+                  <Link
+                    href={moduleHrefs[m.id] ?? '/event/wc2026-final/hub'}
+                    target="_blank"
+                    className="block rounded-2xl bg-white/80 backdrop-blur-sm border border-violet-100 shadow-[0_4px_20px_-8px_rgba(124,58,237,0.15)] p-4 sm:p-5 hover:border-violet-300 hover:shadow-[0_8px_28px_-8px_rgba(124,58,237,0.3)] hover:-translate-y-0.5 transition-all overflow-hidden relative"
+                  >
+                    {/* Numbered badge floating at top */}
+                    <div className="absolute -top-3 left-1/2 -translate-x-1/2 w-7 h-7 rounded-full bg-gradient-to-br from-violet-500 to-fuchsia-600 text-white text-xs font-bold flex items-center justify-center shadow-md">
+                      {i + 1}
+                    </div>
+                    <div className="text-center pt-2">
+                      <div className="w-12 h-12 mx-auto rounded-2xl bg-gradient-to-br from-violet-100 to-violet-50 border border-violet-200 flex items-center justify-center text-xl mb-2">
+                        {m.icon}
+                      </div>
+                      <div className="font-bold text-sm text-slate-900 leading-tight">{m.title}</div>
+                      <div className="text-[11px] text-slate-500 mt-1 leading-snug">{m.sub}</div>
+                      <div className="text-[10px] font-bold text-violet-700 mt-2 opacity-0 group-hover:opacity-100 transition">
+                        Open the real page ↗
+                      </div>
+                    </div>
+                    {!reduced && <Shimmer />}
+                  </Link>
+                </motion.div>
+              ))}
+            </div>
+          )
+        })()}
 
         {/* === Ticket companion entry points ============================
             FanFlow is not a separate page — it's attached to the ticket
@@ -2647,9 +2766,13 @@ function StagePreview({ onBack }: { onBack: () => void }) {
                   <div className="kicker text-violet-700">Nearby support</div>
                   <h3 className="font-bold text-slate-900 text-sm mt-0.5">Help is close by</h3>
                 </div>
-                <button className="text-xs font-semibold text-sky-600 hover:underline">
-                  View on map →
-                </button>
+                <Link
+                  href="/event/wc2026-final/venue-map"
+                  target="_blank"
+                  className="text-xs font-semibold text-sky-600 hover:underline"
+                >
+                  View on map ↗
+                </Link>
               </div>
               <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
                 {[
@@ -2659,12 +2782,15 @@ function StagePreview({ onBack }: { onBack: () => void }) {
                   { id: 'access', icon: '♿', label: 'Accessibility', sub: '2 min walk', tone: 'bg-sky-600' },
                   { id: 'restroom', icon: '🚻', label: 'Family Restroom', sub: '2 min walk', tone: 'bg-slate-600' },
                 ].map((s, i) => (
-                  <motion.div
+                  <motion.a
                     key={s.id}
+                    href="/event/wc2026-final/venue-map"
+                    target="_blank"
                     initial={reduced ? false : { opacity: 0, y: 6 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.35, delay: 0.4 + i * 0.05 }}
-                    className="rounded-xl bg-white/60 border border-slate-200/70 p-3 text-center"
+                    whileHover={{ y: -3, scale: 1.03 }}
+                    className="rounded-xl bg-white/60 border border-slate-200/70 p-3 text-center cursor-pointer hover:border-violet-300 hover:bg-white transition-all"
                   >
                     <span
                       className={`inline-flex w-10 h-10 rounded-full ${s.tone} text-white items-center justify-center text-base mx-auto mb-2`}
@@ -2673,7 +2799,7 @@ function StagePreview({ onBack }: { onBack: () => void }) {
                     </span>
                     <div className="text-xs font-bold text-slate-900 leading-tight">{s.label}</div>
                     <div className="text-[10px] text-slate-500 mt-0.5">{s.sub}</div>
-                  </motion.div>
+                  </motion.a>
                 ))}
               </div>
             </GlassCard>
@@ -2691,9 +2817,13 @@ function StagePreview({ onBack }: { onBack: () => void }) {
               <p className="text-xs text-slate-600 mt-2 leading-relaxed">
                 Personalized help based on your tickets, plans, and real-time conditions.
               </p>
-              <button className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-full bg-violet-600 hover:bg-violet-700 text-white text-sm font-bold transition">
+              <Link
+                href="/event/wc2026-final/hub"
+                target="_blank"
+                className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-full bg-violet-600 hover:bg-violet-700 text-white text-sm font-bold transition shadow-lg hover:scale-[1.02]"
+              >
                 🎧 One tap for help
-              </button>
+              </Link>
               {/* Floating headset glow */}
               <motion.div
                 aria-hidden="true"
@@ -2849,6 +2979,9 @@ export default function FanflowVisionPage() {
           {stage === 'preview' && <StagePreview onBack={back} />}
         </motion.div>
       </AnimatePresence>
+      {/* Floating toast — every "demo" click anywhere on the route shows
+          friendly feedback here so nothing feels dead. */}
+      <DemoToast />
     </>
   )
 }
