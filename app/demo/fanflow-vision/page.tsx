@@ -1187,18 +1187,19 @@ function StageListing({ onAdvance, onBack }: { onAdvance: () => void; onBack: ()
       <NavBar compact />
 
       {/* === Purple hero strip with stadium photo backdrop ========== */}
-      <div className="relative overflow-hidden">
-        {/* Real stadium photograph with deep purple wash */}
+      <div className="relative overflow-hidden min-h-[420px]">
+        {/* Real stadium photograph */}
         <div
           aria-hidden="true"
-          className="absolute inset-0 bg-cover bg-center"
+          className="absolute inset-0 bg-cover bg-center scale-110"
           style={{
             backgroundImage:
               "url('https://images.unsplash.com/photo-1522778526097-ce0a22ceb253?w=1600&h=900&fit=crop')",
           }}
         />
-        <div className="absolute inset-0 bg-gradient-to-b from-violet-900/85 via-violet-800/85 to-violet-50" />
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(217,70,239,0.4),transparent_60%),radial-gradient(ellipse_at_bottom,rgba(255,255,255,0.7),transparent_70%)]" />
+        {/* Lighter wash so the stadium shows through more */}
+        <div className="absolute inset-0 bg-gradient-to-b from-violet-900/75 via-violet-700/65 to-violet-50/95" />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_70%_50%_at_50%_0%,rgba(217,70,239,0.55),transparent_60%),radial-gradient(ellipse_60%_40%_at_20%_30%,rgba(99,102,241,0.4),transparent_60%),radial-gradient(ellipse_at_bottom,rgba(250,245,255,0.85),transparent_70%)]" />
         {/* Floating light particles */}
         {!reduced && (
           <>
@@ -1490,86 +1491,201 @@ function StageSeatmap({ onAdvance, onBack }: { onAdvance: () => void; onBack: ()
         </div>
 
         <div className="mt-6 grid lg:grid-cols-[1.4fr_1fr] gap-5">
-          {/* Stadium SVG */}
-          <div className="rounded-2xl bg-white border border-slate-200 p-5 sm:p-6">
-            <div className="kicker mb-3">Section map</div>
-            <div className="relative aspect-[4/3] rounded-xl bg-emerald-50 border border-emerald-200 overflow-hidden">
-              <svg viewBox="0 0 400 300" className="w-full h-full">
-                {/* Field */}
-                <rect x="120" y="100" width="160" height="100" rx="6" fill="#16a34a" stroke="white" strokeWidth="2" />
-                <line x1="200" y1="100" x2="200" y2="200" stroke="white" strokeWidth="1.5" />
-                <circle cx="200" cy="150" r="16" fill="none" stroke="white" strokeWidth="1.5" />
-
-                {/* Lower bowl section blocks — Section 117 highlighted */}
-                {[
-                  { id: '101', x: 60, y: 60, w: 40, h: 30 },
-                  { id: '117', x: 175, y: 50, w: 50, h: 30, maria: true },
-                  { id: '139', x: 300, y: 60, w: 40, h: 30 },
-                  { id: '102', x: 60, y: 110, w: 40, h: 30 },
-                  { id: '140', x: 300, y: 110, w: 40, h: 30 },
-                  { id: '103', x: 60, y: 160, w: 40, h: 30 },
-                  { id: '141', x: 300, y: 160, w: 40, h: 30 },
-                  { id: '118', x: 175, y: 220, w: 50, h: 30 },
-                ].map((s) => {
-                  const isMaria = s.maria
-                  return (
-                    <g key={s.id}>
-                      <motion.rect
-                        x={s.x}
-                        y={s.y}
-                        width={s.w}
-                        height={s.h}
-                        rx={4}
-                        fill={isMaria && selected ? '#7c3aed' : '#cbd5e1'}
-                        stroke={isMaria && selected ? '#5b21b6' : '#94a3b8'}
-                        strokeWidth={isMaria && selected ? 2 : 1}
-                        initial={false}
-                        animate={
-                          isMaria && selected && !reduced
-                            ? { fillOpacity: [0.8, 1, 0.8] }
-                            : { fillOpacity: 1 }
-                        }
-                        transition={{ duration: 2.4, repeat: Infinity, ease: 'easeInOut' }}
-                      />
-                      <text
-                        x={s.x + s.w / 2}
-                        y={s.y + s.h / 2 + 4}
-                        textAnchor="middle"
-                        fontSize="11"
-                        fontWeight="700"
-                        fill={isMaria && selected ? 'white' : '#475569'}
-                      >
-                        {s.id}
-                      </text>
-                    </g>
-                  )
-                })}
-
-                {/* Gate 3 marker */}
-                <g>
-                  <circle cx="200" cy="20" r="10" fill="#dc2626" />
-                  <text x="200" y="24" textAnchor="middle" fontSize="9" fontWeight="700" fill="white">G3</text>
-                </g>
-
-                {/* Route line — Gate 3 → Section 117 */}
-                {selected && (
-                  <motion.path
-                    d="M 200 30 Q 200 50, 200 50"
-                    fill="none"
-                    stroke="#7c3aed"
-                    strokeWidth="2.5"
-                    strokeDasharray="4 3"
-                    initial={reduced ? false : { pathLength: 0 }}
-                    animate={{ pathLength: 1 }}
-                    transition={{ duration: 1.1, ease: [0.16, 1, 0.3, 1] }}
-                  />
-                )}
-              </svg>
+          {/* 3D-perspective stadium with Section 117 glow + route line */}
+          <div className="relative rounded-3xl overflow-hidden bg-gradient-to-b from-violet-100/70 via-white to-white border border-violet-200/60 shadow-[0_20px_60px_-20px_rgba(124,58,237,0.3)] p-4 sm:p-5">
+            <div className="flex items-center justify-between mb-3">
+              <div className="kicker text-violet-700">Stadium · 3D view</div>
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-[10px] font-bold uppercase tracking-wider text-emerald-700">
+                ✓ Gate 3 · Best for you
+              </span>
             </div>
-            <div className="flex items-center gap-3 mt-3 text-xs text-slate-500">
-              <span className="flex items-center gap-1.5"><span className="inline-block w-3 h-3 rounded bg-violet-600" /> Selected</span>
-              <span className="flex items-center gap-1.5"><span className="inline-block w-3 h-3 rounded bg-slate-300" /> Available</span>
-              <span className="flex items-center gap-1.5"><span className="inline-block w-3 h-3 rounded-full bg-rose-600" /> Gate 3</span>
+
+            <div className="relative aspect-[5/4] rounded-2xl bg-gradient-to-b from-slate-900 via-violet-950 to-slate-900 overflow-hidden">
+              {/* Atmospheric glow */}
+              <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_50%_30%,rgba(217,70,239,0.25),transparent_60%),radial-gradient(ellipse_at_50%_80%,rgba(124,58,237,0.3),transparent_60%)]" />
+
+              <svg viewBox="0 0 500 400" className="absolute inset-0 w-full h-full">
+                <defs>
+                  <radialGradient id="seat-glow" cx="50%" cy="55%" r="55%">
+                    <stop offset="0%" stopColor="rgba(217,70,239,0.4)" />
+                    <stop offset="60%" stopColor="rgba(124,58,237,0.15)" />
+                    <stop offset="100%" stopColor="rgba(124,58,237,0)" />
+                  </radialGradient>
+                  <linearGradient id="seat-bowl-outer" x1="0%" y1="0%" x2="0%" y2="100%">
+                    <stop offset="0%" stopColor="#a78bfa" />
+                    <stop offset="100%" stopColor="#4c1d95" />
+                  </linearGradient>
+                  <linearGradient id="seat-bowl-middle" x1="0%" y1="0%" x2="0%" y2="100%">
+                    <stop offset="0%" stopColor="#c4b5fd" />
+                    <stop offset="100%" stopColor="#7c3aed" />
+                  </linearGradient>
+                  <linearGradient id="seat-bowl-inner" x1="0%" y1="0%" x2="0%" y2="100%">
+                    <stop offset="0%" stopColor="#ede9fe" />
+                    <stop offset="100%" stopColor="#a78bfa" />
+                  </linearGradient>
+                  <radialGradient id="seat-field" cx="50%" cy="50%" r="60%">
+                    <stop offset="0%" stopColor="#4ade80" />
+                    <stop offset="100%" stopColor="#14532d" />
+                  </radialGradient>
+                  <radialGradient id="seat-section-glow" cx="50%" cy="50%" r="50%">
+                    <stop offset="0%" stopColor="#f0abfc" />
+                    <stop offset="50%" stopColor="#d946ef" />
+                    <stop offset="100%" stopColor="#7c3aed" />
+                  </radialGradient>
+                </defs>
+
+                {/* Bowl glow base */}
+                <ellipse cx="250" cy="250" rx="240" ry="110" fill="url(#seat-glow)" />
+
+                {/* Triple bowl rings */}
+                <ellipse cx="250" cy="230" rx="220" ry="98" fill="url(#seat-bowl-outer)" opacity="0.75" />
+                <ellipse cx="250" cy="228" rx="220" ry="98" fill="none" stroke="white" strokeOpacity="0.3" strokeWidth="1" />
+                <ellipse cx="250" cy="220" rx="190" ry="83" fill="url(#seat-bowl-middle)" opacity="0.88" />
+                <ellipse cx="250" cy="218" rx="190" ry="83" fill="none" stroke="white" strokeOpacity="0.45" strokeWidth="1" />
+                <ellipse cx="250" cy="210" rx="155" ry="68" fill="url(#seat-bowl-inner)" />
+                <ellipse cx="250" cy="208" rx="155" ry="68" fill="none" stroke="white" strokeOpacity="0.6" strokeWidth="1" />
+
+                {/* Field */}
+                <ellipse cx="250" cy="200" rx="115" ry="48" fill="url(#seat-field)" />
+                <ellipse cx="250" cy="200" rx="115" ry="48" fill="none" stroke="white" strokeWidth="1.2" />
+                <line x1="250" y1="152" x2="250" y2="248" stroke="white" strokeWidth="1" />
+                <ellipse cx="250" cy="200" rx="18" ry="9" fill="none" stroke="white" strokeWidth="1.2" />
+                <ellipse cx="170" cy="200" rx="14" ry="7" fill="none" stroke="white" strokeOpacity="0.8" strokeWidth="0.9" />
+                <ellipse cx="330" cy="200" rx="14" ry="7" fill="none" stroke="white" strokeOpacity="0.8" strokeWidth="0.9" />
+                <text x="170" y="204" textAnchor="middle" fontSize="6" fill="white" opacity="0.7" fontWeight="700">FIFA</text>
+                <text x="330" y="204" textAnchor="middle" fontSize="6" fill="white" opacity="0.7" fontWeight="700">2026</text>
+
+                {/* People dots scattered around the bowl */}
+                {[
+                  [80, 200], [105, 175], [140, 145], [180, 125], [220, 113], [250, 110], [280, 113], [320, 125], [360, 145], [395, 175], [420, 200],
+                  [85, 225], [110, 250], [140, 275], [180, 295], [220, 308], [250, 312], [280, 308], [320, 295], [360, 275], [390, 250], [415, 225],
+                  [65, 195], [435, 195], [70, 215], [430, 215],
+                  [125, 130], [375, 130], [200, 105], [300, 105],
+                  [150, 290], [350, 290], [200, 318], [300, 318],
+                ].map(([x, y], i) => (
+                  <circle key={i} cx={x} cy={y} r="1.6" fill="white" opacity={0.5 + (i % 3) * 0.15} />
+                ))}
+
+                {/* Section 117 — GLOWING WEDGE between bowl + field */}
+                <path
+                  d="M 200 153 L 300 153 L 320 178 L 180 178 Z"
+                  fill="url(#seat-section-glow)"
+                />
+                <path
+                  d="M 200 153 L 300 153 L 320 178 L 180 178 Z"
+                  fill="none"
+                  stroke="#fae8ff"
+                  strokeWidth="2.5"
+                />
+                {!reduced && (
+                  <path
+                    d="M 200 153 L 300 153 L 320 178 L 180 178 Z"
+                    fill="none"
+                    stroke="#f0abfc"
+                    strokeWidth="2.5"
+                  >
+                    <animate attributeName="opacity" values="0.4;1;0.4" dur="2.4s" repeatCount="indefinite" />
+                  </path>
+                )}
+                <text x="250" y="170" textAnchor="middle" fontSize="14" fontWeight="800" fill="white">117</text>
+
+                {/* Other section labels — just text on the bowl */}
+                {[
+                  { id: '101', x: 100, y: 200 },
+                  { id: '103', x: 100, y: 250 },
+                  { id: '118', x: 250, y: 290 },
+                  { id: '139', x: 400, y: 200 },
+                  { id: '141', x: 400, y: 250 },
+                  { id: '203', x: 105, y: 165 },
+                  { id: '217', x: 215, y: 130 },
+                  { id: '218', x: 285, y: 130 },
+                  { id: '239', x: 395, y: 165 },
+                ].map((s) => (
+                  <g key={s.id} opacity="0.6">
+                    <text x={s.x} y={s.y + 3} textAnchor="middle" fontSize="9" fontWeight="700" fill="white" opacity="0.7">
+                      {s.id}
+                    </text>
+                  </g>
+                ))}
+
+                {/* Gate markers around the bowl */}
+                {[
+                  { id: 'G1', x: 75, y: 195 },
+                  { id: 'G3', x: 250, y: 90, primary: true },
+                  { id: 'G7', x: 425, y: 195 },
+                  { id: 'G13', x: 250, y: 330 },
+                ].map((g) => (
+                  <g key={g.id}>
+                    {g.primary && !reduced && (
+                      <circle cx={g.x} cy={g.y} r="14" fill="none" stroke="#dc2626" strokeWidth="2" opacity="0.6">
+                        <animate attributeName="r" values="11;20;11" dur="2.4s" repeatCount="indefinite" />
+                        <animate attributeName="opacity" values="0.8;0;0.8" dur="2.4s" repeatCount="indefinite" />
+                      </circle>
+                    )}
+                    <circle cx={g.x} cy={g.y} r="11" fill={g.primary ? '#dc2626' : '#7c3aed'} stroke="white" strokeWidth="2" />
+                    <text x={g.x} y={g.y + 3} textAnchor="middle" fontSize="9" fontWeight="800" fill="white">{g.id}</text>
+                  </g>
+                ))}
+
+                {/* Animated route line — Gate 3 → Section 117 */}
+                <motion.path
+                  d="M 250 100 Q 250 130, 250 153"
+                  fill="none"
+                  stroke="#fae8ff"
+                  strokeWidth="3"
+                  strokeDasharray="6 4"
+                  strokeLinecap="round"
+                  initial={reduced ? false : { pathLength: 0 }}
+                  animate={{ pathLength: 1 }}
+                  transition={{ duration: 1.4, ease: [0.16, 1, 0.3, 1], delay: 0.3 }}
+                />
+                <motion.path
+                  d="M 250 100 Q 250 130, 250 153"
+                  fill="none"
+                  stroke="#d946ef"
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                  initial={reduced ? false : { pathLength: 0 }}
+                  animate={{ pathLength: 1 }}
+                  transition={{ duration: 1.4, ease: [0.16, 1, 0.3, 1], delay: 0.3 }}
+                />
+
+                {/* Stadium corner light beams */}
+                <g stroke="white" strokeOpacity="0.4" strokeLinecap="round">
+                  <line x1="40" y1="80" x2="100" y2="160" strokeWidth="1.5" />
+                  <line x1="460" y1="80" x2="400" y2="160" strokeWidth="1.5" />
+                  <line x1="40" y1="350" x2="100" y2="280" strokeWidth="1.5" />
+                  <line x1="460" y1="350" x2="400" y2="280" strokeWidth="1.5" />
+                </g>
+                <circle cx="40" cy="80" r="4" fill="#facc15" />
+                <circle cx="460" cy="80" r="4" fill="#facc15" />
+                <circle cx="40" cy="350" r="3" fill="#facc15" opacity="0.7" />
+                <circle cx="460" cy="350" r="3" fill="#facc15" opacity="0.7" />
+              </svg>
+
+              {/* Floating section badge over the glow */}
+              <motion.div
+                initial={reduced ? false : { opacity: 0, y: -8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5, delay: 1.2 }}
+                className="absolute top-3 left-1/2 -translate-x-1/2 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-fuchsia-500/90 backdrop-blur text-white text-[10px] font-bold uppercase tracking-wider shadow-[0_4px_16px_rgba(217,70,239,0.6)]"
+              >
+                ✦ Your seat · Section 117
+              </motion.div>
+            </div>
+
+            <div className="flex items-center justify-between mt-4 gap-3 flex-wrap text-xs">
+              <div className="flex items-center gap-3">
+                <span className="flex items-center gap-1.5 text-slate-700 font-semibold">
+                  <span className="inline-block w-2.5 h-2.5 rounded-full bg-fuchsia-500 shadow-[0_0_8px_rgba(217,70,239,0.6)]" />
+                  Selected
+                </span>
+                <span className="flex items-center gap-1.5 text-slate-500">
+                  <span className="inline-block w-2.5 h-2.5 rounded-full bg-rose-600" />
+                  Gate 3 · 12 min walk
+                </span>
+              </div>
+              <span className="text-[10px] text-slate-500 font-mono">Low congestion · Light at Gate 3</span>
             </div>
           </div>
 
