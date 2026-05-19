@@ -1,0 +1,388 @@
+'use client'
+
+import { useState, useEffect, useCallback } from 'react'
+import Link from 'next/link'
+import { useParams } from 'next/navigation'
+import { motion } from 'framer-motion'
+import { demoEvent, demoTicket, deriveArrivalPlan, demoVenue } from '@/lib/seed'
+import {
+  getAllSignals,
+  loadReadiness,
+  publishSignal,
+  subscribeToFanflowChanges,
+} from '@/lib/store'
+import type { LiveSignal, ReadinessPrefs } from '@/lib/types'
+import { computeFanPulse } from '@/lib/intelligence'
+import { HelpSheet } from '@/components/shared/HelpSheet'
+
+/**
+ * Fan Pulse — bottom-nav "Pulse" tab. A focused, single-purpose screen:
+ *   - 4-button sentiment grid (Smooth / Slow / Busy / Need help)
+ *   - Real-time breakdown chart at the recommended gate
+ *   - Recent fan reports list
+ *
+ * Wired to the same `publishSignal` + `getAllSignals` store as the Hub,
+ * so a tap here surfaces immediately on /hub and the Staff Console.
+ */
+export default function PulsePage() {
+  const params = useParams<{ id: string }>()
+  const eventId = params?.id ?? 'wc2026-final'
+
+  const [prefs, setPrefs] = useState<ReadinessPrefs | null>(null)
+  const [signals, setSignals] = useState<LiveSignal[]>([])
+  const [pulseCount, setPulseCount] = useState(0)
+  const [helpOpen, setHelpOpen] = useState(false)
+
+  const refresh = useCallback(() => {
+    setPrefs(loadReadiness())
+    setSignals(getAllSignals())
+  }, [])
+
+  useEffect(() => {
+    refresh()
+    return subscribeToFanflowChanges(['fanflow:readiness', 'fanflow:signals'], refresh)
+  }, [refresh])
+
+  const plan = deriveArrivalPlan(prefs, signals.length ? signals : undefined)
+  const fanPulse = computeFanPulse(signals, plan.recommended_gate.id)
+  const gateLabel = plan.recommended_gate.name.split(' (')[0]
+
+  const handlePulse = (sentiment: LiveSignal['sentiment'], label: string) => {
+    publishSignal({
+      id: `pulse-${Date.now()}`,
+      gate_id: plan.recommended_gate.id,
+      source: 'fan',
+      sentiment,
+      message: label,
+      created_at: new Date().toISOString(),
+    })
+    setPulseCount((c) => c + 1)
+  }
+
+  // Recent fan reports at the recommended gate (last 30 min)
+  const recentFan = signals
+    .filter(
+      (s) =>
+        s.source === 'fan' &&
+        Date.now() - new Date(s.created_at).getTime() < 30 * 60 * 1000,
+    )
+    .slice(0, 5)
+
+  return (
+    <>
+      <div className="min-h-screen bg-gradient-to-b from-violet-50/40 via-white to-white pb-24">
+        {/* Top brand bar */}
+        <header className="sticky top-0 z-30 bg-white/90 backdrop-blur-md border-b border-slate-100">
+          <div className="container-mobile px-4 h-14 flex items-center justify-between">
+            <Link
+              href={`/event/${eventId}/hub`}
+              className="text-sm text-slate-500 hover:text-slate-700"
+            >
+              ← Hub
+            </Link>
+            <div className="flex items-center gap-1">
+              <span className="font-bold text-slate-900 text-sm">Fan Pulse</span>
+              <span className="text-[10px] font-bold bg-gradient-to-br from-violet-600 to-fuchsia-600 text-white px-1.5 py-0.5 rounded">
+                LIVE
+              </span>
+            </div>
+            <Link
+              href={`/event/${eventId}/readiness`}
+              className="w-9 h-9 rounded-full bg-gradient-to-br from-violet-600 to-fuchsia-600 text-white font-bold text-sm flex items-center justify-center shadow-sm"
+              aria-label="Profile"
+            >
+              M
+            </Link>
+          </div>
+        </header>
+
+        <main className="container-mobile px-4 py-5 space-y-4">
+          {/* Hero */}
+          <section className="pt-1">
+            <div className="kicker text-violet-700">Fan Pulse</div>
+            <h1 className="font-extrabold text-slate-900 text-3xl tracking-tight leading-[1.05] mt-2">
+              Help others arrive smarter.
+            </h1>
+            <p className="text-sm text-slate-600 mt-2 leading-relaxed">
+              Your one-tap report helps every other fan headed to {gateLabel} make a
+              better call.
+            </p>
+          </section>
+
+          {/* Question card */}
+          <motion.section
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5 }}
+            className="rounded-3xl bg-white border border-slate-200 shadow-[0_4px_20px_-8px_rgba(124,58,237,0.10)] p-5"
+          >
+            <div className="flex items-center gap-2 mb-3">
+              <span className="w-9 h-9 rounded-2xl bg-violet-100 text-violet-700 flex items-center justify-center text-lg flex-shrink-0">
+                💜
+              </span>
+              <div className="min-w-0">
+                <div className="font-bold text-slate-900 text-base leading-tight">
+                  How&apos;s it looking near {gateLabel}?
+                </div>
+                <div className="text-[11px] text-slate-500 mt-0.5">
+                  Your report helps other fans.
+                </div>
+              </div>
+            </div>
+
+            {/* 2x2 sentiment grid */}
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                onClick={() => handlePulse('smooth', 'Entry is smooth')}
+                className="min-h-[72px] bg-emerald-50 hover:bg-emerald-100 active:bg-emerald-200 text-emerald-800 rounded-2xl font-bold transition border border-emerald-200 flex flex-col items-center justify-center gap-1 group"
+              >
+                <span className="text-2xl group-hover:scale-110 transition">👍</span>
+                <span className="text-sm">Smooth</span>
+              </button>
+              <button
+                onClick={() => handlePulse('moderate', 'Slow but moving')}
+                className="min-h-[72px] bg-yellow-50 hover:bg-yellow-100 active:bg-yellow-200 text-yellow-800 rounded-2xl font-bold transition border border-yellow-200 flex flex-col items-center justify-center gap-1 group"
+              >
+                <span className="text-2xl group-hover:scale-110 transition">🐢</span>
+                <span className="text-sm">Slow</span>
+              </button>
+              <button
+                onClick={() => handlePulse('busy', 'Entry is busy')}
+                className="min-h-[72px] bg-amber-50 hover:bg-amber-100 active:bg-amber-200 text-amber-800 rounded-2xl font-bold transition border border-amber-200 flex flex-col items-center justify-center gap-1 group"
+              >
+                <span className="text-2xl group-hover:scale-110 transition">😬</span>
+                <span className="text-sm">Busy</span>
+              </button>
+              <button
+                onClick={() => handlePulse('difficult', 'Need help at entry')}
+                className="min-h-[72px] bg-rose-50 hover:bg-rose-100 active:bg-rose-200 text-rose-800 rounded-2xl font-bold transition border border-rose-200 flex flex-col items-center justify-center gap-1 group"
+              >
+                <span className="text-2xl group-hover:scale-110 transition">🆘</span>
+                <span className="text-sm">Need help</span>
+              </button>
+            </div>
+
+            {pulseCount > 0 && (
+              <motion.p
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="text-[11px] text-emerald-700 text-center mt-3 font-semibold"
+              >
+                ✓ Thanks — {pulseCount} report{pulseCount === 1 ? '' : 's'} sent.
+              </motion.p>
+            )}
+
+            <p className="text-[11px] text-slate-500 mt-3 leading-relaxed text-center">
+              One report helps visibility. Multiple similar reports influence guidance.
+            </p>
+          </motion.section>
+
+          {/* Breakdown — animated bars at the recommended gate */}
+          <motion.section
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.1 }}
+            className="rounded-3xl bg-white border border-slate-200 shadow-[0_4px_20px_-8px_rgba(124,58,237,0.10)] p-5"
+          >
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <div className="kicker text-violet-700">Recent pulse · {gateLabel}</div>
+                <div className="text-xs text-slate-500 mt-0.5">Last 30 minutes</div>
+              </div>
+              <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-700">
+                <span className="font-bold">{fanPulse.total}</span> report
+                {fanPulse.total === 1 ? '' : 's'}
+              </span>
+            </div>
+
+            {fanPulse.total === 0 ? (
+              <div className="text-center text-sm text-slate-500 py-6">
+                No recent fan reports yet. Be the first to share!
+              </div>
+            ) : (
+              <>
+                {/* Stacked bar */}
+                <div className="flex h-3 rounded-full overflow-hidden bg-slate-100">
+                  {fanPulse.smoothPct > 0 && (
+                    <motion.div
+                      className="bg-emerald-500"
+                      initial={{ width: 0 }}
+                      animate={{ width: `${fanPulse.smoothPct}%` }}
+                      transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
+                    />
+                  )}
+                  {fanPulse.slowPct > 0 && (
+                    <motion.div
+                      className="bg-amber-500"
+                      initial={{ width: 0 }}
+                      animate={{ width: `${fanPulse.slowPct}%` }}
+                      transition={{ duration: 0.8, delay: 0.1, ease: [0.16, 1, 0.3, 1] }}
+                    />
+                  )}
+                  {fanPulse.needHelpPct > 0 && (
+                    <motion.div
+                      className="bg-rose-500"
+                      initial={{ width: 0 }}
+                      animate={{ width: `${fanPulse.needHelpPct}%` }}
+                      transition={{ duration: 0.8, delay: 0.2, ease: [0.16, 1, 0.3, 1] }}
+                    />
+                  )}
+                </div>
+                <div className="grid grid-cols-3 gap-2 mt-3 text-xs">
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                    <span className="font-bold text-slate-900 tabular-nums">
+                      {fanPulse.smoothPct}%
+                    </span>
+                    <span className="text-slate-500">smooth</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-amber-500" />
+                    <span className="font-bold text-slate-900 tabular-nums">
+                      {fanPulse.slowPct}%
+                    </span>
+                    <span className="text-slate-500">slow</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-rose-500" />
+                    <span className="font-bold text-slate-900 tabular-nums">
+                      {fanPulse.needHelpPct}%
+                    </span>
+                    <span className="text-slate-500">need help</span>
+                  </div>
+                </div>
+              </>
+            )}
+          </motion.section>
+
+          {/* Recent fan reports */}
+          {recentFan.length > 0 && (
+            <motion.section
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: 0.2 }}
+              className="rounded-3xl bg-white border border-slate-200 shadow-[0_4px_20px_-8px_rgba(124,58,237,0.10)] p-5"
+            >
+              <div className="kicker mb-3">Recent fan reports</div>
+              <ul className="space-y-2">
+                {recentFan.map((s) => {
+                  const ageMin = Math.floor(
+                    (Date.now() - new Date(s.created_at).getTime()) / 60000,
+                  )
+                  const rel = ageMin < 1 ? 'just now' : `${ageMin}m ago`
+                  const sentimentBg =
+                    s.sentiment === 'smooth'
+                      ? 'bg-emerald-50 border-emerald-100'
+                      : s.sentiment === 'moderate'
+                        ? 'bg-yellow-50 border-yellow-100'
+                        : s.sentiment === 'busy'
+                          ? 'bg-amber-50 border-amber-100'
+                          : 'bg-rose-50 border-rose-100'
+                  const gate = demoVenue.gates.find((g) => g.id === s.gate_id)
+                  return (
+                    <li
+                      key={s.id}
+                      className={`flex items-start gap-2.5 px-3 py-2.5 rounded-xl border ${sentimentBg}`}
+                    >
+                      <span className="text-base flex-shrink-0">
+                        {s.sentiment === 'smooth'
+                          ? '👍'
+                          : s.sentiment === 'moderate'
+                            ? '🐢'
+                            : s.sentiment === 'busy'
+                              ? '😬'
+                              : '🆘'}
+                      </span>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm text-slate-800 font-medium leading-tight">
+                          {s.message}
+                        </div>
+                        <div className="text-[11px] text-slate-500 mt-0.5">
+                          {gate?.name ?? s.gate_id} · {rel}
+                        </div>
+                      </div>
+                    </li>
+                  )
+                })}
+              </ul>
+            </motion.section>
+          )}
+
+          {/* Community proof */}
+          <div className="rounded-3xl bg-gradient-to-br from-violet-50 via-white to-fuchsia-50/30 border border-violet-100 p-4 text-center">
+            <div className="flex items-center justify-center gap-1.5 -space-x-2 mb-2">
+              {['🧑', '👩', '🧑‍🦰', '👨', '👩‍🦱'].map((a, i) => (
+                <span
+                  key={i}
+                  className="w-7 h-7 rounded-full bg-white border-2 border-violet-100 flex items-center justify-center text-sm"
+                >
+                  {a}
+                </span>
+              ))}
+            </div>
+            <p className="text-[12px] text-slate-700 font-semibold">
+              +124 fans reported in the last 30 min
+            </p>
+            <p className="text-[10px] text-slate-500 mt-0.5">
+              Aggregate visibility for the recruiter demo — your taps publish real
+              signals into the in-memory store.
+            </p>
+          </div>
+        </main>
+
+        {/* Bottom tab nav — matches Hub */}
+        <nav
+          className="fixed bottom-0 inset-x-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200"
+          style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
+        >
+          <div className="container-mobile h-16 grid grid-cols-4 px-2">
+            <Link
+              href={`/event/${eventId}/hub`}
+              className="flex flex-col items-center justify-center gap-0.5 h-full text-[10px] font-semibold text-slate-500 hover:text-slate-700"
+            >
+              <span className="flex items-center justify-center w-9 h-9 rounded-full text-xl">
+                ✦
+              </span>
+              Guide
+            </Link>
+            <Link
+              href={`/event/${eventId}/venue-map`}
+              className="flex flex-col items-center justify-center gap-0.5 h-full text-[10px] font-semibold text-slate-500 hover:text-slate-700"
+            >
+              <span className="flex items-center justify-center w-9 h-9 rounded-full text-xl">
+                🗺️
+              </span>
+              Map
+            </Link>
+            <div className="flex flex-col items-center justify-center gap-0.5 h-full text-[10px] font-semibold text-violet-700">
+              <span className="flex items-center justify-center w-9 h-9 rounded-full text-xl bg-violet-100">
+                📊
+              </span>
+              Pulse
+            </div>
+            <button
+              onClick={() => setHelpOpen(true)}
+              className="flex flex-col items-center justify-center gap-0.5 h-full text-[10px] font-semibold text-slate-500 hover:text-slate-700"
+            >
+              <span className="flex items-center justify-center w-9 h-9 rounded-full text-xl">
+                🎧
+              </span>
+              Help
+            </button>
+          </div>
+        </nav>
+      </div>
+
+      <HelpSheet
+        open={helpOpen}
+        onClose={() => setHelpOpen(false)}
+        plan={plan}
+        eventId={eventId}
+      />
+
+      {/* Suppress unused warnings for demoEvent/demoTicket which the store may
+          fall back to during cold-start cross-tab hydration. */}
+      {demoEvent && demoTicket && null}
+    </>
+  )
+}

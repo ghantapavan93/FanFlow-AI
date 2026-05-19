@@ -382,6 +382,11 @@ function HeartIcon({ tone = 'light' }: { tone?: 'light' | 'on-image' }) {
 }
 
 function CardCorner({ views }: { views?: string }) {
+  // The heart is decorative on this demo route — the wider card is what
+  // advances the walkthrough. Rendering it as a real <button> caused a
+  // React hydration error on stages where the card itself is wrapped in
+  // a <button onClick={onAdvance}> (button-inside-button is invalid HTML).
+  // We keep the visual + a11y role but use a span so the tree stays valid.
   return (
     <div className="absolute top-2.5 right-2.5 flex items-center gap-1 z-10">
       {views && (
@@ -389,13 +394,18 @@ function CardCorner({ views }: { views?: string }) {
           {views}
         </span>
       )}
-      <button
-        onClick={(e) => e.preventDefault()}
-        className="w-7 h-7 rounded-full bg-slate-900/40 backdrop-blur-sm hover:bg-slate-900/60 flex items-center justify-center transition"
+      <span
+        role="button"
+        tabIndex={-1}
         aria-label="Favorite"
+        onClick={(e) => {
+          e.stopPropagation()
+          e.preventDefault()
+        }}
+        className="w-7 h-7 rounded-full bg-slate-900/40 backdrop-blur-sm hover:bg-slate-900/60 flex items-center justify-center transition cursor-pointer"
       >
         <HeartIcon tone="on-image" />
-      </button>
+      </span>
     </div>
   )
 }
@@ -2014,26 +2024,31 @@ function StageConfirmed({ onAdvance, onBack }: { onAdvance: () => void; onBack: 
               <div className="text-sm text-slate-600 mt-1">
                 MetLife Stadium · East Rutherford, NJ
               </div>
-              <div className="text-xs text-slate-500 mt-2 flex items-center gap-2 flex-wrap">
-                <span className="font-mono">📅 Sat, Jul 19</span>
-                <span>·</span>
-                <span className="font-mono">⏰ 7:00 PM</span>
-                <span>·</span>
-                <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-white/70 border border-violet-200 text-[10px] font-bold uppercase tracking-wider text-violet-700">
+              <div className="text-xs text-slate-500 mt-2 flex items-center gap-x-2 gap-y-1 flex-wrap">
+                <span className="font-mono whitespace-nowrap">📅 Sat, Jul 19</span>
+                <span className="text-slate-300">·</span>
+                <span className="font-mono whitespace-nowrap">⏰ 7:00 PM</span>
+                <span className="text-slate-300">·</span>
+                <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-white/70 border border-violet-200 text-[10px] font-bold uppercase tracking-wider text-violet-700 whitespace-nowrap">
                   🏆 Final
                 </span>
               </div>
+              {/* Ticket meta row — center-align each column so the value sits
+                  visually under its label regardless of digit count. Earlier
+                  it was left-aligned, which made "3" under "TICKETS" look
+                  like it was drifting toward the left edge of its column
+                  ("number vanishing or above not aligned"). */}
               <div className="mt-6 pt-5 border-t border-dashed border-violet-300/60 grid grid-cols-3 gap-3">
                 {[
                   { k: 'Section', v: MARIA_PLAN.section },
                   { k: 'Row', v: MARIA_PLAN.row },
                   { k: 'Tickets', v: String(MARIA_PLAN.qty) },
                 ].map((c) => (
-                  <div key={c.k}>
+                  <div key={c.k} className="text-center">
                     <div className="text-[10px] font-semibold uppercase tracking-wider text-violet-700/70">
                       {c.k}
                     </div>
-                    <div className="font-bold text-violet-700 text-2xl sm:text-3xl mt-0.5 font-mono">
+                    <div className="font-bold text-violet-700 text-2xl sm:text-3xl mt-1 font-mono tabular-nums leading-none">
                       {c.v}
                     </div>
                   </div>
@@ -2112,18 +2127,22 @@ function StageConfirmed({ onAdvance, onBack }: { onAdvance: () => void; onBack: 
                     delay: reduced ? 0 : 2.0 + i * 0.15,
                     ease: [0.16, 1, 0.3, 1],
                   }}
-                  className="relative"
+                  className="relative pt-3"
                 >
+                  {/* Numbered badge — rendered as a sibling of the <Link> so
+                      it sits ABOVE the card without being clipped. Putting it
+                      inside the Link (which uses overflow-hidden for the
+                      Shimmer sweep) was slicing the top half off, which is
+                      what the user saw on /demo/fanflow-vision stage 4. */}
+                  <div className="absolute top-0 left-1/2 -translate-x-1/2 w-7 h-7 rounded-full bg-gradient-to-br from-violet-500 to-fuchsia-600 text-white text-xs font-bold flex items-center justify-center shadow-md z-10 ring-4 ring-white">
+                    {i + 1}
+                  </div>
                   <Link
                     href={moduleHrefs[m.id] ?? '/event/wc2026-final/hub'}
                     target="_blank"
-                    className="block rounded-2xl bg-white/80 backdrop-blur-sm border border-violet-100 shadow-[0_4px_20px_-8px_rgba(124,58,237,0.15)] p-4 sm:p-5 hover:border-violet-300 hover:shadow-[0_8px_28px_-8px_rgba(124,58,237,0.3)] hover:-translate-y-0.5 transition-all overflow-hidden relative"
+                    className="block rounded-2xl bg-white/80 backdrop-blur-sm border border-violet-100 shadow-[0_4px_20px_-8px_rgba(124,58,237,0.15)] p-4 sm:p-5 pt-6 hover:border-violet-300 hover:shadow-[0_8px_28px_-8px_rgba(124,58,237,0.3)] hover:-translate-y-0.5 transition-all overflow-hidden relative"
                   >
-                    {/* Numbered badge floating at top */}
-                    <div className="absolute -top-3 left-1/2 -translate-x-1/2 w-7 h-7 rounded-full bg-gradient-to-br from-violet-500 to-fuchsia-600 text-white text-xs font-bold flex items-center justify-center shadow-md">
-                      {i + 1}
-                    </div>
-                    <div className="text-center pt-2">
+                    <div className="text-center">
                       <div className="w-12 h-12 mx-auto rounded-2xl bg-gradient-to-br from-violet-100 to-violet-50 border border-violet-200 flex items-center justify-center text-xl mb-2">
                         {m.icon}
                       </div>

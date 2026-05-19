@@ -11,10 +11,23 @@ import type {
   GateScoreComponents,
 } from './types'
 
+// Event date: 6 days from "now" pinned to 7:00 PM local time so the
+// derived "Leave by" / "Arrive at" / "Kickoff" times land on realistic
+// evening values (e.g. 4:25 PM / 5:30 PM / 7:00 PM) instead of inheriting
+// whatever wall-clock minute the dev server happened to boot at.
+// Previously this used Date.now() + 6 days raw, which produced times
+// like "Leave by 12:57 AM, Kickoff 03:32 AM" when the server started
+// in the middle of the night — useful for nobody.
+const eventDate = (() => {
+  const d = new Date(Date.now() + 6 * 24 * 60 * 60 * 1000)
+  d.setHours(19, 0, 0, 0)
+  return d.toISOString()
+})()
+
 export const demoEvent: Event = {
   id: 'wc2026-final',
   name: 'FIFA World Cup 2026 Final',
-  date: new Date(Date.now() + 6 * 24 * 60 * 60 * 1000).toISOString(),
+  date: eventDate,
   image_url:
     'https://images.unsplash.com/photo-1579954614171-fd3900acfc42?w=1200&h=630&fit=crop',
   venue_id: 'metlife-stadium',
