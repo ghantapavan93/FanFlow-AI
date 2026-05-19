@@ -59,6 +59,17 @@ export default function PulsePage() {
     setPulseCount((c) => c + 1)
   }
 
+  // Staff signals at the recommended gate (last 60 min) — prominent section
+  const staffAtGate = signals
+    .filter(
+      (s) =>
+        s.source === 'staff' &&
+        s.gate_id === plan.recommended_gate.id &&
+        Date.now() - new Date(s.created_at).getTime() < 60 * 60 * 1000,
+    )
+    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+    .slice(0, 3)
+
   // Recent fan reports at the recommended gate (last 30 min)
   const recentFan = signals
     .filter(
@@ -175,6 +186,84 @@ export default function PulsePage() {
             <p className="text-[11px] text-slate-500 mt-3 leading-relaxed text-center">
               One report helps visibility. Multiple similar reports influence guidance.
             </p>
+          </motion.section>
+
+          {/* === Staff Verified Updates at Your Gate =================== */}
+          <motion.section
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.05 }}
+            className="rounded-3xl bg-gradient-to-br from-violet-50 via-white to-violet-50/30 border border-violet-200 shadow-[0_4px_20px_-8px_rgba(124,58,237,0.10)] p-5"
+          >
+            <div className="flex items-center gap-2 mb-3">
+              <span className="w-9 h-9 rounded-2xl bg-gradient-to-br from-violet-500 to-fuchsia-600 text-white flex items-center justify-center text-sm flex-shrink-0 shadow-md shadow-violet-500/25">
+                ✓
+              </span>
+              <div className="min-w-0">
+                <div className="font-bold text-slate-900 text-base leading-tight">
+                  Staff Updates · {gateLabel}
+                </div>
+                <div className="text-[11px] text-slate-500 mt-0.5">
+                  Verified by on-ground staff · Weighted 3× in the rule engine
+                </div>
+              </div>
+            </div>
+
+            {staffAtGate.length === 0 ? (
+              <div className="rounded-xl bg-slate-50 border border-slate-100 p-4 text-center">
+                <p className="text-sm text-slate-500">
+                  No staff updates at {gateLabel} yet.
+                </p>
+                <p className="text-[11px] text-slate-400 mt-1">
+                  When staff publish a signal via the Staff Console, it appears
+                  here instantly and updates your plan.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {staffAtGate.map((s) => {
+                  const ageMin = Math.floor(
+                    (Date.now() - new Date(s.created_at).getTime()) / 60000,
+                  )
+                  const rel = ageMin < 1 ? 'just now' : `${ageMin}m ago`
+                  const sentimentColor =
+                    s.sentiment === 'smooth'
+                      ? 'bg-emerald-50 border-emerald-200'
+                      : s.sentiment === 'moderate'
+                        ? 'bg-yellow-50 border-yellow-200'
+                        : s.sentiment === 'busy'
+                          ? 'bg-amber-50 border-amber-200'
+                          : 'bg-rose-50 border-rose-200'
+                  return (
+                    <div
+                      key={s.id}
+                      className={`flex items-start gap-3 px-3.5 py-3 rounded-xl border ${sentimentColor}`}
+                    >
+                      <span className="text-base flex-shrink-0 mt-0.5">
+                        {s.sentiment === 'smooth'
+                          ? '✅'
+                          : s.sentiment === 'moderate'
+                            ? '🟡'
+                            : s.sentiment === 'busy'
+                              ? '🟠'
+                              : '🔴'}
+                      </span>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm text-slate-800 font-semibold leading-tight">
+                          {s.message}
+                        </div>
+                        <div className="flex items-center gap-2 mt-1">
+                          <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-violet-100 text-[9px] font-bold text-violet-700 uppercase tracking-wider">
+                            Staff
+                          </span>
+                          <span className="text-[11px] text-slate-500">{rel}</span>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
           </motion.section>
 
           {/* Breakdown — animated bars at the recommended gate */}

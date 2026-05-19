@@ -16,8 +16,9 @@ import {
   loadReadiness,
   subscribeToFanflowChanges,
 } from '@/lib/store'
-import type { LiveSignal, ReadinessPrefs } from '@/lib/types'
+import type { ArrivalPlan, LiveSignal, ReadinessPrefs } from '@/lib/types'
 import { computeEventIntelligence, computeFanPulse } from '@/lib/intelligence'
+import type { EventIntelligence, FanPulseBreakdown } from '@/lib/intelligence'
 import { HelpSheet } from '@/components/shared/HelpSheet'
 import { SessionChip } from '@/components/shared/SessionChip'
 
@@ -443,7 +444,7 @@ export default function EventHubPage() {
                 icon="🗺️"
                 iconTone="from-sky-500 to-violet-600"
                 title="Map"
-                stat="8 min walk"
+                stat={`${gateLabel} route`}
                 delay={0.05}
               />
               <DashTile
@@ -467,7 +468,7 @@ export default function EventHubPage() {
                 icon="🤝"
                 iconTone="from-rose-500 to-orange-500"
                 title="Help"
-                stat="6 categories"
+                stat="Nearby support"
                 delay={0.2}
               />
               <DashTile
@@ -481,6 +482,82 @@ export default function EventHubPage() {
             </div>
           </motion.section>
 
+          {/* === Event Flow Status Bar ================================ */}
+          <motion.section
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.15 }}
+          >
+            <Link
+              href={`/event/${eventId}/conditions`}
+              className="block rounded-3xl bg-gradient-to-br from-slate-50 to-white border border-slate-200 p-4 hover:border-violet-300 transition-colors group"
+            >
+              <div className="flex items-center gap-2 mb-3">
+                <motion.span
+                  className="w-2 h-2 rounded-full"
+                  style={{
+                    backgroundColor:
+                      intelligence.expectedEntryLoad === 'light'
+                        ? '#10b981'
+                        : intelligence.expectedEntryLoad === 'moderate'
+                          ? '#f59e0b'
+                          : intelligence.expectedEntryLoad === 'busy'
+                            ? '#f43f5e'
+                            : '#94a3b8',
+                  }}
+                  animate={{ opacity: [1, 0.4, 1] }}
+                  transition={{ duration: 2, repeat: Infinity }}
+                />
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                  Event Flow
+                </span>
+                <span className="text-[10px] text-slate-400 ml-auto group-hover:translate-x-0.5 transition-transform">
+                  Details ›
+                </span>
+              </div>
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <div className="text-[10px] text-slate-500 font-medium">Entry</div>
+                  <div className={`font-bold text-sm mt-0.5 ${
+                    intelligence.expectedEntryLoad === 'light'
+                      ? 'text-emerald-700'
+                      : intelligence.expectedEntryLoad === 'moderate'
+                        ? 'text-amber-700'
+                        : intelligence.expectedEntryLoad === 'busy'
+                          ? 'text-rose-700'
+                          : 'text-slate-500'
+                  }`}>
+                    {intelligence.expectedEntryLoad === 'light'
+                      ? 'Smooth'
+                      : intelligence.expectedEntryLoad === 'moderate'
+                        ? 'Moderate'
+                        : intelligence.expectedEntryLoad === 'busy'
+                          ? 'Heavy'
+                          : 'Awaiting'}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-[10px] text-slate-500 font-medium">Peak</div>
+                  <div className="font-bold text-sm text-slate-900 mt-0.5 tabular-nums">
+                    {intelligence.peakWindow.split(' – ')[0]}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-[10px] text-slate-500 font-medium">Fan Reports</div>
+                  <div className="font-bold text-sm text-slate-900 mt-0.5 tabular-nums">
+                    {fanPulse.total > 0 ? `${fanPulse.total} recent` : 'None yet'}
+                  </div>
+                </div>
+              </div>
+              {intelligence.avoidsPeak && (
+                <div className="mt-3 flex items-center gap-1.5 text-[11px] text-emerald-700 font-semibold">
+                  <span>✓</span>
+                  Your plan avoids peak congestion
+                </div>
+              )}
+            </Link>
+          </motion.section>
+
           {/* === Staff Verified Update ================================= */}
           {intelligence.latestStaffAtGate && (
             <motion.div
@@ -489,7 +566,7 @@ export default function EventHubPage() {
               transition={{ duration: 0.5, delay: 0.3 }}
             >
               <Link
-                href={`/event/${eventId}/conditions`}
+                href={`/event/${eventId}/pulse`}
                 className="block rounded-3xl bg-gradient-to-br from-violet-50 to-violet-50/40 border border-violet-200 p-4 hover:from-violet-100 hover:to-violet-50/70 transition-colors group"
               >
                 <div className="flex items-center gap-3">
@@ -497,12 +574,12 @@ export default function EventHubPage() {
                     ✓
                   </span>
                   <div className="flex-1 min-w-0">
-                    <div className="kicker text-violet-700">Staff Verified Update</div>
+                    <div className="kicker text-violet-700">Staff Update · {gateLabel}</div>
                     <div className="font-bold text-slate-900 text-[13px] mt-0.5 leading-tight line-clamp-2">
                       {intelligence.latestStaffAtGate.message}
                     </div>
                     <div className="text-[10px] text-slate-500 mt-0.5">
-                      Weighted 3× over fan reports
+                      Verified · Weighted 3× over fan reports
                     </div>
                   </div>
                   <span className="inline-flex items-center text-[11px] font-bold text-violet-700 whitespace-nowrap flex-shrink-0 group-hover:translate-x-0.5 transition-transform">
@@ -513,6 +590,55 @@ export default function EventHubPage() {
               </Link>
             </motion.div>
           )}
+
+          {/* === Personalized Smart Alerts ============================== */}
+          <SmartAlerts
+            prefs={prefs}
+            plan={plan}
+            intelligence={intelligence}
+            fanPulse={fanPulse}
+            eventId={eventId}
+            onHelp={() => setHelpOpen(true)}
+          />
+
+          {/* === Safety Assurance ======================================= */}
+          <motion.section
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.35 }}
+            className="rounded-3xl bg-gradient-to-br from-emerald-50 via-white to-emerald-50/30 border border-emerald-200 p-4"
+          >
+            <div className="flex items-start gap-3">
+              <span className="w-10 h-10 rounded-2xl bg-emerald-100 flex items-center justify-center text-lg flex-shrink-0">
+                🛡️
+              </span>
+              <div className="flex-1 min-w-0">
+                <div className="font-bold text-slate-900 text-[13px] leading-tight">
+                  You&apos;re covered before, during, and after entry
+                </div>
+                <p className="text-[11px] text-slate-600 mt-1.5 leading-relaxed">
+                  FanFlow is working alongside venue staff to help you arrive
+                  confidently. Your route, gate conditions, and nearby support are
+                  all monitored — so you can focus on enjoying the event.
+                </p>
+                <div className="flex flex-wrap gap-1.5 mt-2.5">
+                  {[
+                    'Live gate updates',
+                    'Staff-verified conditions',
+                    'Nearby help mapped',
+                    'Real-time routing',
+                  ].map((tag) => (
+                    <span
+                      key={tag}
+                      className="inline-flex items-center px-2 py-0.5 rounded-full bg-emerald-100 text-[10px] font-semibold text-emerald-800"
+                    >
+                      ✓ {tag}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </motion.section>
 
           {/* === Dark cinematic CTA =================================== */}
           <motion.section
@@ -744,4 +870,280 @@ function DashTile({
     )
   }
   return <Link href={href ?? '#'}>{inner}</Link>
+}
+
+/**
+ * SmartAlerts — personalized notification cards below the tile grid.
+ *
+ * Derives alert messages from the fan's preference profile + live intelligence.
+ * If no prefs are set, shows a simplified "conditions-only" set of messages
+ * so even first-time visitors get value. With prefs, alerts are tailored
+ * to the specific group type and needs (family, accessibility, timing, etc.).
+ */
+function SmartAlerts({
+  prefs,
+  plan,
+  intelligence,
+  fanPulse,
+  eventId,
+  onHelp,
+}: {
+  prefs: ReadinessPrefs | null
+  plan: ArrivalPlan
+  intelligence: EventIntelligence
+  fanPulse: FanPulseBreakdown
+  eventId: string
+  onHelp: () => void
+}) {
+  const alerts: Array<{
+    id: string
+    icon: string
+    title: string
+    body: string
+    tone: 'violet' | 'emerald' | 'amber' | 'sky' | 'rose'
+    action?: { label: string; href?: string; onClick?: () => void }
+  }> = []
+
+  const gateLabel = plan.recommended_gate.name.split(' (')[0]
+
+  // === Preference-gated personalized alerts ===
+  if (prefs) {
+    // Family-specific
+    if (prefs.group === 'family_young_kids') {
+      alerts.push({
+        id: 'family-young',
+        icon: '👶',
+        title: 'Arriving with young kids',
+        body: `${gateLabel} is family-friendly with wider lanes. Family Services is nearby for stroller storage and nursing. Plan for a 5-min buffer at the gate.`,
+        tone: 'violet',
+        action: { label: 'View family support', href: `/event/${eventId}/venue-map` },
+      })
+    } else if (prefs.group === 'family_teens') {
+      alerts.push({
+        id: 'family-teens',
+        icon: '👨‍👩‍👧‍👦',
+        title: 'Family arrival tip',
+        body: `Set a meetup point inside the venue in case anyone gets separated. Guest Services near ${gateLabel} can help coordinate.`,
+        tone: 'violet',
+      })
+    }
+
+    // Large group
+    if (prefs.group === 'large_group') {
+      alerts.push({
+        id: 'large-group',
+        icon: '👥',
+        title: 'Group arrival strategy',
+        body: `With a larger group, arrive together at ${gateLabel} and have one person lead with all tickets ready. The gate handles group entries well.`,
+        tone: 'sky',
+      })
+    }
+
+    // Accessibility needs
+    if (prefs.needs.includes('wheelchair') || prefs.needs.includes('slow_pace')) {
+      alerts.push({
+        id: 'accessibility',
+        icon: '♿',
+        title: 'Accessible route ready',
+        body: `${gateLabel} has step-free access. Staff can assist with elevator access to your section. Allow a few extra minutes for the accessible concourse route.`,
+        tone: 'sky',
+        action: { label: 'Map accessible route', href: `/event/${eventId}/venue-map` },
+      })
+    }
+
+    // Sensory sensitive
+    if (prefs.needs.includes('sensory_sensitive')) {
+      alerts.push({
+        id: 'sensory',
+        icon: '🧩',
+        title: 'Quiet zones nearby',
+        body: 'The Sensory Room is available inside the venue for a calmer break. Staff can guide you there from your section at any time.',
+        tone: 'emerald',
+        action: { label: 'Find quiet spaces', href: `/event/${eventId}/venue-map` },
+      })
+    }
+
+    // First-time visitor
+    if (prefs.needs.includes('first_time')) {
+      alerts.push({
+        id: 'first-time',
+        icon: '🌟',
+        title: 'First time at this venue?',
+        body: `Follow your Journey timeline step by step — it covers everything from departure to your seat. Staff in high-vis vests at ${gateLabel} can answer any question.`,
+        tone: 'violet',
+        action: { label: 'View journey', href: `/event/${eventId}/journey` },
+      })
+    }
+
+    // Transit-specific
+    if (prefs.transport === 'transit') {
+      alerts.push({
+        id: 'transit',
+        icon: '🚇',
+        title: 'Transit arrival tip',
+        body: `Taking transit means you'll arrive at the main plaza. ${gateLabel} is an 8-minute walk from the transit drop-off. Follow the fan flow signs.`,
+        tone: 'sky',
+      })
+    } else if (prefs.transport === 'driving') {
+      alerts.push({
+        id: 'driving',
+        icon: '🚗',
+        title: 'Parking reminder',
+        body: `Stadium lots fill up fast on event day. Your leave-by time (${plan.leave_by_time}) accounts for parking walk time to ${gateLabel}.`,
+        tone: 'amber',
+      })
+    }
+  }
+
+  // === Universal condition-based alerts (always show) ===
+
+  // Busy entry alert
+  if (intelligence.expectedEntryLoad === 'busy') {
+    alerts.push({
+      id: 'busy-entry',
+      icon: '⚠️',
+      title: 'Heavy entry expected',
+      body: `Current conditions suggest heavier traffic at ${gateLabel}. Arriving by ${plan.arrival_time} gives you the best chance to beat the rush.`,
+      tone: 'amber',
+      action: { label: 'Check conditions', href: `/event/${eventId}/conditions` },
+    })
+  }
+
+  // Fan pulse needs help surge
+  if (fanPulse.needHelp >= 2) {
+    alerts.push({
+      id: 'fan-concern',
+      icon: '📢',
+      title: 'Fans reporting issues nearby',
+      body: `${fanPulse.needHelp} recent fan reports indicate difficulty at ${gateLabel}. Staff have been notified — check Pulse for live updates.`,
+      tone: 'rose',
+      action: { label: 'See fan reports', href: `/event/${eventId}/pulse` },
+    })
+  }
+
+  // If no prefs set at all, show a gentle nudge + a generic safety note
+  if (!prefs) {
+    alerts.push({
+      id: 'personalize-nudge',
+      icon: '✨',
+      title: 'Get personalized alerts',
+      body: 'Tell us about your group and needs — we\'ll tailor your gate recommendations, timing, and support info to match.',
+      tone: 'violet',
+      action: { label: 'Personalize now', href: `/event/${eventId}/readiness` },
+    })
+  }
+
+  // Always show safety note (unless too many alerts already)
+  if (alerts.length < 4) {
+    alerts.push({
+      id: 'safety-proactive',
+      icon: '🎧',
+      title: 'Support is one tap away',
+      body: 'Need help at any point? FanFlow connects you to the nearest support — medical, family services, accessibility, and more.',
+      tone: 'emerald',
+      action: { label: 'Get help', onClick: onHelp },
+    })
+  }
+
+  // Cap at 4 to prevent the Hub from becoming a wall of cards
+  const visible = alerts.slice(0, 4)
+
+  if (visible.length === 0) return null
+
+  const toneMap = {
+    violet: {
+      bg: 'from-violet-50 to-violet-50/40',
+      border: 'border-violet-200',
+      iconBg: 'bg-violet-100',
+      accent: 'text-violet-700',
+    },
+    emerald: {
+      bg: 'from-emerald-50 to-emerald-50/40',
+      border: 'border-emerald-200',
+      iconBg: 'bg-emerald-100',
+      accent: 'text-emerald-700',
+    },
+    amber: {
+      bg: 'from-amber-50 to-amber-50/40',
+      border: 'border-amber-200',
+      iconBg: 'bg-amber-100',
+      accent: 'text-amber-700',
+    },
+    sky: {
+      bg: 'from-sky-50 to-sky-50/40',
+      border: 'border-sky-200',
+      iconBg: 'bg-sky-100',
+      accent: 'text-sky-700',
+    },
+    rose: {
+      bg: 'from-rose-50 to-rose-50/40',
+      border: 'border-rose-200',
+      iconBg: 'bg-rose-100',
+      accent: 'text-rose-700',
+    },
+  }
+
+  return (
+    <motion.section
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.5, delay: 0.2 }}
+    >
+      <div className="flex items-center gap-2 mb-3 px-1">
+        <div className="kicker text-violet-700">
+          {prefs ? 'For you' : 'Smart alerts'}
+        </div>
+        {prefs && (
+          <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-violet-100 text-[9px] font-bold text-violet-700 uppercase tracking-wider">
+            Personalized
+          </span>
+        )}
+      </div>
+      <div className="space-y-2.5">
+        {visible.map((alert, i) => {
+          const t = toneMap[alert.tone]
+          return (
+            <motion.div
+              key={alert.id}
+              initial={{ opacity: 0, x: -8 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.4, delay: 0.05 * i, ease: [0.16, 1, 0.3, 1] }}
+              className={`rounded-2xl bg-gradient-to-br ${t.bg} border ${t.border} p-3.5`}
+            >
+              <div className="flex items-start gap-3">
+                <span className={`w-9 h-9 rounded-xl ${t.iconBg} flex items-center justify-center text-base flex-shrink-0`}>
+                  {alert.icon}
+                </span>
+                <div className="flex-1 min-w-0">
+                  <div className={`font-bold text-slate-900 text-[13px] leading-tight`}>
+                    {alert.title}
+                  </div>
+                  <p className="text-[11px] text-slate-600 mt-1 leading-relaxed">
+                    {alert.body}
+                  </p>
+                  {alert.action && (
+                    alert.action.href ? (
+                      <Link
+                        href={alert.action.href}
+                        className={`inline-flex items-center gap-1 mt-2 text-[11px] font-bold ${t.accent} hover:underline`}
+                      >
+                        {alert.action.label} <span>›</span>
+                      </Link>
+                    ) : alert.action.onClick ? (
+                      <button
+                        onClick={alert.action.onClick}
+                        className={`inline-flex items-center gap-1 mt-2 text-[11px] font-bold ${t.accent} hover:underline`}
+                      >
+                        {alert.action.label} <span>›</span>
+                      </button>
+                    ) : null
+                  )}
+                </div>
+              </div>
+            </motion.div>
+          )
+        })}
+      </div>
+    </motion.section>
+  )
 }

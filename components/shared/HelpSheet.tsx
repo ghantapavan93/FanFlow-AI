@@ -24,6 +24,15 @@ const SUPPORT_EMOJI: Record<SupportType, string> = {
   quiet_space: '🧩',
   concessions: '🍿',
 }
+const SUPPORT_META_LABELS: Record<SupportType, string> = {
+  first_aid: 'First Aid',
+  family_services: 'Family Services',
+  accessibility: 'Accessible Entry',
+  restroom: 'Restroom',
+  guest_services: 'Guest Services',
+  quiet_space: 'Quiet Space',
+  concessions: 'Concessions',
+}
 
 type CategoryId =
   | 'wrong_gate'
@@ -190,6 +199,43 @@ export function HelpSheet({ open, onClose, plan, eventId }: HelpSheetProps) {
 
         {/* Body */}
         <div className="overflow-y-auto px-5 py-4 space-y-5 flex-1">
+          {/* === Nearby support FIRST — proactive, not reactive ========= */}
+          <div>
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-base">📍</span>
+              <div className="kicker text-violet-700">Nearby support for your location</div>
+            </div>
+            <p className="text-xs text-slate-500 mb-3 leading-relaxed">
+              Based on your gate ({plan.recommended_gate.name.replace(/\s*\(.*\)/, '')}) and Section {demoTicket.section}. Tap to view on map.
+            </p>
+            <div className="space-y-2">
+              {plan.support_points.map((sp) => (
+                <Link
+                  key={sp.id}
+                  href={`/event/${eventId}/venue-map`}
+                  onClick={onClose}
+                  className="list-row min-h-[56px]"
+                >
+                  <span
+                    className="thumb-circle"
+                    style={{ background: SUPPORT_TONE[sp.type] ?? '#7c3aed' }}
+                    aria-hidden="true"
+                  >
+                    {SUPPORT_EMOJI[sp.type] ?? '📍'}
+                  </span>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-semibold text-slate-900 truncate">{sp.name}</div>
+                    <div className="text-xs text-slate-500 mt-0.5">
+                      {sp.walk_time_minutes ? `~${sp.walk_time_minutes} min walk · ` : ''}
+                      {SUPPORT_META_LABELS[sp.type] ?? sp.type}
+                    </div>
+                  </div>
+                  <span className="text-slate-300 flex-shrink-0">›</span>
+                </Link>
+              ))}
+            </div>
+          </div>
+
           {/* Plan context */}
           <div className="bg-violet-50 border border-violet-200 rounded-2xl p-4">
             <div className="kicker text-violet-700">Your plan right now</div>
@@ -246,64 +292,60 @@ export function HelpSheet({ open, onClose, plan, eventId }: HelpSheetProps) {
                 <div className="kicker text-emerald-700">Suggested next step</div>
                 <div className="font-bold text-emerald-900 mt-1">{action.headline}</div>
                 <p className="text-sm text-emerald-900/90 mt-2 leading-relaxed">{action.body}</p>
+                {action.mapHighlight && (
+                  <Link
+                    href={`/event/${eventId}/venue-map`}
+                    onClick={onClose}
+                    className="inline-flex items-center gap-1 mt-2 text-xs font-bold text-emerald-700 hover:underline"
+                  >
+                    View on map ›
+                  </Link>
+                )}
               </motion.div>
             )}
           </AnimatePresence>
-
-          {/* Nearby support quick links */}
-          <div>
-            <div className="kicker mb-2">Nearby support</div>
-            <div className="space-y-2">
-              {plan.support_points.map((sp) => (
-                <Link
-                  key={sp.id}
-                  href={`/event/${eventId}/venue-map`}
-                  onClick={onClose}
-                  className="list-row min-h-[56px]"
-                >
-                  <span
-                    className="thumb-circle"
-                    style={{ background: SUPPORT_TONE[sp.type] ?? '#7c3aed' }}
-                    aria-hidden="true"
-                  >
-                    {SUPPORT_EMOJI[sp.type] ?? '📍'}
-                  </span>
-                  <div className="flex-1 min-w-0">
-                    <div className="text-sm font-semibold text-slate-900 truncate">{sp.name}</div>
-                    {sp.walk_time_minutes && (
-                      <div className="text-xs text-slate-500 mt-0.5">{sp.walk_time_minutes} min walk</div>
-                    )}
-                  </div>
-                  <span className="text-slate-300 flex-shrink-0">›</span>
-                </Link>
-              ))}
-            </div>
-          </div>
 
           {/* Safety wording */}
           <div className="rounded-2xl bg-rose-50 border border-rose-200 p-3.5 text-xs text-rose-900 leading-relaxed">
             <strong>For urgent medical or safety issues, contact venue staff or local emergency services (911).</strong>{' '}
             FanFlow provides guidance, not emergency response.
           </div>
+
+          {/* StubHub fallback — visible but secondary */}
+          <div className="rounded-2xl bg-slate-50 border border-slate-200 p-3.5">
+            <div className="flex items-center gap-2.5">
+              <span className="w-8 h-8 rounded-lg bg-violet-600 text-white text-[10px] font-bold flex items-center justify-center flex-shrink-0">
+                SH
+              </span>
+              <div className="flex-1 min-w-0">
+                <div className="text-xs font-semibold text-slate-700">
+                  Can&apos;t find what you need?
+                </div>
+                <div className="text-[10px] text-slate-500 mt-0.5">
+                  StubHub Support is available for ticket and account issues.
+                </div>
+              </div>
+              <a
+                href="https://www.stubhub.com/help"
+                target="_blank"
+                rel="noreferrer noopener"
+                className="text-[11px] font-bold text-violet-700 hover:underline flex-shrink-0"
+              >
+                Contact ›
+              </a>
+            </div>
+          </div>
         </div>
 
         {/* Footer actions */}
-        <div className="border-t border-slate-200 px-4 pt-3 safe-bottom grid grid-cols-1 sm:grid-cols-3 gap-2">
+        <div className="border-t border-slate-200 px-4 pt-3 safe-bottom grid grid-cols-2 gap-2">
           <Link
             href={`/event/${eventId}/venue-map`}
             onClick={onClose}
             className="btn-primary text-sm !min-h-[44px] !px-4"
           >
-            View nearest support
+            View on map
           </Link>
-          <a
-            href="https://www.stubhub.com/help"
-            target="_blank"
-            rel="noreferrer noopener"
-            className="btn-secondary text-sm !min-h-[44px] !px-4"
-          >
-            Contact StubHub Support
-          </a>
           <button
             onClick={onClose}
             className="btn-ghost text-sm !min-h-[44px] !px-4 border-2 border-slate-200"

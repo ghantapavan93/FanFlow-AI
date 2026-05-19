@@ -241,18 +241,108 @@ export default function JourneyPage() {
             </ol>
           </motion.section>
 
-          {/* AI Explanation — narrates the journey using the live plan +
-              signals through the same /api/explain-arrival-plan cascade. */}
-          <AIExplanationCard
-            plan={plan}
-            prefs={prefs}
-            signals={signals}
-            eventName="FIFA World Cup 2026 Final"
-            venueName={demoVenue.name}
-            ticketSection={ticket.section}
-            title="Why this journey unfolds this way"
-            subtitle="AI narration of the rule-engine timeline"
-          />
+          {/* AI Explanation — premium formatted narration ============= */}
+          <motion.section
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.3 }}
+            className="relative rounded-3xl overflow-hidden bg-gradient-to-br from-slate-950 via-violet-950 to-slate-900 text-white p-5"
+          >
+            <div
+              aria-hidden="true"
+              className="absolute inset-0 opacity-60 bg-[radial-gradient(ellipse_at_20%_80%,rgba(167,139,250,0.35),transparent_55%),radial-gradient(ellipse_at_85%_15%,rgba(236,72,153,0.25),transparent_55%)]"
+            />
+            <div className="relative">
+              <div className="flex items-center gap-2 mb-4">
+                <span className="w-9 h-9 rounded-xl bg-violet-500/20 border border-violet-400/30 flex items-center justify-center text-base">
+                  ✨
+                </span>
+                <div>
+                  <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-violet-300">
+                    AI Analysis
+                  </div>
+                  <div className="font-bold text-sm leading-tight">
+                    Why this plan works for you
+                  </div>
+                </div>
+              </div>
+
+              {/* Structured insight cards inside the dark card */}
+              <div className="space-y-3 mb-4">
+                <div className="rounded-2xl bg-white/5 border border-white/10 p-3.5">
+                  <div className="flex items-center gap-2 mb-1.5">
+                    <span className="text-emerald-400 text-sm">🚪</span>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-400">Gate Selection</span>
+                  </div>
+                  <p className="text-[13px] text-slate-200 leading-relaxed">
+                    <strong className="text-white">{gateLabel}</strong> was chosen because it is
+                    the closest entrance to Section {ticket.section}
+                    {plan.recommended_gate.family_friendly ? ', supports family-friendly access' : ''}
+                    {plan.recommended_gate.accessibility ? ', and has step-free entry' : ''}.
+                    {plan.recommended_gate.typical_wait_minutes <= 8
+                      ? ' Wait times are currently below average.'
+                      : ''}
+                  </p>
+                </div>
+
+                <div className="rounded-2xl bg-white/5 border border-white/10 p-3.5">
+                  <div className="flex items-center gap-2 mb-1.5">
+                    <span className="text-sky-400 text-sm">⏱️</span>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-sky-400">Timing Strategy</span>
+                  </div>
+                  <p className="text-[13px] text-slate-200 leading-relaxed">
+                    Leaving by <strong className="text-white">{plan.leave_by_time}</strong> and
+                    arriving at <strong className="text-white">{plan.arrival_time}</strong> targets
+                    the sweet spot — after the initial rush has thinned but with enough buffer
+                    to reach your seat comfortably before kickoff.
+                  </p>
+                </div>
+
+                <div className="rounded-2xl bg-white/5 border border-white/10 p-3.5">
+                  <div className="flex items-center gap-2 mb-1.5">
+                    <span className="text-violet-400 text-sm">🛡️</span>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-violet-400">Confidence</span>
+                  </div>
+                  <p className="text-[13px] text-slate-200 leading-relaxed">
+                    Plan confidence is at <strong className="text-white">{plan.confidence_breakdown.percent}%</strong>
+                    {plan.confidence_breakdown.staffSignalCount > 0
+                      ? ` — boosted by ${plan.confidence_breakdown.staffSignalCount} staff-verified signal${plan.confidence_breakdown.staffSignalCount > 1 ? 's' : ''}`
+                      : ''}.
+                    {plan.confidence_breakdown.reasons[0] ? ` ${plan.confidence_breakdown.reasons[0]}.` : ''}
+                  </p>
+                </div>
+              </div>
+
+              {/* Live AI cascade narration */}
+              <AIExplanationCard
+                plan={plan}
+                prefs={prefs}
+                signals={signals}
+                eventName="FIFA World Cup 2026 Final"
+                venueName={demoVenue.name}
+                ticketSection={ticket.section}
+                title="Full AI narration"
+                subtitle="Generated by the Groq → Gemini → Template cascade"
+                tone="dark"
+              />
+            </div>
+          </motion.section>
+
+          {/* Journey safety assurance strip ============================== */}
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.4 }}
+            className="rounded-2xl bg-emerald-50 border border-emerald-200 px-4 py-3"
+          >
+            <div className="flex items-center gap-3">
+              <span className="text-lg flex-shrink-0">🛡️</span>
+              <p className="text-[12px] text-emerald-900 leading-relaxed">
+                <strong>You&apos;re all set.</strong> Every step above is monitored — if conditions
+                change, your plan updates automatically. Staff are stationed at every gate.
+              </p>
+            </div>
+          </motion.div>
 
           {/* Help CTA */}
           <motion.button
@@ -269,7 +359,7 @@ export default function JourneyPage() {
               <div className="flex-1 min-w-0">
                 <div className="kicker text-violet-700">Need help during the event?</div>
                 <div className="text-xs text-slate-600 mt-0.5 leading-snug">
-                  Context-aware support, one tap away.
+                  Nearby support mapped to your gate and section.
                 </div>
               </div>
               <span className="text-violet-700 text-lg">›</span>
