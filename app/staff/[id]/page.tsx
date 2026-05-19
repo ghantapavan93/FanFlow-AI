@@ -831,6 +831,173 @@ export default function StaffConsolePage() {
           </div>
         </section>
 
+        {/* === Event Configuration — event type, crowd profile, key times */}
+        <section className="rounded-2xl border border-slate-800 bg-slate-900 p-4 sm:p-5">
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <div className="text-[10px] font-bold uppercase tracking-wider text-violet-300">
+                Event configuration
+              </div>
+              <h3 className="font-bold text-white text-sm mt-0.5">
+                {demoEvent.name}
+              </h3>
+            </div>
+            <span className="text-[10px] px-2 py-0.5 rounded-full bg-violet-600/30 text-violet-300 border border-violet-500/40 font-bold uppercase tracking-wider">
+              Live
+            </span>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            {[
+              { label: 'Event type', value: 'Sports · FIFA Final', icon: '🏟️' },
+              { label: 'Expected crowd', value: '82,500', icon: '👥' },
+              { label: 'Gates open', value: '3:00 PM', icon: '🚪' },
+              { label: 'Kickoff', value: '5:00 PM', icon: '⚽' },
+            ].map((c) => (
+              <div key={c.label} className="rounded-xl bg-slate-950 border border-slate-800 p-3">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-sm">{c.icon}</span>
+                  <div className="text-[9px] font-bold uppercase tracking-wider text-slate-500">{c.label}</div>
+                </div>
+                <div className="font-bold text-white text-sm mt-1.5">{c.value}</div>
+              </div>
+            ))}
+          </div>
+          <div className="mt-3 flex flex-wrap gap-1.5">
+            {['Bag check active', 'ADA routes open', 'Family entrance ready', 'Concessions open', 'Medical on standby'].map((tag) => (
+              <span key={tag} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-[10px] font-semibold text-emerald-300">
+                ✓ {tag}
+              </span>
+            ))}
+          </div>
+          <p className="text-[10px] text-slate-500 mt-3 leading-relaxed">
+            Event profile configures gate priorities, security screening protocols, and crowd management rules.
+            In production, this would sync from the venue management system.
+          </p>
+        </section>
+
+        {/* === Fan Intelligence Summary — aggregate readiness data ====== */}
+        <section className="rounded-2xl border border-slate-800 bg-slate-900 p-4 sm:p-5">
+          <div className="flex items-center gap-2 mb-3">
+            <div className="text-[10px] font-bold uppercase tracking-wider text-violet-300">
+              Fan intelligence
+            </div>
+            <span className="text-[10px] text-slate-500">
+              · aggregated from personalization data
+            </span>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+            {[
+              { label: 'Families', pct: 28, icon: '👨‍👩‍👧', color: 'text-violet-300' },
+              { label: 'Accessibility', pct: 12, icon: '♿', color: 'text-sky-300' },
+              { label: 'Transit', pct: 41, icon: '🚆', color: 'text-emerald-300' },
+              { label: 'Driving', pct: 35, icon: '🚗', color: 'text-amber-300' },
+              { label: 'First-time', pct: 22, icon: '🌟', color: 'text-fuchsia-300' },
+              { label: 'Large bags', pct: 8, icon: '🎒', color: 'text-rose-300' },
+            ].map((f) => (
+              <div key={f.label} className="rounded-xl bg-slate-950 border border-slate-800 p-2.5">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-sm">{f.icon}</span>
+                  <span className="text-[9px] font-bold uppercase tracking-wider text-slate-500">{f.label}</span>
+                </div>
+                <div className={`font-bold text-lg tabular-nums mt-1 ${f.color}`}>{f.pct}%</div>
+                <div className="mt-1 h-1 bg-slate-800 rounded-full overflow-hidden">
+                  <div className="h-full bg-violet-600 rounded-full" style={{ width: `${f.pct}%` }} />
+                </div>
+              </div>
+            ))}
+          </div>
+          {livePrefs && (
+            <div className="mt-3 rounded-lg bg-violet-500/10 border border-violet-500/30 px-3 py-2">
+              <div className="text-[10px] text-violet-300 font-semibold">
+                Current session fan profile: {livePrefs.transport} · {livePrefs.group.replace(/_/g, ' ')}
+                {livePrefs.arrival_preference ? ` · ${livePrefs.arrival_preference.replace(/_/g, ' ')}` : ''}
+                {livePrefs.bringing ? ` · bringing ${livePrefs.bringing.replace(/_/g, ' ')}` : ''}
+              </div>
+            </div>
+          )}
+          <p className="text-[10px] text-slate-500 mt-2 leading-relaxed">
+            Fan intelligence drives staffing decisions: high family % → open family entrance early;
+            high accessibility % → additional ADA staff; high first-time % → more wayfinding support.
+            In production, aggregated from all ticket holders who completed personalization.
+          </p>
+        </section>
+
+        {/* === Response Playbook — pre-built protocols for any event ==== */}
+        <section className="rounded-2xl border border-slate-800 bg-slate-900 p-4 sm:p-5">
+          <div className="flex items-center gap-2 mb-3">
+            <div className="text-[10px] font-bold uppercase tracking-wider text-violet-300">
+              Response playbook
+            </div>
+            <span className="text-[10px] text-slate-500">
+              · tap a protocol to execute
+            </span>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+            {[
+              {
+                title: 'Gate surge detected',
+                icon: '🌊',
+                steps: ['Broadcast "busy" to affected gate', 'Redirect 2 staff from quietest gate', 'Update fan routing to alternate gate'],
+                when: 'Triggered when 3+ fan reports say "busy" at one gate',
+                tone: 'border-amber-500/40',
+              },
+              {
+                title: 'Medical incident',
+                icon: '🏥',
+                steps: ['Confirm location and severity', 'Radio medical team with gate + section', 'Log incident as "medical" type'],
+                when: 'Any report of medical need from staff or fan',
+                tone: 'border-rose-500/40',
+              },
+              {
+                title: 'Lost child / separation',
+                icon: '👶',
+                steps: ['Log as "lost_person" incident', 'Radio Family Services with description', 'Staff at nearest gate assist and hold'],
+                when: 'Report from any source about a separated family member',
+                tone: 'border-violet-500/40',
+              },
+              {
+                title: 'Weather delay',
+                icon: '⛈️',
+                steps: ['Broadcast "moderate" to all gates', 'Open covered waiting areas', 'Delay gate opening ETA if needed'],
+                when: 'Severe weather warning within 30 min of gates open',
+                tone: 'border-sky-500/40',
+              },
+              {
+                title: 'Bag check backup',
+                icon: '🎒',
+                steps: ['Add screening staff to busiest gate', 'Broadcast "bag check delays" to fans', 'Open express lane for clear bags'],
+                when: 'Bag check line exceeds 10 minutes',
+                tone: 'border-amber-500/40',
+              },
+              {
+                title: 'VIP / accessibility escort',
+                icon: '♿',
+                steps: ['Confirm gate and section destination', 'Dispatch escort staff with radio', 'Notify destination section staff'],
+                when: 'Request for wheelchair escort or VIP assistance',
+                tone: 'border-emerald-500/40',
+              },
+            ].map((proto) => (
+              <div key={proto.title} className={`rounded-xl bg-slate-950 border ${proto.tone} p-3`}>
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-lg">{proto.icon}</span>
+                  <div className="font-bold text-white text-xs">{proto.title}</div>
+                </div>
+                <ol className="space-y-1 text-[10px] text-slate-300 leading-snug">
+                  {proto.steps.map((s, i) => (
+                    <li key={i} className="flex gap-1.5">
+                      <span className="text-slate-500 font-mono flex-shrink-0">{i + 1}.</span>
+                      <span>{s}</span>
+                    </li>
+                  ))}
+                </ol>
+                <div className="mt-2 text-[9px] text-slate-500 italic leading-snug">
+                  {proto.when}
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+
         {/* === Hub Preview + Recommendation History ==================
             Mirror of what fans see right now (left) and a log of when
             the engine flipped its pick or shifted confidence (right). */}
@@ -848,7 +1015,7 @@ export default function StaffConsolePage() {
                 </h3>
               </div>
               <Link
-                href="/event/wc2026-final/hub"
+                href={`/event/${eventId}/hub`}
                 target="_blank"
                 className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-violet-600 hover:bg-violet-700 text-white text-[11px] font-bold transition"
               >
