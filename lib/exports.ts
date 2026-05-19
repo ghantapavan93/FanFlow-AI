@@ -105,8 +105,8 @@ export function downloadCSV(filename: string, csvContent: string): void {
 export function timestampedFilename(stem: string, ext = 'csv'): string {
   const iso = new Date()
     .toISOString()
+    .replace(/\.\d{3}Z$/, '')  // strip millis + Z FIRST (before ':' is replaced)
     .replace(/[:.]/g, '-')
-    .replace(/\.\d{3}Z$/, '')
     .replace('T', '_')
   return `${stem}-${iso}.${ext}`
 }

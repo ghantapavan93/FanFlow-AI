@@ -43,19 +43,19 @@ export interface EventIntelligence {
 }
 
 /**
- * Map confidence label to a plausible percentage.
- * Deterministic, not predictive — the labels themselves come from the rule
- * engine; we just turn them into UI-friendly numbers.
+ * Read the continuous confidence percentage from the plan's breakdown.
+ *
+ * The original implementation mapped the string 'high'/'medium'/'low' to
+ * fixed values (82/64/45). That was correct before the derived-confidence
+ * refactor, but now `plan.confidence_breakdown.percent` carries the real
+ * continuous value (25–95), so we use it directly.
+ *
+ * The string label is still derived from the percent in deriveArrivalPlan,
+ * so both agree — but this way the UI sees the granular number rather than
+ * one of three buckets.
  */
-function confidenceToPct(confidence: ArrivalPlan['confidence']): number {
-  switch (confidence) {
-    case 'high':
-      return 82
-    case 'medium':
-      return 64
-    case 'low':
-      return 45
-  }
+function confidencePctFromPlan(plan: ArrivalPlan): number {
+  return plan.confidence_breakdown.percent
 }
 
 /**
@@ -171,7 +171,7 @@ export function computeEventIntelligence(
 
   const peak = derivePeakWindow(plan.arrival_time)
   const expectedEntryLoad = deriveEntryLoad(signals, gateId)
-  const confidencePct = confidenceToPct(plan.confidence)
+  const confidencePct = confidencePctFromPlan(plan)
 
   // Most recent staff signal at the recommended gate (last 30 min)
   const recentCutoff = Date.now() - 30 * 60 * 1000
