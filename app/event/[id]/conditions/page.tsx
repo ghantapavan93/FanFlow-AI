@@ -13,6 +13,9 @@ import {
 import type { LiveSignal, ReadinessPrefs } from '@/lib/types'
 import { computeEventIntelligence, computeFanPulse } from '@/lib/intelligence'
 import { HelpSheet } from '@/components/shared/HelpSheet'
+import { AIExplanationCard } from '@/components/shared/AIExplanationCard'
+import { demoEvent, demoTicket } from '@/lib/seed'
+import { loadSelectedTicket } from '@/lib/ticketContext'
 
 /**
  * Live Conditions — bottom-nav adjacent page focused on the live signal
@@ -407,6 +410,19 @@ export default function ConditionsPage() {
               </ul>
             )}
           </motion.section>
+
+          {/* AI Explanation — same /api/explain-arrival-plan cascade as the
+              Arrival Guide. Tone='light' for the white-card surfaces. */}
+          <AIExplanationCard
+            plan={plan}
+            prefs={prefs}
+            signals={signals}
+            eventName={demoEvent.name}
+            venueName="MetLife Stadium"
+            ticketSection={(loadSelectedTicket() ?? demoTicket).section}
+            title={`Why ${gateLabel} right now`}
+            subtitle="AI explanation of the live conditions and your plan"
+          />
 
           {/* Recommendation copy from intelligence */}
           {intelligence.recommendation && (

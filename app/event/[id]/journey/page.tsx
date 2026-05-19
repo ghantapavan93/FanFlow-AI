@@ -13,6 +13,8 @@ import {
 } from '@/lib/store'
 import type { LiveSignal, ReadinessPrefs } from '@/lib/types'
 import { HelpSheet } from '@/components/shared/HelpSheet'
+import { AIExplanationCard } from '@/components/shared/AIExplanationCard'
+import { demoVenue } from '@/lib/seed'
 
 /**
  * Your Journey — full-page vertical timeline that walks the fan through
@@ -238,6 +240,19 @@ export default function JourneyPage() {
               ))}
             </ol>
           </motion.section>
+
+          {/* AI Explanation — narrates the journey using the live plan +
+              signals through the same /api/explain-arrival-plan cascade. */}
+          <AIExplanationCard
+            plan={plan}
+            prefs={prefs}
+            signals={signals}
+            eventName="FIFA World Cup 2026 Final"
+            venueName={demoVenue.name}
+            ticketSection={ticket.section}
+            title="Why this journey unfolds this way"
+            subtitle="AI narration of the rule-engine timeline"
+          />
 
           {/* Help CTA */}
           <motion.button

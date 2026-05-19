@@ -2,16 +2,25 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
-import { demoVenue, deriveArrivalPlan } from '@/lib/seed'
+import { demoEvent, demoVenue, deriveArrivalPlan } from '@/lib/seed'
 import { SessionChip } from '@/components/shared/SessionChip'
+import { AIExplanationCard } from '@/components/shared/AIExplanationCard'
 import {
   clearPublishedSignals,
   getAllSignals,
   loadIncidents,
+  loadReadiness,
   publishSignal,
   subscribeToFanflowChanges,
   updateIncident,
 } from '@/lib/store'
+import {
+  downloadCSV,
+  incidentsToCSV,
+  signalsToCSV,
+  timestampedFilename,
+} from '@/lib/exports'
+import { computeOperationalAlerts } from '@/lib/operationalAlerts'
 import type { Incident, IncidentStatus, IncidentType, LiveSignal } from '@/lib/types'
 
 /**
@@ -304,6 +313,48 @@ export default function StaffConsolePage() {
   // Map gate id → short label (e.g. "Gate 3")
   const recommendedShort = currentPlan.recommended_gate.name.split(' (')[0]
 
+  // Throughput series — signals per 5-min bucket over the last 60 minutes.
+  // Drives the small bar chart in the Throughput panel below.
+  const throughputSeries = useMemo(() => {
+    const buckets = 12
+    const bucketMs = 5 * 60 * 1000
+    const start = Date.now() - buckets * bucketMs
+    const series = Array.from({ length: buckets }, () => ({ staff: 0, fan: 0 }))
+    for (const s of signals) {
+      const t = new Date(s.created_at).getTime()
+      if (t < start) continue
+      const idx = Math.min(buckets - 1, Math.floor((t - start) / bucketMs))
+      if (s.source === 'staff') series[idx].staff += 1
+      else series[idx].fan += 1
+    }
+    return series
+  }, [signals])
+  const throughputMax = Math.max(
+    1,
+    ...throughputSeries.map((b) => b.staff + b.fan),
+  )
+
+  // Operational alerts — deterministically derived from signals + incidents.
+  const operationalAlerts = useMemo(
+    () => computeOperationalAlerts(demoVenue, signals, incidents),
+    [signals, incidents],
+  )
+
+  // Live readiness — so the AI explanation reflects the same prefs the
+  // fan Hub does.
+  const livePrefs = useMemo(() => loadReadiness(), [signals])
+
+  const handleExportSignals = () => {
+    downloadCSV(timestampedFilename('signals'), signalsToCSV(signals))
+    setToast(`Exported ${signals.length} signals to CSV`)
+    setTimeout(() => setToast(null), 2000)
+  }
+  const handleExportIncidents = () => {
+    downloadCSV(timestampedFilename('incidents'), incidentsToCSV(incidents))
+    setToast(`Exported ${incidents.length} incidents to CSV`)
+    setTimeout(() => setToast(null), 2000)
+  }
+
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100">
       <div className="sticky top-0 z-40 bg-slate-950/90 backdrop-blur border-b border-slate-800 px-4 py-3 flex items-center justify-between">
@@ -457,6 +508,165 @@ export default function StaffConsolePage() {
             </div>
           ))}
         </section>
+
+        {/* === Operational Alerts feed (auto-derived from signals + incidents) === */}
+        {operationalAlerts.length > 0 && (
+          <section className="rounded-2xl border border-slate-800 bg-slate-900">
+            <div className="flex items-center justify-between p-4 border-b border-slate-800">
+              <div>
+                <h3 className="font-bold text-white text-sm">Operational alerts</h3>
+                <p className="text-[11px] text-slate-400">
+                  Auto-derived from current signals + incidents. Nothing is fabricated —
+                  every alert traces back to underlying data.
+                </p>
+              </div>
+              <span className="inline-flex items-center justify-center text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40 rounded-full min-w-[20px] h-5 px-1.5">
+                {operationalAlerts.length}
+              </span>
+            </div>
+            <div className="divide-y divide-slate-800 max-h-[260px] overflow-y-auto">
+              {operationalAlerts.map((a) => {
+                const sevStyle =
+                  a.severity === 'critical'
+                    ? 'bg-rose-500/10 border-l-rose-500'
+                    : a.severity === 'warning'
+                      ? 'bg-amber-500/5 border-l-amber-500'
+                      : 'bg-slate-800/30 border-l-slate-500'
+                const sevPill =
+                  a.severity === 'critical'
+                    ? 'bg-rose-500/20 text-rose-300 border-rose-500/40'
+                    : a.severity === 'warning'
+                      ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                      : 'bg-slate-700 text-slate-300 border-slate-600'
+                return (
+                  <div
+                    key={a.id}
+                    className={`p-3 border-l-4 ${sevStyle} flex items-start gap-3`}
+                  >
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-semibold text-white text-sm">{a.title}</span>
+                        <span
+                          className={`text-[9px] font-bold uppercase tracking-wider border px-1.5 py-0.5 rounded ${sevPill}`}
+                        >
+                          {a.severity}
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-300 mt-1 leading-snug">{a.detail}</p>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </section>
+        )}
+
+        {/* === Throughput + CSV export row ============================= */}
+        <section className="grid gap-3 lg:grid-cols-2">
+          {/* Throughput chart — last 60 min, 5-min buckets, stacked staff vs fan */}
+          <div className="rounded-2xl border border-slate-800 bg-slate-900 p-4">
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <h3 className="font-bold text-white text-sm">Signal throughput</h3>
+                <p className="text-[11px] text-slate-400">
+                  Last 60 min · 5-min buckets · staff (violet) over fan (slate)
+                </p>
+              </div>
+              <span className="text-[10px] text-slate-500 font-mono">
+                peak {throughputMax}/bucket
+              </span>
+            </div>
+            <div className="flex items-end gap-1 h-20">
+              {throughputSeries.map((b, i) => {
+                const fanH = (b.fan / throughputMax) * 100
+                const staffH = (b.staff / throughputMax) * 100
+                return (
+                  <div
+                    key={i}
+                    className="flex-1 flex flex-col-reverse justify-start gap-[1px]"
+                    title={`${(throughputSeries.length - i) * 5}m ago: ${b.staff} staff, ${b.fan} fan`}
+                  >
+                    {b.fan > 0 && (
+                      <div className="bg-slate-500/70 rounded-sm" style={{ height: `${fanH}%` }} />
+                    )}
+                    {b.staff > 0 && (
+                      <div
+                        className="bg-violet-500 rounded-sm"
+                        style={{ height: `${staffH}%` }}
+                      />
+                    )}
+                    {b.fan === 0 && b.staff === 0 && (
+                      <div className="bg-slate-800/40 rounded-sm" style={{ height: '4%' }} />
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+            <div className="flex justify-between text-[9px] text-slate-500 mt-1">
+              <span>60m</span>
+              <span>now</span>
+            </div>
+          </div>
+
+          {/* Spreadsheet export */}
+          <div className="rounded-2xl border border-slate-800 bg-slate-900 p-4">
+            <div className="flex items-center justify-between mb-2">
+              <div>
+                <h3 className="font-bold text-white text-sm">Spreadsheet export</h3>
+                <p className="text-[11px] text-slate-400">
+                  Dump current state to a UTF-8 CSV — opens directly in Excel,
+                  Google Sheets, or Numbers.
+                </p>
+              </div>
+              <span className="text-xl flex-shrink-0">📊</span>
+            </div>
+            <div className="grid grid-cols-2 gap-2 mt-3">
+              <button
+                onClick={handleExportSignals}
+                className="flex flex-col items-start p-3 rounded-lg bg-slate-950 border border-slate-700 hover:border-violet-500/60 hover:bg-violet-500/5 transition text-left"
+              >
+                <div className="text-[10px] font-bold uppercase tracking-wider text-violet-300">
+                  Signals
+                </div>
+                <div className="font-mono text-white text-base mt-0.5 tabular-nums">
+                  {signals.length} rows
+                </div>
+                <div className="text-[10px] text-slate-400 mt-1">
+                  id · gate · source · sentiment · message · time · weight
+                </div>
+              </button>
+              <button
+                onClick={handleExportIncidents}
+                className="flex flex-col items-start p-3 rounded-lg bg-slate-950 border border-slate-700 hover:border-violet-500/60 hover:bg-violet-500/5 transition text-left"
+              >
+                <div className="text-[10px] font-bold uppercase tracking-wider text-violet-300">
+                  Incidents
+                </div>
+                <div className="font-mono text-white text-base mt-0.5 tabular-nums">
+                  {incidents.length} rows
+                </div>
+                <div className="text-[10px] text-slate-400 mt-1">
+                  id · type · gate · status · created · note · action
+                </div>
+              </button>
+            </div>
+          </div>
+        </section>
+
+        {/* === AI Explanation card — reads the SAME /api/explain-arrival-plan
+            cascade the fan Hub uses, so staff can see the AI rationale
+            their fans are getting. Dark tone matches the console. ====== */}
+        <AIExplanationCard
+          plan={currentPlan}
+          prefs={livePrefs}
+          signals={signals}
+          eventName={demoEvent.name}
+          venueName={demoVenue.name}
+          ticketSection="117"
+          tone="dark"
+          title={`Why ${recommendedShort} is being recommended`}
+          subtitle="Cascade: Groq → Gemini → Template. Sanitized. Gate-mention guarded."
+        />
 
         {/* === Main two-column layout =================================== */}
         <div className="grid gap-5 lg:grid-cols-3">
