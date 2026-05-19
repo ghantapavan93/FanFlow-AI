@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { demoEvent, demoVenue, deriveArrivalPlan } from '@/lib/seed'
 import { SessionChip } from '@/components/shared/SessionChip'
@@ -88,6 +88,62 @@ type FamilyEntrance = (typeof FAMILY_OPTIONS)[number]
 type Duration = (typeof DURATION_OPTIONS)[number]
 
 /**
+ * Broadcast templates — pre-built operational messages staff can publish
+ * to ALL gates in one click. Each template carries its target sentiment
+ * so the publish path matches the structured form's contract exactly.
+ */
+const BROADCAST_TEMPLATES: Array<{
+  id: string
+  label: string
+  icon: string
+  sentiment: LiveSignal['sentiment']
+  message: string
+}> = [
+  {
+    id: 'doors-open',
+    label: 'Doors opening',
+    icon: '🚪',
+    sentiment: 'smooth',
+    message: 'Doors are opening — flow expected to be smooth at all gates',
+  },
+  {
+    id: 'peak-soon',
+    label: 'Peak approaching',
+    icon: '⏰',
+    sentiment: 'moderate',
+    message: 'Peak arrival window starts in 15 min — moderate flow expected',
+  },
+  {
+    id: 'high-volume',
+    label: 'High volume',
+    icon: '🌊',
+    sentiment: 'busy',
+    message: 'High arrival volume detected — please plan extra time',
+  },
+  {
+    id: 'bag-delay',
+    label: 'Bag check delays',
+    icon: '🎒',
+    sentiment: 'busy',
+    message: 'Bag check experiencing delays — please be patient',
+  },
+  {
+    id: 'all-clear',
+    label: 'All clear',
+    icon: '✅',
+    sentiment: 'smooth',
+    message: 'All gates flowing smoothly across the venue',
+  },
+  {
+    id: 'pre-event',
+    label: 'Pre-event ready',
+    icon: '🏟️',
+    sentiment: 'smooth',
+    message: 'All gates open, staff in position, ready for fans',
+  },
+]
+
+/**
  * Build a 60-min sentiment timeline for a gate. Divides the last hour
  * into 12 five-minute buckets; each bucket gets the dominant sentiment
  * (or null = no data).
@@ -126,6 +182,17 @@ export default function StaffConsolePage() {
   const [note, setNote] = useState('')
   const [message, setMessage] = useState('')
   const [toast, setToast] = useState<string | null>(null)
+
+  // === New: simulator + filters + recommendation history ============
+  const [simGate, setSimGate] = useState<string>(demoVenue.gates[0].id)
+  const [simSentiment, setSimSentiment] = useState<LiveSignal['sentiment']>('busy')
+  const [filterGate, setFilterGate] = useState<string>('all')
+  const [filterSource, setFilterSource] = useState<'all' | 'staff' | 'fan'>('all')
+  const [filterSentiment, setFilterSentiment] = useState<LiveSignal['sentiment'] | 'all'>('all')
+  const [recHistory, setRecHistory] = useState<
+    Array<{ gateId: string; gateName: string; confidence: number; at: string }>
+  >([])
+  const lastRecRef = useRef<{ gateId: string; confidence: number } | null>(null)
 
   const refresh = () => {
     setSignals(getAllSignals())
@@ -353,6 +420,89 @@ export default function StaffConsolePage() {
     downloadCSV(timestampedFilename('incidents'), incidentsToCSV(incidents))
     setToast(`Exported ${incidents.length} incidents to CSV`)
     setTimeout(() => setToast(null), 2000)
+  }
+
+  // === Recommendation history — auto-log when the engine's pick or
+  // confidence shifts. First mount snapshots without logging. ========
+  useEffect(() => {
+    const next = {
+      gateId: currentPlan.recommended_gate.id,
+      confidence: currentPlan.confidence_breakdown.percent,
+    }
+    const prev = lastRecRef.current
+    if (prev === null) {
+      lastRecRef.current = next
+      return
+    }
+    if (
+      prev.gateId !== next.gateId ||
+      Math.abs(prev.confidence - next.confidence) >= 3
+    ) {
+      setRecHistory((h) =>
+        [
+          {
+            gateId: next.gateId,
+            gateName: currentPlan.recommended_gate.name,
+            confidence: next.confidence,
+            at: new Date().toISOString(),
+          },
+          ...h,
+        ].slice(0, 8),
+      )
+      lastRecRef.current = next
+    }
+  }, [
+    currentPlan.recommended_gate.id,
+    currentPlan.recommended_gate.name,
+    currentPlan.confidence_breakdown.percent,
+  ])
+
+  // === Scenario simulator — hypothetical plan with a candidate signal,
+  // never published. Pure deriveArrivalPlan call. =====================
+  const simPlan = useMemo(() => {
+    const hypothetical: LiveSignal = {
+      id: 'sim-candidate',
+      gate_id: simGate,
+      source: 'staff',
+      sentiment: simSentiment,
+      message: 'simulated',
+      created_at: new Date().toISOString(),
+    }
+    return deriveArrivalPlan(null, [...signals, hypothetical])
+  }, [simGate, simSentiment, signals])
+  const simGateChange =
+    simPlan.recommended_gate.id !== currentPlan.recommended_gate.id
+  const simConfDelta =
+    simPlan.confidence_breakdown.percent -
+    currentPlan.confidence_breakdown.percent
+
+  // === Filtered signal feed ==========================================
+  const filteredSignals = useMemo(
+    () =>
+      signals.filter(
+        (s) =>
+          (filterGate === 'all' || s.gate_id === filterGate) &&
+          (filterSource === 'all' || s.source === filterSource) &&
+          (filterSentiment === 'all' || s.sentiment === filterSentiment),
+      ),
+    [signals, filterGate, filterSource, filterSentiment],
+  )
+
+  // === Broadcast publish — emits one staff signal per gate ===========
+  const broadcastTemplate = (tpl: (typeof BROADCAST_TEMPLATES)[number]) => {
+    const ts = Date.now()
+    for (const g of demoVenue.gates) {
+      publishSignal({
+        id: `staff-broadcast-${ts}-${g.id}`,
+        gate_id: g.id,
+        source: 'staff',
+        sentiment: tpl.sentiment,
+        message: tpl.message,
+        created_at: new Date(ts).toISOString(),
+      })
+    }
+    setToast(`Broadcast "${tpl.label}" to ${demoVenue.gates.length} gates`)
+    setTimeout(() => setToast(null), 2400)
   }
 
   return (
@@ -653,6 +803,276 @@ export default function StaffConsolePage() {
           </div>
         </section>
 
+        {/* === Hub Preview + Recommendation History ==================
+            Mirror of what fans see right now (left) and a log of when
+            the engine flipped its pick or shifted confidence (right). */}
+        <section className="grid gap-3 lg:grid-cols-5">
+          {/* LIVE HUB PREVIEW — mini fan-eye view embedded in console.
+              Reads the SAME plan the fan Hub renders from. */}
+          <div className="lg:col-span-3 rounded-2xl border border-violet-500/40 bg-gradient-to-br from-violet-50 via-white to-fuchsia-50/30 text-slate-900 p-5">
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <div className="text-[10px] font-bold uppercase tracking-wider text-violet-700">
+                  📱 Fan Hub preview
+                </div>
+                <h3 className="font-bold text-slate-900 text-sm mt-0.5">
+                  What fans see right now
+                </h3>
+              </div>
+              <Link
+                href="/event/wc2026-final/hub"
+                target="_blank"
+                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-violet-600 hover:bg-violet-700 text-white text-[11px] font-bold transition"
+              >
+                Open in new tab ↗
+              </Link>
+            </div>
+
+            <div className="grid grid-cols-[1fr_auto] gap-3 items-stretch">
+              {/* Gate hero block — exact fan-side rendering */}
+              <div className="rounded-xl bg-gradient-to-br from-violet-100/80 via-white to-fuchsia-100/40 border border-violet-200 p-3">
+                <div className="text-[10px] font-bold uppercase tracking-wider text-violet-700">
+                  🚪 Enter via
+                </div>
+                <div className="font-extrabold text-violet-900 text-2xl leading-none mt-1">
+                  {recommendedShort}
+                </div>
+                <div className="text-[11px] text-violet-700/80 mt-1 truncate">
+                  {currentPlan.recommended_gate.name
+                    .match(/\(([^)]+)\)/)?.[1] ?? 'Recommended entrance'}
+                </div>
+                <div className="grid grid-cols-2 gap-1.5 mt-3">
+                  <div className="rounded-lg bg-white/60 border border-violet-100 px-2 py-1.5">
+                    <div className="text-[8px] font-bold uppercase text-slate-500">
+                      Leave by
+                    </div>
+                    <div className="font-bold text-slate-900 text-sm tabular-nums">
+                      {currentPlan.leave_by_time}
+                    </div>
+                  </div>
+                  <div className="rounded-lg bg-white/60 border border-violet-100 px-2 py-1.5">
+                    <div className="text-[8px] font-bold uppercase text-slate-500">
+                      Arrive at
+                    </div>
+                    <div className="font-bold text-slate-900 text-sm tabular-nums">
+                      {currentPlan.arrival_time}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Confidence + signals breakdown */}
+              <div className="flex flex-col items-center justify-center px-1">
+                <div className="text-[9px] font-bold uppercase text-slate-500">
+                  Confidence
+                </div>
+                <div
+                  className={`font-extrabold text-2xl tabular-nums mt-0.5 ${
+                    currentPlan.confidence === 'high'
+                      ? 'text-emerald-600'
+                      : currentPlan.confidence === 'medium'
+                        ? 'text-amber-600'
+                        : 'text-rose-600'
+                  }`}
+                >
+                  {currentPlan.confidence_breakdown.percent}%
+                </div>
+                <div className="text-[9px] font-semibold uppercase text-slate-500 capitalize">
+                  {currentPlan.confidence}
+                </div>
+                <div className="mt-2 text-[9px] text-slate-500 text-center leading-tight">
+                  {currentPlan.confidence_breakdown.staffSignalCount} staff
+                  <br />
+                  {currentPlan.confidence_breakdown.fanSignalCount} fan
+                </div>
+              </div>
+            </div>
+
+            <div className="text-[10px] text-slate-500 mt-3 leading-relaxed border-t border-violet-100 pt-2">
+              Reads <code className="font-mono">deriveArrivalPlan(prefs, signals)</code>{' '}
+              — the same function the fan Hub renders. Any cross-tab fan
+              publish or staff signal updates this preview instantly.
+            </div>
+          </div>
+
+          {/* RECOMMENDATION HISTORY — auto-logged when plan flips */}
+          <div className="lg:col-span-2 rounded-2xl border border-slate-800 bg-slate-900 p-4">
+            <div className="flex items-center justify-between mb-2">
+              <div>
+                <h3 className="font-bold text-white text-sm">Engine history</h3>
+                <p className="text-[11px] text-slate-400">
+                  Logged when the engine flips or confidence shifts ≥ 3%.
+                </p>
+              </div>
+              <span className="text-[10px] text-slate-500 font-mono">
+                last {recHistory.length}
+              </span>
+            </div>
+            {recHistory.length === 0 ? (
+              <div className="text-xs text-slate-500 italic py-3">
+                No engine state changes yet. Publish a signal that flips the
+                pick to see this fill in.
+              </div>
+            ) : (
+              <ul className="space-y-1.5 max-h-[180px] overflow-y-auto">
+                {recHistory.map((h, i) => {
+                  const ageMin = Math.floor(
+                    (Date.now() - new Date(h.at).getTime()) / 60000,
+                  )
+                  const rel = ageMin < 1 ? 'just now' : `${ageMin}m ago`
+                  return (
+                    <li
+                      key={`${h.at}-${i}`}
+                      className="flex items-center justify-between gap-2 text-xs px-2.5 py-1.5 rounded-lg bg-slate-950/60 border border-slate-800"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <div className="font-semibold text-white truncate">
+                          {h.gateName.split(' (')[0]}
+                        </div>
+                        <div className="text-[10px] text-slate-500">{rel}</div>
+                      </div>
+                      <span className="text-[10px] font-bold tabular-nums text-violet-300 whitespace-nowrap">
+                        {h.confidence}%
+                      </span>
+                    </li>
+                  )
+                })}
+              </ul>
+            )}
+          </div>
+        </section>
+
+        {/* === Broadcast Composer + Scenario Simulator ================ */}
+        <section className="grid gap-3 lg:grid-cols-2">
+          {/* BROADCAST COMPOSER — multi-gate publish from template ===== */}
+          <div className="rounded-2xl border border-slate-800 bg-slate-900 p-4">
+            <div className="flex items-center justify-between mb-2">
+              <div>
+                <h3 className="font-bold text-white text-sm">
+                  Broadcast templates
+                </h3>
+                <p className="text-[11px] text-slate-400">
+                  Publish the same staff signal to all {demoVenue.gates.length}{' '}
+                  gates in one click.
+                </p>
+              </div>
+              <span className="text-xl flex-shrink-0">📣</span>
+            </div>
+            <div className="grid grid-cols-2 gap-2 mt-3">
+              {BROADCAST_TEMPLATES.map((tpl) => {
+                const sentMeta = SENTIMENTS.find((s) => s.value === tpl.sentiment)
+                return (
+                  <button
+                    key={tpl.id}
+                    onClick={() => broadcastTemplate(tpl)}
+                    className="flex items-start gap-2 p-2.5 rounded-lg bg-slate-950 border border-slate-700 hover:border-violet-500/60 hover:bg-violet-500/5 transition text-left group"
+                    title={tpl.message}
+                  >
+                    <span className="text-base flex-shrink-0">{tpl.icon}</span>
+                    <div className="min-w-0 flex-1">
+                      <div className="font-semibold text-white text-xs leading-tight truncate">
+                        {tpl.label}
+                      </div>
+                      <div className="text-[9px] text-slate-500 mt-0.5 inline-flex items-center gap-1">
+                        <span>{sentMeta?.emoji}</span>
+                        <span className="capitalize">{tpl.sentiment}</span>
+                        <span>· all gates</span>
+                      </div>
+                    </div>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+
+          {/* SCENARIO SIMULATOR — what-if without publishing =========== */}
+          <div className="rounded-2xl border border-violet-500/40 bg-gradient-to-br from-violet-950/60 to-slate-900 p-4">
+            <div className="flex items-center justify-between mb-2">
+              <div>
+                <h3 className="font-bold text-white text-sm">
+                  Scenario simulator
+                </h3>
+                <p className="text-[11px] text-slate-400">
+                  See what the engine would decide — without publishing.
+                </p>
+              </div>
+              <span className="text-xl flex-shrink-0">🧪</span>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2 mt-2">
+              <select
+                value={simGate}
+                onChange={(e) => setSimGate(e.target.value)}
+                className="bg-slate-950 border border-slate-700 rounded-lg px-2 py-1.5 text-white text-xs focus:border-violet-500 focus:outline-none"
+              >
+                {demoVenue.gates.map((g) => (
+                  <option key={g.id} value={g.id}>
+                    {g.name}
+                  </option>
+                ))}
+              </select>
+              <select
+                value={simSentiment}
+                onChange={(e) =>
+                  setSimSentiment(e.target.value as LiveSignal['sentiment'])
+                }
+                className="bg-slate-950 border border-slate-700 rounded-lg px-2 py-1.5 text-white text-xs focus:border-violet-500 focus:outline-none"
+              >
+                {SENTIMENTS.map((s) => (
+                  <option key={s.value} value={s.value}>
+                    {s.emoji} {s.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="mt-3 space-y-1.5">
+              <div className="flex items-center justify-between gap-2 text-xs px-2.5 py-1.5 rounded-lg bg-slate-950/60 border border-slate-800">
+                <span className="text-slate-400">Would recommend</span>
+                <div className="flex items-center gap-2">
+                  <span className="font-bold text-white truncate">
+                    {simPlan.recommended_gate.name.split(' (')[0]}
+                  </span>
+                  {simGateChange ? (
+                    <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-amber-500/20 border border-amber-500/40 text-amber-300 text-[9px] font-bold uppercase">
+                      ↻ shift
+                    </span>
+                  ) : (
+                    <span className="inline-flex px-1.5 py-0.5 rounded-full bg-slate-800 border border-slate-700 text-slate-400 text-[9px] font-bold uppercase">
+                      same
+                    </span>
+                  )}
+                </div>
+              </div>
+              <div className="flex items-center justify-between gap-2 text-xs px-2.5 py-1.5 rounded-lg bg-slate-950/60 border border-slate-800">
+                <span className="text-slate-400">Confidence</span>
+                <div className="flex items-center gap-2">
+                  <span className="font-bold text-white tabular-nums">
+                    {currentPlan.confidence_breakdown.percent}% →{' '}
+                    {simPlan.confidence_breakdown.percent}%
+                  </span>
+                  <span
+                    className={`inline-flex px-1.5 py-0.5 rounded-full text-[9px] font-bold uppercase ${
+                      simConfDelta > 0
+                        ? 'bg-emerald-500/20 border border-emerald-500/40 text-emerald-300'
+                        : simConfDelta < 0
+                          ? 'bg-rose-500/20 border border-rose-500/40 text-rose-300'
+                          : 'bg-slate-800 border border-slate-700 text-slate-400'
+                    }`}
+                  >
+                    {simConfDelta > 0 ? '↑ +' : simConfDelta < 0 ? '↓ ' : ''}
+                    {simConfDelta === 0 ? 'flat' : `${Math.abs(simConfDelta)}%`}
+                  </span>
+                </div>
+              </div>
+            </div>
+            <p className="text-[10px] text-slate-500 mt-2 leading-relaxed">
+              Calls <code className="text-slate-400 font-mono">deriveArrivalPlan()</code>{' '}
+              with a hypothetical signal appended. Nothing is published.
+            </p>
+          </div>
+        </section>
+
         {/* === AI Explanation card — reads the SAME /api/explain-arrival-plan
             cascade the fan Hub uses, so staff can see the AI rationale
             their fans are getting. Dark tone matches the console. ====== */}
@@ -923,7 +1343,7 @@ export default function StaffConsolePage() {
               </div>
             </div>
 
-            {/* Audit trail / live feed */}
+            {/* Audit trail / live feed — with filters */}
             <div className="rounded-2xl border border-slate-800 bg-slate-900">
               <div className="flex items-center justify-between p-4 border-b border-slate-800">
                 <div>
@@ -943,14 +1363,101 @@ export default function StaffConsolePage() {
                   Clear staff signals
                 </button>
               </div>
+
+              {/* Filter row */}
+              <div className="px-4 py-2.5 border-b border-slate-800 bg-slate-950/40 flex flex-wrap items-center gap-2">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                  Filter
+                </span>
+
+                {/* Gate filter */}
+                <select
+                  value={filterGate}
+                  onChange={(e) => setFilterGate(e.target.value)}
+                  className="bg-slate-950 border border-slate-700 rounded px-2 py-1 text-white text-[11px] focus:border-violet-500 focus:outline-none"
+                >
+                  <option value="all">All gates</option>
+                  {demoVenue.gates.map((g) => (
+                    <option key={g.id} value={g.id}>
+                      {g.name}
+                    </option>
+                  ))}
+                </select>
+
+                {/* Source chips */}
+                <div className="inline-flex rounded-md overflow-hidden border border-slate-700">
+                  {(['all', 'staff', 'fan'] as const).map((src) => (
+                    <button
+                      key={src}
+                      onClick={() => setFilterSource(src)}
+                      className={`px-2 py-1 text-[10px] font-bold uppercase tracking-wider transition ${
+                        filterSource === src
+                          ? 'bg-violet-600 text-white'
+                          : 'bg-slate-950 text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      {src === 'all' ? 'All' : src === 'staff' ? '👮 Staff' : '🙋 Fan'}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Sentiment chips */}
+                <div className="inline-flex rounded-md overflow-hidden border border-slate-700">
+                  <button
+                    onClick={() => setFilterSentiment('all')}
+                    className={`px-2 py-1 text-[10px] font-bold uppercase tracking-wider transition ${
+                      filterSentiment === 'all'
+                        ? 'bg-violet-600 text-white'
+                        : 'bg-slate-950 text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    Any
+                  </button>
+                  {SENTIMENTS.map((s) => (
+                    <button
+                      key={s.value}
+                      onClick={() => setFilterSentiment(s.value)}
+                      title={s.label}
+                      className={`px-1.5 py-1 text-xs transition ${
+                        filterSentiment === s.value
+                          ? 'bg-violet-600'
+                          : 'bg-slate-950 hover:bg-slate-800'
+                      }`}
+                    >
+                      {s.emoji}
+                    </button>
+                  ))}
+                </div>
+
+                {(filterGate !== 'all' ||
+                  filterSource !== 'all' ||
+                  filterSentiment !== 'all') && (
+                  <button
+                    onClick={() => {
+                      setFilterGate('all')
+                      setFilterSource('all')
+                      setFilterSentiment('all')
+                    }}
+                    className="ml-auto text-[10px] text-slate-400 hover:text-white"
+                  >
+                    Reset filters
+                  </button>
+                )}
+
+                <span className="ml-auto text-[10px] text-slate-500 font-mono">
+                  {filteredSignals.length} / {signals.length}
+                </span>
+              </div>
+
               <div className="divide-y divide-slate-800 max-h-[480px] overflow-y-auto">
-                {signals.length === 0 ? (
+                {filteredSignals.length === 0 ? (
                   <div className="p-6 text-sm text-slate-500 italic">
-                    No signals yet. Publish from the form on the right to see them
-                    flow through.
+                    {signals.length === 0
+                      ? 'No signals yet. Publish from the form on the right to see them flow through.'
+                      : 'No signals match the current filters.'}
                   </div>
                 ) : (
-                  signals.map((s) => {
+                  filteredSignals.map((s) => {
                     const meta = SENTIMENTS.find((x) => x.value === s.sentiment)
                     const gate = demoVenue.gates.find((g) => g.id === s.gate_id)
                     return (
