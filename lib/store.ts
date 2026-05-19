@@ -152,7 +152,7 @@ function saveIncidentOverrides(map: Record<string, IncidentOverride>): void {
 
 export function loadIncidents(): Incident[] {
   const overrides = loadIncidentOverrides()
-  return demoIncidents.map((inc) => {
+  const seed = demoIncidents.map((inc) => {
     const o = overrides[inc.id]
     if (!o) return inc
     return {
@@ -162,6 +162,11 @@ export function loadIncidents(): Incident[] {
       updated_at: o.updated_at,
     }
   })
+  // Merge custom (staff-created) incidents in, newest first overall
+  const custom = loadCustomIncidents()
+  return [...custom, ...seed].sort(
+    (a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime(),
+  )
 }
 
 export function updateIncident(
@@ -176,6 +181,34 @@ export function updateIncident(
     updated_at: new Date().toISOString(),
   }
   saveIncidentOverrides(overrides)
+}
+
+/**
+ * Create a brand-new incident (not a seed incident overlay). Stored
+ * alongside published signals in a parallel localStorage key so it
+ * persists per session and fires the cross-tab event.
+ */
+const CUSTOM_INCIDENTS_SUFFIX = 'custom-incidents'
+
+function loadCustomIncidents(): Incident[] {
+  if (typeof window === 'undefined') return []
+  try {
+    const raw = window.localStorage.getItem(sessionKey(CUSTOM_INCIDENTS_SUFFIX))
+    if (!raw) return []
+    return JSON.parse(raw) as Incident[]
+  } catch {
+    return []
+  }
+}
+
+export function createIncident(incident: Incident): void {
+  if (typeof window === 'undefined') return
+  const existing = loadCustomIncidents()
+  safeSetItem(
+    sessionKey(CUSTOM_INCIDENTS_SUFFIX),
+    JSON.stringify([incident, ...existing].slice(0, 30)),
+  )
+  window.dispatchEvent(new Event('fanflow:incidents'))
 }
 
 export function clearIncidentOverrides(): void {

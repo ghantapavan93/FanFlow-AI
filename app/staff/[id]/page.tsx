@@ -1,12 +1,14 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
+import { useParams } from 'next/navigation'
 import { demoEvent, demoVenue, deriveArrivalPlan } from '@/lib/seed'
 import { SessionChip } from '@/components/shared/SessionChip'
 import { AIExplanationCard } from '@/components/shared/AIExplanationCard'
 import {
   clearPublishedSignals,
+  createIncident,
   getAllSignals,
   loadIncidents,
   loadReadiness,
@@ -170,6 +172,9 @@ function buildGateTimeline(signals: LiveSignal[], gateId: string) {
 }
 
 export default function StaffConsolePage() {
+  const params = useParams<{ id: string }>()
+  const eventId = params?.id ?? 'wc2026-final'
+
   const [signals, setSignals] = useState<LiveSignal[]>([])
   const [incidents, setIncidents] = useState<Incident[]>([])
   const [incidentFilter, setIncidentFilter] = useState<'all' | 'open'>('all')
@@ -182,6 +187,14 @@ export default function StaffConsolePage() {
   const [note, setNote] = useState('')
   const [message, setMessage] = useState('')
   const [toast, setToast] = useState<string | null>(null)
+  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [lastUpdated, setLastUpdated] = useState<string>('—')
+
+  // Incident creation form state
+  const [showNewIncident, setShowNewIncident] = useState(false)
+  const [newIncType, setNewIncType] = useState<IncidentType>('other')
+  const [newIncGate, setNewIncGate] = useState<string>(demoVenue.gates[0].id)
+  const [newIncNote, setNewIncNote] = useState('')
 
   // === New: simulator + filters + recommendation history ============
   const [simGate, setSimGate] = useState<string>(demoVenue.gates[0].id)
@@ -194,10 +207,18 @@ export default function StaffConsolePage() {
   >([])
   const lastRecRef = useRef<{ gateId: string; confidence: number } | null>(null)
 
-  const refresh = () => {
+  // Toast helper — clears previous timer to prevent overlap
+  const showToast = useCallback((msg: string, duration = 2200) => {
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current)
+    setToast(msg)
+    toastTimerRef.current = setTimeout(() => setToast(null), duration)
+  }, [])
+
+  const refresh = useCallback(() => {
     setSignals(getAllSignals())
     setIncidents(loadIncidents())
-  }
+    setLastUpdated(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }))
+  }, [])
 
   useEffect(() => {
     refresh()
@@ -205,7 +226,13 @@ export default function StaffConsolePage() {
       ['fanflow:signals', 'fanflow:incidents'],
       refresh,
     )
-  }, [])
+  }, [refresh])
+
+  // Heartbeat — fallback refresh every 15s to ensure data never feels stale
+  useEffect(() => {
+    const id = setInterval(refresh, 15_000)
+    return () => clearInterval(id)
+  }, [refresh])
 
   // === Live plan (what fans currently see) — read the SAME rule engine
   // the Hub uses. Any cross-tab fan publish changes this in real time.
@@ -248,8 +275,7 @@ export default function StaffConsolePage() {
           ? inc?.action ?? 'Resolved by staff'
           : inc?.action
     updateIncident(id, { status, action })
-    setToast(`Incident ${status}`)
-    setTimeout(() => setToast(null), 1800)
+    showToast(`Incident ${status}`, 1800)
   }
 
   const visibleIncidents = incidents
@@ -291,8 +317,7 @@ export default function StaffConsolePage() {
     setAccessRoute(null)
     setFamilyEntrance(null)
     setDuration(null)
-    setToast('Published — Hub will refresh within seconds')
-    setTimeout(() => setToast(null), 2200)
+    showToast('Published — Hub will refresh within seconds')
   }
 
   // === Quick publish — same publishSignal path, single click ===
@@ -305,8 +330,7 @@ export default function StaffConsolePage() {
       message: label,
       created_at: new Date().toISOString(),
     })
-    setToast(`Quick-published "${label}"`)
-    setTimeout(() => setToast(null), 1600)
+    showToast(`Quick-published "${label}"`, 1600)
   }
 
   // === Per-gate aggregation for status grid + KPIs ===
@@ -409,17 +433,17 @@ export default function StaffConsolePage() {
 
   // Live readiness — so the AI explanation reflects the same prefs the
   // fan Hub does.
-  const livePrefs = useMemo(() => loadReadiness(), [signals])
+  // Re-read readiness on every render — cheap localStorage read, and the
+  // dependency on signals was semantically wrong (readiness ≠ signals).
+  const livePrefs = loadReadiness()
 
   const handleExportSignals = () => {
     downloadCSV(timestampedFilename('signals'), signalsToCSV(signals))
-    setToast(`Exported ${signals.length} signals to CSV`)
-    setTimeout(() => setToast(null), 2000)
+    showToast(`Exported ${signals.length} signals to CSV`)
   }
   const handleExportIncidents = () => {
     downloadCSV(timestampedFilename('incidents'), incidentsToCSV(incidents))
-    setToast(`Exported ${incidents.length} incidents to CSV`)
-    setTimeout(() => setToast(null), 2000)
+    showToast(`Exported ${incidents.length} incidents to CSV`)
   }
 
   // === Recommendation history — auto-log when the engine's pick or
@@ -490,6 +514,7 @@ export default function StaffConsolePage() {
 
   // === Broadcast publish — emits one staff signal per gate ===========
   const broadcastTemplate = (tpl: (typeof BROADCAST_TEMPLATES)[number]) => {
+    if (!confirm(`Broadcast "${tpl.label}" to all ${demoVenue.gates.length} gates?`)) return
     const ts = Date.now()
     for (const g of demoVenue.gates) {
       publishSignal({
@@ -501,8 +526,7 @@ export default function StaffConsolePage() {
         created_at: new Date(ts).toISOString(),
       })
     }
-    setToast(`Broadcast "${tpl.label}" to ${demoVenue.gates.length} gates`)
-    setTimeout(() => setToast(null), 2400)
+    showToast(`Broadcast "${tpl.label}" to ${demoVenue.gates.length} gates`, 2400)
   }
 
   return (
@@ -516,9 +540,13 @@ export default function StaffConsolePage() {
           </div>
         </div>
         <div className="flex items-center gap-3">
+          <span className="hidden sm:inline-flex items-center gap-1.5 text-[10px] text-slate-500 font-mono">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+            Updated {lastUpdated}
+          </span>
           <SessionChip tone="dark" />
           <Link
-            href="/event/wc2026-final/hub"
+            href={`/event/${eventId}/hub`}
             className="text-sm text-slate-400 hover:text-white"
           >
             Fan view →
@@ -1254,6 +1282,12 @@ export default function StaffConsolePage() {
               <div className="flex items-center justify-between p-4 border-b border-slate-800">
                 <div className="flex items-center gap-2">
                   <h3 className="font-bold text-white">Incident log</h3>
+                  <button
+                    onClick={() => setShowNewIncident((v) => !v)}
+                    className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-violet-600/30 text-violet-300 border border-violet-500/40 hover:bg-violet-600/50 transition"
+                  >
+                    + New
+                  </button>
                   {openCount > 0 && (
                     <span className="inline-flex items-center justify-center text-[10px] font-bold bg-rose-500/20 text-rose-300 border border-rose-500/40 rounded-full min-w-[20px] h-5 px-1.5">
                       {openCount} open
@@ -1283,6 +1317,74 @@ export default function StaffConsolePage() {
                   </button>
                 </div>
               </div>
+              {/* New incident form — toggled by "+ New" button */}
+              {showNewIncident && (
+                <div className="p-4 border-b border-slate-800 bg-slate-950/40 space-y-3">
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-violet-300">
+                    Report new incident
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <select
+                      value={newIncType}
+                      onChange={(e) => setNewIncType(e.target.value as IncidentType)}
+                      className="bg-slate-950 border border-slate-700 rounded-lg px-2 py-1.5 text-white text-xs focus:border-violet-500 focus:outline-none"
+                    >
+                      {(Object.keys(INCIDENT_TYPE_LABEL) as IncidentType[]).map((t) => (
+                        <option key={t} value={t}>{INCIDENT_TYPE_LABEL[t]}</option>
+                      ))}
+                    </select>
+                    <select
+                      value={newIncGate}
+                      onChange={(e) => setNewIncGate(e.target.value)}
+                      className="bg-slate-950 border border-slate-700 rounded-lg px-2 py-1.5 text-white text-xs focus:border-violet-500 focus:outline-none"
+                    >
+                      {demoVenue.gates.map((g) => (
+                        <option key={g.id} value={g.id}>{g.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <input
+                    type="text"
+                    value={newIncNote}
+                    onChange={(e) => setNewIncNote(e.target.value)}
+                    placeholder="Describe the incident..."
+                    className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-white text-xs focus:border-violet-500 focus:outline-none"
+                    maxLength={200}
+                  />
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => {
+                        if (!newIncNote.trim()) return
+                        const now = new Date().toISOString()
+                        createIncident({
+                          id: `inc-staff-${Date.now()}`,
+                          type: newIncType,
+                          source: 'staff',
+                          gate_id: newIncGate,
+                          status: 'open',
+                          created_at: now,
+                          updated_at: now,
+                          note: newIncNote.trim(),
+                        })
+                        setNewIncNote('')
+                        setShowNewIncident(false)
+                        showToast('Incident reported')
+                      }}
+                      disabled={!newIncNote.trim()}
+                      className="px-3 py-1.5 rounded-lg bg-violet-600 hover:bg-violet-500 disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-bold transition"
+                    >
+                      Report incident
+                    </button>
+                    <button
+                      onClick={() => setShowNewIncident(false)}
+                      className="px-3 py-1.5 rounded-lg text-slate-400 hover:text-white text-xs transition"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
+
               <div className="divide-y divide-slate-800 max-h-[420px] overflow-y-auto">
                 {visibleIncidents.length === 0 ? (
                   <div className="p-6 text-sm text-slate-500 italic">
