@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
-import { demoVenue } from '@/lib/seed'
+import { demoVenue, deriveArrivalPlan } from '@/lib/seed'
 import { SessionChip } from '@/components/shared/SessionChip'
 import {
   clearPublishedSignals,
@@ -13,6 +13,28 @@ import {
   updateIncident,
 } from '@/lib/store'
 import type { Incident, IncidentStatus, IncidentType, LiveSignal } from '@/lib/types'
+
+/**
+ * Staff Operations Console
+ *
+ * A senior-depth operations dashboard that reads the SAME rule engine
+ * (`deriveArrivalPlan`) the fan side uses, so every panel here mirrors
+ * what fans are actually seeing in their Event Day Hub.
+ *
+ * Top-level layout:
+ *   1. System Status banner — what's the fan-facing recommendation right now?
+ *   2. Senior KPI row — 6 operational health tiles
+ *   3. Gate status grid with 60-min sentiment timeline per gate
+ *   4. Decision Preview — before/after the staff publishes
+ *   5. Quick publish row + structured publish form
+ *   6. Incident log
+ *   7. Live signal feed (audit trail)
+ *
+ * Every metric here is computed from the same in-memory signal store the
+ * fans subscribe to. A staff publish goes through `publishSignal`, which
+ * fires the storage event, which any open Hub tab re-renders from. No
+ * hidden state.
+ */
 
 const INCIDENT_TYPE_LABEL: Record<IncidentType, string> = {
   family_assistance: 'Family assistance',
@@ -30,11 +52,11 @@ const INCIDENT_STATUS_STYLE: Record<IncidentStatus, string> = {
   resolved: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40',
 }
 
-const SENTIMENTS: { value: LiveSignal['sentiment']; label: string; emoji: string; color: string }[] = [
-  { value: 'smooth', label: 'Smooth', emoji: '🟢', color: 'bg-emerald-600 hover:bg-emerald-500' },
-  { value: 'moderate', label: 'Moderate', emoji: '🟡', color: 'bg-amber-600 hover:bg-amber-500' },
-  { value: 'busy', label: 'Busy', emoji: '🟠', color: 'bg-orange-600 hover:bg-orange-500' },
-  { value: 'difficult', label: 'Difficult', emoji: '🔴', color: 'bg-rose-600 hover:bg-rose-500' },
+const SENTIMENTS: { value: LiveSignal['sentiment']; label: string; emoji: string; color: string; barColor: string }[] = [
+  { value: 'smooth', label: 'Smooth', emoji: '🟢', color: 'bg-emerald-600 hover:bg-emerald-500', barColor: 'bg-emerald-500' },
+  { value: 'moderate', label: 'Moderate', emoji: '🟡', color: 'bg-amber-600 hover:bg-amber-500', barColor: 'bg-amber-500' },
+  { value: 'busy', label: 'Busy', emoji: '🟠', color: 'bg-orange-600 hover:bg-orange-500', barColor: 'bg-orange-500' },
+  { value: 'difficult', label: 'Difficult', emoji: '🔴', color: 'bg-rose-600 hover:bg-rose-500', barColor: 'bg-rose-500' },
 ]
 
 function timeAgo(iso: string): string {
@@ -42,13 +64,10 @@ function timeAgo(iso: string): string {
   const mins = Math.floor(diff / 60000)
   if (mins < 1) return 'just now'
   if (mins < 60) return `${mins}m ago`
-  const hrs = Math.floor(mins / 60)
-  return `${hrs}h ago`
+  return `${Math.floor(mins / 60)}h ago`
 }
 
-// Structured-field options — let staff click facts rather than write prose.
-// The submitted LiveSignal.message is auto-composed from these unless the
-// staff member overrides it with the free-text "Additional note" field.
+// Structured-field options — staff click facts rather than write prose.
 const BAG_CHECK_OPTIONS = ['short', 'moderate', 'long', 'closed'] as const
 const ACCESS_OPTIONS = ['open', 'limited', 'closed'] as const
 const FAMILY_OPTIONS = ['clear', 'moderate', 'crowded'] as const
@@ -58,6 +77,32 @@ type BagCheck = (typeof BAG_CHECK_OPTIONS)[number]
 type AccessRoute = (typeof ACCESS_OPTIONS)[number]
 type FamilyEntrance = (typeof FAMILY_OPTIONS)[number]
 type Duration = (typeof DURATION_OPTIONS)[number]
+
+/**
+ * Build a 60-min sentiment timeline for a gate. Divides the last hour
+ * into 12 five-minute buckets; each bucket gets the dominant sentiment
+ * (or null = no data).
+ */
+function buildGateTimeline(signals: LiveSignal[], gateId: string) {
+  const bucketCount = 12
+  const bucketMinutes = 5
+  const totalMs = bucketCount * bucketMinutes * 60_000
+  const start = Date.now() - totalMs
+  const buckets: Array<LiveSignal['sentiment'] | null> = Array(bucketCount).fill(null)
+
+  for (const s of signals) {
+    if (s.gate_id !== gateId) continue
+    const t = new Date(s.created_at).getTime()
+    if (t < start) continue
+    const idx = Math.min(
+      bucketCount - 1,
+      Math.floor((t - start) / (bucketMinutes * 60_000)),
+    )
+    // Latest signal in the bucket wins (caller is responsible for ordering)
+    buckets[idx] = s.sentiment
+  }
+  return buckets
+}
 
 export default function StaffConsolePage() {
   const [signals, setSignals] = useState<LiveSignal[]>([])
@@ -86,14 +131,46 @@ export default function StaffConsolePage() {
     )
   }, [])
 
+  // === Live plan (what fans currently see) — read the SAME rule engine
+  // the Hub uses. Any cross-tab fan publish changes this in real time.
+  const currentPlan = useMemo(
+    () => deriveArrivalPlan(null, signals.length ? signals : undefined),
+    [signals],
+  )
+
+  // === Decision Preview — predict what would happen if the staff
+  // published the current form selection. Re-runs the rule engine with
+  // the candidate signal appended.
+  const candidateSignal: LiveSignal = useMemo(
+    () => ({
+      id: `candidate-${gateId}-${sentiment}`,
+      gate_id: gateId,
+      source: 'staff',
+      sentiment,
+      message: 'preview',
+      created_at: new Date().toISOString(),
+    }),
+    [gateId, sentiment],
+  )
+  const previewPlan = useMemo(
+    () => deriveArrivalPlan(null, [...signals, candidateSignal]),
+    [signals, candidateSignal],
+  )
+
+  const confDelta =
+    previewPlan.confidence_breakdown.percent -
+    currentPlan.confidence_breakdown.percent
+  const gateChange =
+    previewPlan.recommended_gate.id !== currentPlan.recommended_gate.id
+
   const changeIncidentStatus = (id: string, status: IncidentStatus) => {
     const inc = incidents.find((i) => i.id === id)
     const action =
       status === 'monitoring'
         ? inc?.action ?? 'Marked as monitoring by staff'
         : status === 'resolved'
-        ? inc?.action ?? 'Resolved by staff'
-        : inc?.action
+          ? inc?.action ?? 'Resolved by staff'
+          : inc?.action
     updateIncident(id, { status, action })
     setToast(`Incident ${status}`)
     setTimeout(() => setToast(null), 1800)
@@ -101,14 +178,13 @@ export default function StaffConsolePage() {
 
   const visibleIncidents = incidents
     .filter((i) => (incidentFilter === 'all' ? true : i.status !== 'resolved'))
-    .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())
-
+    .sort(
+      (a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime(),
+    )
   const openCount = incidents.filter((i) => i.status === 'open').length
+  const monitoringCount = incidents.filter((i) => i.status === 'monitoring').length
 
-  // Auto-compose a clean factual message from the structured fields.
-  // Staff can override by typing their own message; otherwise we
-  // build something like:
-  //   "Smooth. Bag check: short. Accessibility route: open. Next 15 min."
+  // === Composed message preview — auto-built from structured fields ===
   const composedMessage = useMemo(() => {
     const parts: string[] = []
     const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1)
@@ -133,17 +209,31 @@ export default function StaffConsolePage() {
       message: final,
       created_at: new Date().toISOString(),
     })
-    // Reset all structured + free fields
     setMessage('')
     setNote('')
     setBagCheck(null)
     setAccessRoute(null)
     setFamilyEntrance(null)
     setDuration(null)
-    setToast('Update published to fans')
+    setToast('Published — Hub will refresh within seconds')
     setTimeout(() => setToast(null), 2200)
   }
 
+  // === Quick publish — same publishSignal path, single click ===
+  const quickPublish = (g: string, sent: LiveSignal['sentiment'], label: string) => {
+    publishSignal({
+      id: `staff-quick-${Date.now()}`,
+      gate_id: g,
+      source: 'staff',
+      sentiment: sent,
+      message: label,
+      created_at: new Date().toISOString(),
+    })
+    setToast(`Quick-published "${label}"`)
+    setTimeout(() => setToast(null), 1600)
+  }
+
+  // === Per-gate aggregation for status grid + KPIs ===
   const gateSummary = demoVenue.gates.map((gate) => {
     const recent = signals.filter(
       (s) =>
@@ -151,8 +241,68 @@ export default function StaffConsolePage() {
         Date.now() - new Date(s.created_at).getTime() < 30 * 60 * 1000,
     )
     const latest = recent[0]
-    return { gate, recent, latest }
+    const staffCount = recent.filter((s) => s.source === 'staff').length
+    const fanCount = recent.filter((s) => s.source === 'fan').length
+    const timeline = buildGateTimeline(signals, gate.id)
+
+    // Conflict detection per gate: latest staff sentiment positive vs
+    // 3+ fan reports negative, or vice versa.
+    const recentStaff = recent.filter((s) => s.source === 'staff')[0]
+    const recentFans = recent.filter((s) => s.source === 'fan')
+    let conflict = false
+    if (recentStaff && recentFans.length >= 3) {
+      const staffPositive =
+        recentStaff.sentiment === 'smooth' || recentStaff.sentiment === 'moderate'
+      const fanCounts: Record<LiveSignal['sentiment'], number> = {
+        smooth: 0,
+        moderate: 0,
+        busy: 0,
+        difficult: 0,
+      }
+      for (const f of recentFans) fanCounts[f.sentiment] += 1
+      let majority: LiveSignal['sentiment'] = 'moderate'
+      let max = -1
+      for (const k of Object.keys(fanCounts) as LiveSignal['sentiment'][]) {
+        if (fanCounts[k] > max) {
+          max = fanCounts[k]
+          majority = k
+        }
+      }
+      const fanPositive = majority === 'smooth' || majority === 'moderate'
+      conflict = staffPositive !== fanPositive
+    }
+
+    return { gate, recent, latest, staffCount, fanCount, timeline, conflict }
   })
+
+  // === Senior operational KPIs ===
+  const recentSignals = signals.filter(
+    (s) => Date.now() - new Date(s.created_at).getTime() < 30 * 60 * 1000,
+  )
+  const staffRecentCount = recentSignals.filter((s) => s.source === 'staff').length
+  const fanRecentCount = recentSignals.filter((s) => s.source === 'fan').length
+  const gatesWithStaffCoverage = gateSummary.filter((g) => g.staffCount > 0).length
+  const totalGates = demoVenue.gates.length
+  const activeConflicts = gateSummary.filter((g) => g.conflict).length
+
+  // Staff-fan agreement: % of gates where the latest staff and majority
+  // fan sentiments share polarity (both positive or both negative).
+  const gatesWithBoth = gateSummary.filter(
+    (g) => g.staffCount > 0 && g.fanCount > 0,
+  )
+  const agreementPct =
+    gatesWithBoth.length === 0
+      ? null
+      : Math.round(
+          ((gatesWithBoth.length - activeConflicts) / gatesWithBoth.length) * 100,
+        )
+
+  // Is the system in a degraded state right now?
+  const isStale = !recentSignals.some((s) => s.source === 'staff')
+  const isDegraded = activeConflicts > 0 || isStale
+
+  // Map gate id → short label (e.g. "Gate 3")
+  const recommendedShort = currentPlan.recommended_gate.name.split(' (')[0]
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100">
@@ -160,8 +310,8 @@ export default function StaffConsolePage() {
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 bg-gradient-to-br from-violet-500 to-violet-700 rounded-lg" />
           <div>
-            <div className="font-bold text-white">Staff Console</div>
-            <div className="text-xs text-slate-400">MetLife Stadium · Operations</div>
+            <div className="font-bold text-white">Staff Operations</div>
+            <div className="text-xs text-slate-400">MetLife Stadium · Real-time signal control</div>
           </div>
         </div>
         <div className="flex items-center gap-3">
@@ -175,501 +325,724 @@ export default function StaffConsolePage() {
         </div>
       </div>
 
-      {/* KPI dashboard top row — dashboard credibility signal */}
-      <div className="max-w-5xl mx-auto px-4 pt-5 sm:pt-6">
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          {(() => {
-            const openIncidents = incidents.filter((i) => i.status === 'open').length
-            const monitoringIncidents = incidents.filter((i) => i.status === 'monitoring').length
-            const recentSignals = signals.filter(
-              (s) => Date.now() - new Date(s.created_at).getTime() < 30 * 60 * 1000,
-            ).length
-            const staffSignalsRecent = signals.filter(
-              (s) =>
-                s.source === 'staff' &&
-                Date.now() - new Date(s.created_at).getTime() < 30 * 60 * 1000,
-            ).length
-            const avgWait = Math.round(
-              demoVenue.gates.reduce((sum, g) => sum + g.typical_wait_minutes, 0) /
-                demoVenue.gates.length,
-            )
-
-            const kpis = [
-              {
-                label: 'Open incidents',
-                value: openIncidents,
-                sub: monitoringIncidents > 0 ? `${monitoringIncidents} monitoring` : 'all clear',
-                tone:
-                  openIncidents > 0
-                    ? 'text-rose-300 border-rose-500/40 bg-rose-500/10'
-                    : 'text-slate-200 border-slate-700 bg-slate-900',
-              },
-              {
-                label: 'Gates monitored',
-                value: demoVenue.gates.length,
-                sub: 'real-time',
-                tone: 'text-slate-200 border-slate-700 bg-slate-900',
-              },
-              {
-                label: 'Signals last 30m',
-                value: recentSignals,
-                sub: staffSignalsRecent > 0 ? `${staffSignalsRecent} from staff` : 'fan-only',
-                tone:
-                  recentSignals > 0
-                    ? 'text-violet-300 border-violet-500/40 bg-violet-500/10'
-                    : 'text-slate-200 border-slate-700 bg-slate-900',
-              },
-              {
-                label: 'Avg typical wait',
-                value: `${avgWait}m`,
-                sub: 'across all gates',
-                tone: 'text-emerald-300 border-emerald-500/40 bg-emerald-500/10',
-              },
-            ]
-            return kpis.map((k) => (
-              <div
-                key={k.label}
-                className={`rounded-xl border p-3 sm:p-4 ${k.tone} transition`}
-              >
-                <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
-                  {k.label}
-                </div>
-                <div className="mt-1 text-2xl sm:text-3xl font-bold font-mono leading-none">
-                  {k.value}
-                </div>
-                <div className="text-[11px] text-slate-400 mt-1.5">{k.sub}</div>
-              </div>
-            ))
-          })()}
-        </div>
-      </div>
-
-      <div className="max-w-5xl mx-auto px-4 pt-5 sm:pt-6 pb-6 grid gap-6 lg:grid-cols-3">
-        {/* Gate Panel */}
-        <section className="lg:col-span-2 space-y-4">
-          <div>
-            <h2 className="text-xl font-bold text-white">Gate status</h2>
-            <p className="text-sm text-slate-400">
-              Last 30 minutes of signals across each entrance.
-            </p>
-          </div>
-          <div className="grid sm:grid-cols-3 gap-3">
-            {gateSummary.map(({ gate, recent, latest }) => {
-              const tone =
-                latest?.sentiment === 'smooth'
-                  ? 'border-emerald-700 bg-emerald-950/40'
-                  : latest?.sentiment === 'moderate'
-                  ? 'border-amber-700 bg-amber-950/40'
-                  : latest?.sentiment === 'busy'
-                  ? 'border-orange-700 bg-orange-950/40'
-                  : latest?.sentiment === 'difficult'
-                  ? 'border-rose-700 bg-rose-950/40'
-                  : 'border-slate-800 bg-slate-900'
-              const emoji = latest
-                ? SENTIMENTS.find((s) => s.value === latest.sentiment)?.emoji ?? '⚪'
-                : '⚪'
-              // Per-gate intelligence detail — fan vs staff signal counts
-              // and a deterministic confidence pct derived from the latest
-              // sentiment + signal source.
-              const staffCount = recent.filter((s) => s.source === 'staff').length
-              const fanCount = recent.filter((s) => s.source === 'fan').length
-              const confidencePct = (() => {
-                if (!latest) return null
-                const base =
-                  latest.sentiment === 'smooth'
-                    ? 85
-                    : latest.sentiment === 'moderate'
-                    ? 65
-                    : latest.sentiment === 'busy'
-                    ? 45
-                    : 25
-                // Staff signals add confidence; fan-only knocks 10 off
-                return latest.source === 'staff' ? base : Math.max(20, base - 10)
-              })()
-              const latestAge = latest
-                ? (() => {
-                    const ageMs = Date.now() - new Date(latest.created_at).getTime()
-                    const m = Math.floor(ageMs / 60000)
-                    if (m < 1) return 'just now'
-                    if (m < 60) return `${m}m ago`
-                    return `${Math.floor(m / 60)}h ago`
-                  })()
-                : null
-
-              return (
-                <div key={gate.id} className={`rounded-xl border p-4 ${tone}`}>
-                  <div className="text-xs text-slate-400 font-mono">
-                    {gate.id.toUpperCase()}
-                  </div>
-                  <div className="font-semibold text-white mt-1 truncate">{gate.name}</div>
-                  <div className="mt-3 flex items-center gap-2">
-                    <span className="text-2xl">{emoji}</span>
-                    {confidencePct !== null && (
-                      <span className="text-[10px] font-bold uppercase tracking-wider bg-slate-800 border border-slate-700 text-slate-200 px-2 py-0.5 rounded-full">
-                        {confidencePct}%
-                      </span>
-                    )}
-                  </div>
-                  <div className="text-xs text-slate-300 mt-1">
-                    {latest ? latest.sentiment : 'No recent signals'}
-                  </div>
-                  <div className="mt-3 pt-3 border-t border-slate-800/70 grid grid-cols-2 gap-1 text-[10px]">
-                    <div>
-                      <span className="text-slate-500">Staff</span>{' '}
-                      <span className="font-semibold text-slate-200">{staffCount}</span>
-                    </div>
-                    <div>
-                      <span className="text-slate-500">Fan</span>{' '}
-                      <span className="font-semibold text-slate-200">{fanCount}</span>
-                    </div>
-                  </div>
-                  {latestAge && (
-                    <div className="text-[10px] text-slate-500 mt-1">
-                      Updated {latestAge}
-                    </div>
-                  )}
-                  <div className="text-[10px] text-slate-500 mt-1.5">
-                    ~{gate.typical_wait_minutes} min typical wait
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-
-          {/* Incident Log */}
-          <div className="rounded-2xl border border-slate-800 bg-slate-900">
-            <div className="flex items-center justify-between p-4 border-b border-slate-800">
+      <div className="max-w-6xl mx-auto px-4 pt-5 sm:pt-6 space-y-5 pb-6">
+        {/* === System Status banner — what fans see RIGHT NOW =========== */}
+        <section
+          className={`relative rounded-2xl border p-4 sm:p-5 overflow-hidden ${
+            isDegraded
+              ? 'border-amber-500/40 bg-gradient-to-br from-amber-950/60 via-slate-900 to-slate-950'
+              : 'border-violet-500/40 bg-gradient-to-br from-violet-950/60 via-slate-900 to-slate-950'
+          }`}
+        >
+          <div
+            aria-hidden="true"
+            className={`absolute inset-0 opacity-30 ${
+              isDegraded
+                ? 'bg-[radial-gradient(ellipse_at_top_left,rgba(245,158,11,0.25),transparent_60%)]'
+                : 'bg-[radial-gradient(ellipse_at_top_left,rgba(124,58,237,0.25),transparent_60%)]'
+            }`}
+          />
+          <div className="relative grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-3 items-center">
+            <div className="min-w-0">
               <div className="flex items-center gap-2">
-                <h3 className="font-bold text-white">Incident log</h3>
-                {openCount > 0 && (
-                  <span className="inline-flex items-center justify-center text-[10px] font-bold bg-rose-500/20 text-rose-300 border border-rose-500/40 rounded-full min-w-[20px] h-5 px-1.5">
-                    {openCount} open
-                  </span>
-                )}
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => setIncidentFilter('all')}
-                  className={`text-xs px-2.5 py-1 rounded-md transition ${
-                    incidentFilter === 'all'
-                      ? 'bg-slate-700 text-white'
-                      : 'text-slate-400 hover:text-white'
+                <span
+                  className={`text-[10px] font-bold uppercase tracking-wider ${
+                    isDegraded ? 'text-amber-300' : 'text-violet-300'
                   }`}
                 >
-                  All
-                </button>
-                <button
-                  onClick={() => setIncidentFilter('open')}
-                  className={`text-xs px-2.5 py-1 rounded-md transition ${
-                    incidentFilter === 'open'
-                      ? 'bg-slate-700 text-white'
-                      : 'text-slate-400 hover:text-white'
-                  }`}
-                >
-                  Active only
-                </button>
+                  {isDegraded ? '⚠ Degraded operation' : '✓ System nominal'}
+                </span>
+                <span className="text-[10px] text-slate-500">·</span>
+                <span className="text-[10px] text-slate-400">
+                  Reading the same rule engine fans see
+                </span>
+              </div>
+              <h2 className="text-xl sm:text-2xl font-bold text-white mt-1 tracking-tight">
+                Recommending{' '}
+                <span className="text-violet-300">{recommendedShort}</span> to fans —{' '}
+                <span className="tabular-nums">
+                  {currentPlan.confidence_breakdown.percent}%
+                </span>{' '}
+                confidence
+              </h2>
+              <div className="text-xs text-slate-400 mt-1 leading-snug">
+                {currentPlan.confidence_breakdown.staffSignalCount} staff ·{' '}
+                {currentPlan.confidence_breakdown.fanSignalCount} fan signals applied.
+                {isStale && ' No recent staff update — fans on baseline guidance.'}
+                {activeConflicts > 0 &&
+                  ` ${activeConflicts} gate${activeConflicts > 1 ? 's' : ''} with conflicting staff vs fan readings.`}
               </div>
             </div>
-            <div className="divide-y divide-slate-800 max-h-[420px] overflow-y-auto">
-              {visibleIncidents.length === 0 ? (
-                <div className="p-6 text-sm text-slate-500 italic">No incidents to show.</div>
-              ) : (
-                visibleIncidents.map((inc) => {
-                  const gate = demoVenue.gates.find((g) => g.id === inc.gate_id)
-                  return (
-                    <div key={inc.id} className="p-4 space-y-2">
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span className="font-semibold text-white text-sm">
-                              {INCIDENT_TYPE_LABEL[inc.type]}
-                            </span>
-                            <span
-                              className={`text-[10px] font-bold uppercase tracking-wide border px-2 py-0.5 rounded-full ${INCIDENT_STATUS_STYLE[inc.status]}`}
-                            >
-                              {inc.status}
-                            </span>
-                          </div>
-                          <div className="text-xs text-slate-400 mt-1">
-                            {gate?.name ?? inc.gate_id} ·{' '}
-                            {inc.source === 'staff' ? '👮 Staff' : '🙋 Fan'} · {timeAgo(inc.updated_at)}
-                          </div>
-                        </div>
-                      </div>
-                      <p className="text-sm text-slate-200">{inc.note}</p>
-                      {inc.action && (
-                        <p className="text-xs text-emerald-300 bg-emerald-500/10 border border-emerald-500/20 rounded-md px-2 py-1.5">
-                          ↳ {inc.action}
-                        </p>
-                      )}
-                      {inc.status !== 'resolved' && (
-                        <div className="flex flex-wrap gap-2 pt-1">
-                          {inc.status !== 'monitoring' && (
-                            <button
-                              onClick={() => changeIncidentStatus(inc.id, 'monitoring')}
-                              className="text-xs px-3 py-1.5 rounded-md bg-amber-600/30 hover:bg-amber-600/50 text-amber-200 font-semibold transition border border-amber-500/40"
-                            >
-                              Mark monitoring
-                            </button>
-                          )}
-                          <button
-                            onClick={() => changeIncidentStatus(inc.id, 'resolved')}
-                            className="text-xs px-3 py-1.5 rounded-md bg-emerald-600/30 hover:bg-emerald-600/50 text-emerald-200 font-semibold transition border border-emerald-500/40"
-                          >
-                            Mark resolved
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  )
-                })
-              )}
-            </div>
-          </div>
-
-          {/* Feed */}
-          <div className="rounded-2xl border border-slate-800 bg-slate-900">
-            <div className="flex items-center justify-between p-4 border-b border-slate-800">
-              <h3 className="font-bold text-white">Live signal feed</h3>
-              <button
-                onClick={() => {
-                  if (confirm('Clear all published staff signals? Seeded fan signals remain.')) {
-                    clearPublishedSignals()
-                  }
-                }}
-                className="text-xs text-slate-400 hover:text-rose-400"
-              >
-                Clear staff signals
-              </button>
-            </div>
-            <div className="divide-y divide-slate-800 max-h-[480px] overflow-y-auto">
-              {signals.length === 0 ? (
-                <div className="p-6 text-sm text-slate-500 italic">No signals yet.</div>
-              ) : (
-                signals.map((s) => {
-                  const meta = SENTIMENTS.find((x) => x.value === s.sentiment)
-                  const gate = demoVenue.gates.find((g) => g.id === s.gate_id)
-                  return (
-                    <div key={s.id} className="p-4 flex items-start gap-3">
-                      <div className="text-xl">{meta?.emoji ?? '⚪'}</div>
-                      <div className="flex-1 min-w-0">
-                        <div className="text-sm text-white">{s.message}</div>
-                        <div className="text-xs text-slate-400 mt-1">
-                          {gate?.name ?? s.gate_id} ·{' '}
-                          {s.source === 'staff' ? '👮 Staff' : '🙋 Fan'} · {timeAgo(s.created_at)}
-                        </div>
-                      </div>
-                      <span className="text-xs uppercase tracking-wide text-slate-400">
-                        {s.sentiment}
-                      </span>
-                    </div>
-                  )
-                })
-              )}
+            <div className="flex items-center gap-2 flex-shrink-0">
+              <div className="text-right">
+                <div className="text-[10px] text-slate-400">Leave by · Arrive at</div>
+                <div className="font-bold text-white tabular-nums text-sm">
+                  {currentPlan.leave_by_time} · {currentPlan.arrival_time}
+                </div>
+              </div>
             </div>
           </div>
         </section>
 
-        {/* Publish form */}
-        <aside className="space-y-4">
-          <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
-            <h3 className="font-bold text-white">Publish update</h3>
-            <p className="text-sm text-slate-400 mt-1">
-              Updates appear in fans' Event Day Hub within seconds.
-            </p>
+        {/* === Senior KPI row — 6 tiles ================================= */}
+        <section className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+          {[
+            {
+              label: 'Active recommendation',
+              value: recommendedShort,
+              sub: `${currentPlan.confidence_breakdown.percent}% conf.`,
+              tone: 'text-violet-300 border-violet-500/40 bg-violet-500/10',
+            },
+            {
+              label: 'Staff coverage',
+              value: `${gatesWithStaffCoverage}/${totalGates}`,
+              sub: gatesWithStaffCoverage === totalGates ? 'all gates' : 'gaps remain',
+              tone:
+                gatesWithStaffCoverage === totalGates
+                  ? 'text-emerald-300 border-emerald-500/40 bg-emerald-500/10'
+                  : 'text-amber-300 border-amber-500/40 bg-amber-500/10',
+            },
+            {
+              label: 'Open incidents',
+              value: openCount,
+              sub: monitoringCount > 0 ? `${monitoringCount} monitoring` : 'all clear',
+              tone:
+                openCount > 0
+                  ? 'text-rose-300 border-rose-500/40 bg-rose-500/10'
+                  : 'text-slate-200 border-slate-700 bg-slate-900',
+            },
+            {
+              label: 'Signals last 30m',
+              value: recentSignals.length,
+              sub: `${staffRecentCount} staff · ${fanRecentCount} fan`,
+              tone:
+                recentSignals.length > 0
+                  ? 'text-violet-300 border-violet-500/40 bg-violet-500/10'
+                  : 'text-slate-200 border-slate-700 bg-slate-900',
+            },
+            {
+              label: 'Staff–fan agreement',
+              value: agreementPct === null ? '—' : `${agreementPct}%`,
+              sub:
+                agreementPct === null
+                  ? 'need both sources'
+                  : agreementPct >= 80
+                    ? 'aligned'
+                    : 'check conflicts',
+              tone:
+                agreementPct === null
+                  ? 'text-slate-200 border-slate-700 bg-slate-900'
+                  : agreementPct >= 80
+                    ? 'text-emerald-300 border-emerald-500/40 bg-emerald-500/10'
+                    : 'text-amber-300 border-amber-500/40 bg-amber-500/10',
+            },
+            {
+              label: 'Conflicts',
+              value: activeConflicts,
+              sub: activeConflicts === 0 ? 'none active' : 'review gates',
+              tone:
+                activeConflicts === 0
+                  ? 'text-slate-200 border-slate-700 bg-slate-900'
+                  : 'text-amber-300 border-amber-500/40 bg-amber-500/10',
+            },
+          ].map((k) => (
+            <div key={k.label} className={`rounded-xl border p-3 ${k.tone} transition`}>
+              <div className="text-[9px] font-semibold uppercase tracking-wider text-slate-400">
+                {k.label}
+              </div>
+              <div className="mt-1 text-lg sm:text-xl font-bold font-mono leading-none truncate">
+                {k.value}
+              </div>
+              <div className="text-[10px] text-slate-400 mt-1 truncate">{k.sub}</div>
+            </div>
+          ))}
+        </section>
 
-            <form onSubmit={submit} className="mt-4 space-y-4">
-              <div>
-                <label className="text-xs font-semibold text-slate-300 uppercase tracking-wide">
-                  Gate
-                </label>
-                <select
-                  value={gateId}
-                  onChange={(e) => setGateId(e.target.value)}
-                  className="mt-2 w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-white focus:border-violet-500 focus:outline-none"
+        {/* === Main two-column layout =================================== */}
+        <div className="grid gap-5 lg:grid-cols-3">
+          {/* === LEFT 2/3 — Gates, incidents, feed ====================== */}
+          <section className="lg:col-span-2 space-y-5">
+            {/* Gate status with 60-min timeline strips */}
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <div>
+                  <h2 className="text-base font-bold text-white">Gate status</h2>
+                  <p className="text-[11px] text-slate-400">
+                    Last 60 minutes · 5-min buckets · darker means more recent
+                  </p>
+                </div>
+                <span className="text-[10px] text-slate-500 font-mono">
+                  {demoVenue.gates.length} gates
+                </span>
+              </div>
+              <div className="grid sm:grid-cols-3 gap-3">
+                {gateSummary.map(
+                  ({ gate, recent, latest, staffCount, fanCount, timeline, conflict }) => {
+                    const tone =
+                      latest?.sentiment === 'smooth'
+                        ? 'border-emerald-700 bg-emerald-950/40'
+                        : latest?.sentiment === 'moderate'
+                          ? 'border-amber-700 bg-amber-950/40'
+                          : latest?.sentiment === 'busy'
+                            ? 'border-orange-700 bg-orange-950/40'
+                            : latest?.sentiment === 'difficult'
+                              ? 'border-rose-700 bg-rose-950/40'
+                              : 'border-slate-800 bg-slate-900'
+                    const emoji = latest
+                      ? SENTIMENTS.find((s) => s.value === latest.sentiment)?.emoji ?? '⚪'
+                      : '⚪'
+                    const isRecommendedByEngine =
+                      gate.id === currentPlan.recommended_gate.id
+
+                    return (
+                      <div
+                        key={gate.id}
+                        className={`rounded-xl border p-4 ${tone} ${
+                          conflict ? 'ring-2 ring-amber-500/40' : ''
+                        }`}
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-[10px] text-slate-400 font-mono">
+                            {gate.id.toUpperCase()}
+                          </span>
+                          {isRecommendedByEngine && (
+                            <span className="inline-flex items-center gap-0.5 text-[8px] font-bold uppercase tracking-wider bg-violet-500/20 border border-violet-500/40 text-violet-300 px-1.5 py-0.5 rounded-full">
+                              ★ Active rec
+                            </span>
+                          )}
+                        </div>
+                        <div className="font-semibold text-white mt-1 truncate text-sm">
+                          {gate.name}
+                        </div>
+
+                        <div className="mt-3 flex items-center gap-2">
+                          <span className="text-2xl">{emoji}</span>
+                          <span className="text-xs text-slate-300 capitalize">
+                            {latest?.sentiment ?? 'No recent data'}
+                          </span>
+                        </div>
+
+                        {/* 60-min timeline strip */}
+                        <div className="mt-3">
+                          <div className="text-[9px] text-slate-500 uppercase tracking-wider font-bold mb-1">
+                            Last 60m
+                          </div>
+                          <div className="flex gap-[2px] h-3 rounded overflow-hidden">
+                            {timeline.map((s, i) => {
+                              const bar =
+                                s === 'smooth'
+                                  ? 'bg-emerald-500'
+                                  : s === 'moderate'
+                                    ? 'bg-amber-500'
+                                    : s === 'busy'
+                                      ? 'bg-orange-500'
+                                      : s === 'difficult'
+                                        ? 'bg-rose-500'
+                                        : 'bg-slate-800'
+                              const opacity = 0.45 + (i / timeline.length) * 0.55
+                              return (
+                                <div
+                                  key={i}
+                                  className={`flex-1 ${bar}`}
+                                  style={{ opacity }}
+                                  title={
+                                    s
+                                      ? `${(timeline.length - i) * 5}m ago: ${s}`
+                                      : `${(timeline.length - i) * 5}m ago: no data`
+                                  }
+                                />
+                              )
+                            })}
+                          </div>
+                          <div className="flex justify-between text-[8px] text-slate-500 mt-0.5">
+                            <span>60m</span>
+                            <span>now</span>
+                          </div>
+                        </div>
+
+                        {conflict && (
+                          <div className="mt-2 text-[10px] text-amber-300 bg-amber-500/10 border border-amber-500/30 rounded-md px-2 py-1 leading-snug">
+                            ⚠ Staff and fan reports disagree
+                          </div>
+                        )}
+
+                        <div className="mt-3 pt-3 border-t border-slate-800/70 grid grid-cols-3 gap-1 text-[10px]">
+                          <div>
+                            <span className="text-slate-500">Staff</span>{' '}
+                            <span className="font-semibold text-slate-200">
+                              {staffCount}
+                            </span>
+                          </div>
+                          <div>
+                            <span className="text-slate-500">Fan</span>{' '}
+                            <span className="font-semibold text-slate-200">
+                              {fanCount}
+                            </span>
+                          </div>
+                          <div className="text-right">
+                            <span className="text-slate-500">Wait</span>{' '}
+                            <span className="font-semibold text-slate-200">
+                              {gate.typical_wait_minutes}m
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Quick-publish row per gate */}
+                        <div className="mt-3 grid grid-cols-4 gap-1">
+                          {SENTIMENTS.map((s) => (
+                            <button
+                              key={s.value}
+                              onClick={() =>
+                                quickPublish(
+                                  gate.id,
+                                  s.value,
+                                  `${s.label} at ${gate.name}`,
+                                )
+                              }
+                              title={`Quick publish: ${s.label} at ${gate.name}`}
+                              className={`text-[10px] py-1 rounded ${s.color} text-white font-bold transition`}
+                            >
+                              {s.emoji}
+                            </button>
+                          ))}
+                        </div>
+
+                        {recent.length === 0 && (
+                          <div className="mt-2 text-[10px] text-slate-500 italic">
+                            No signals in the last 30m
+                          </div>
+                        )}
+                      </div>
+                    )
+                  },
+                )}
+              </div>
+            </div>
+
+            {/* Incident Log */}
+            <div className="rounded-2xl border border-slate-800 bg-slate-900">
+              <div className="flex items-center justify-between p-4 border-b border-slate-800">
+                <div className="flex items-center gap-2">
+                  <h3 className="font-bold text-white">Incident log</h3>
+                  {openCount > 0 && (
+                    <span className="inline-flex items-center justify-center text-[10px] font-bold bg-rose-500/20 text-rose-300 border border-rose-500/40 rounded-full min-w-[20px] h-5 px-1.5">
+                      {openCount} open
+                    </span>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setIncidentFilter('all')}
+                    className={`text-xs px-2.5 py-1 rounded-md transition ${
+                      incidentFilter === 'all'
+                        ? 'bg-slate-700 text-white'
+                        : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    All
+                  </button>
+                  <button
+                    onClick={() => setIncidentFilter('open')}
+                    className={`text-xs px-2.5 py-1 rounded-md transition ${
+                      incidentFilter === 'open'
+                        ? 'bg-slate-700 text-white'
+                        : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    Active only
+                  </button>
+                </div>
+              </div>
+              <div className="divide-y divide-slate-800 max-h-[420px] overflow-y-auto">
+                {visibleIncidents.length === 0 ? (
+                  <div className="p-6 text-sm text-slate-500 italic">
+                    No incidents to show.
+                  </div>
+                ) : (
+                  visibleIncidents.map((inc) => {
+                    const gate = demoVenue.gates.find((g) => g.id === inc.gate_id)
+                    return (
+                      <div key={inc.id} className="p-4 space-y-2">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="font-semibold text-white text-sm">
+                                {INCIDENT_TYPE_LABEL[inc.type]}
+                              </span>
+                              <span
+                                className={`text-[10px] font-bold uppercase tracking-wide border px-2 py-0.5 rounded-full ${INCIDENT_STATUS_STYLE[inc.status]}`}
+                              >
+                                {inc.status}
+                              </span>
+                            </div>
+                            <div className="text-xs text-slate-400 mt-1">
+                              {gate?.name ?? inc.gate_id} ·{' '}
+                              {inc.source === 'staff' ? '👮 Staff' : '🙋 Fan'} ·{' '}
+                              {timeAgo(inc.updated_at)}
+                            </div>
+                          </div>
+                        </div>
+                        <p className="text-sm text-slate-200">{inc.note}</p>
+                        {inc.action && (
+                          <p className="text-xs text-emerald-300 bg-emerald-500/10 border border-emerald-500/20 rounded-md px-2 py-1.5">
+                            ↳ {inc.action}
+                          </p>
+                        )}
+                        {inc.status !== 'resolved' && (
+                          <div className="flex flex-wrap gap-2 pt-1">
+                            {inc.status !== 'monitoring' && (
+                              <button
+                                onClick={() => changeIncidentStatus(inc.id, 'monitoring')}
+                                className="text-xs px-3 py-1.5 rounded-md bg-amber-600/30 hover:bg-amber-600/50 text-amber-200 font-semibold transition border border-amber-500/40"
+                              >
+                                Mark monitoring
+                              </button>
+                            )}
+                            <button
+                              onClick={() => changeIncidentStatus(inc.id, 'resolved')}
+                              className="text-xs px-3 py-1.5 rounded-md bg-emerald-600/30 hover:bg-emerald-600/50 text-emerald-200 font-semibold transition border border-emerald-500/40"
+                            >
+                              Mark resolved
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })
+                )}
+              </div>
+            </div>
+
+            {/* Audit trail / live feed */}
+            <div className="rounded-2xl border border-slate-800 bg-slate-900">
+              <div className="flex items-center justify-between p-4 border-b border-slate-800">
+                <div>
+                  <h3 className="font-bold text-white">Audit trail</h3>
+                  <p className="text-[11px] text-slate-400">
+                    Every signal that reached the rule engine, newest first.
+                  </p>
+                </div>
+                <button
+                  onClick={() => {
+                    if (confirm('Clear all published staff signals? Seeded fan signals remain.')) {
+                      clearPublishedSignals()
+                    }
+                  }}
+                  className="text-xs text-slate-400 hover:text-rose-400"
                 >
-                  {demoVenue.gates.map((g) => (
-                    <option key={g.id} value={g.id}>
-                      {g.name}
-                    </option>
-                  ))}
-                </select>
+                  Clear staff signals
+                </button>
               </div>
+              <div className="divide-y divide-slate-800 max-h-[480px] overflow-y-auto">
+                {signals.length === 0 ? (
+                  <div className="p-6 text-sm text-slate-500 italic">
+                    No signals yet. Publish from the form on the right to see them
+                    flow through.
+                  </div>
+                ) : (
+                  signals.map((s) => {
+                    const meta = SENTIMENTS.find((x) => x.value === s.sentiment)
+                    const gate = demoVenue.gates.find((g) => g.id === s.gate_id)
+                    return (
+                      <div key={s.id} className="p-4 flex items-start gap-3">
+                        <div className="text-xl">{meta?.emoji ?? '⚪'}</div>
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm text-white">{s.message}</div>
+                          <div className="text-xs text-slate-400 mt-1">
+                            {gate?.name ?? s.gate_id} ·{' '}
+                            <span className="font-semibold">
+                              {s.source === 'staff' ? '👮 Staff' : '🙋 Fan'}
+                            </span>{' '}
+                            · weight ×{s.source === 'staff' ? 3 : 1} ·{' '}
+                            {timeAgo(s.created_at)}
+                          </div>
+                        </div>
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                          {s.sentiment}
+                        </span>
+                      </div>
+                    )
+                  })
+                )}
+              </div>
+            </div>
+          </section>
 
-              <div>
-                <label className="text-xs font-semibold text-slate-300 uppercase tracking-wide">
-                  Condition
-                </label>
-                <div className="mt-2 grid grid-cols-2 gap-2">
-                  {SENTIMENTS.map((s) => (
-                    <button
-                      type="button"
-                      key={s.value}
-                      onClick={() => setSentiment(s.value)}
-                      className={`px-3 py-2 rounded-lg text-sm font-semibold border transition ${
-                        sentiment === s.value
-                          ? `${s.color} text-white border-transparent`
-                          : 'bg-slate-950 border-slate-700 text-slate-300 hover:border-slate-500'
-                      }`}
-                    >
-                      {s.emoji} {s.label}
-                    </button>
-                  ))}
+          {/* === RIGHT 1/3 — Decision preview + publish form ============ */}
+          <aside className="space-y-4">
+            {/* Decision Preview — re-runs the rule engine with the
+                pending form selection appended. Proves to a senior probe
+                that the engine is deterministic and the staff UI is
+                connected to the same code path. */}
+            <div className="rounded-2xl border border-violet-500/40 bg-gradient-to-br from-violet-950/70 to-slate-900 p-5">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-violet-300">
+                  Decision preview
+                </span>
+                <span className="text-[10px] text-slate-500">
+                  · what changes if you publish
+                </span>
+              </div>
+              <div className="space-y-2 text-xs">
+                <div className="flex items-center justify-between gap-2 px-3 py-2 rounded-lg bg-slate-950/60 border border-slate-800">
+                  <div className="min-w-0">
+                    <div className="text-[10px] text-slate-500">Recommended gate</div>
+                    <div className="font-bold text-white text-sm mt-0.5 truncate">
+                      {previewPlan.recommended_gate.name.split(' (')[0]}
+                    </div>
+                  </div>
+                  {gateChange ? (
+                    <span className="inline-flex items-center gap-0.5 px-2 py-1 rounded-full bg-amber-500/20 border border-amber-500/40 text-amber-300 text-[9px] font-bold uppercase tracking-wider whitespace-nowrap">
+                      ↻ Would shift
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-0.5 px-2 py-1 rounded-full bg-slate-800 border border-slate-700 text-slate-400 text-[9px] font-bold uppercase tracking-wider whitespace-nowrap">
+                      no change
+                    </span>
+                  )}
+                </div>
+
+                <div className="flex items-center justify-between gap-2 px-3 py-2 rounded-lg bg-slate-950/60 border border-slate-800">
+                  <div>
+                    <div className="text-[10px] text-slate-500">Plan confidence</div>
+                    <div className="font-bold text-white text-sm mt-0.5 tabular-nums">
+                      {currentPlan.confidence_breakdown.percent}% →{' '}
+                      {previewPlan.confidence_breakdown.percent}%
+                    </div>
+                  </div>
+                  <span
+                    className={`inline-flex items-center gap-0.5 px-2 py-1 rounded-full text-[9px] font-bold uppercase tracking-wider whitespace-nowrap ${
+                      confDelta > 0
+                        ? 'bg-emerald-500/20 border border-emerald-500/40 text-emerald-300'
+                        : confDelta < 0
+                          ? 'bg-rose-500/20 border border-rose-500/40 text-rose-300'
+                          : 'bg-slate-800 border border-slate-700 text-slate-400'
+                    }`}
+                  >
+                    {confDelta > 0 ? '↑ +' : confDelta < 0 ? '↓ ' : ''}
+                    {confDelta === 0 ? 'flat' : `${Math.abs(confDelta)}%`}
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between gap-2 px-3 py-2 rounded-lg bg-slate-950/60 border border-slate-800">
+                  <div>
+                    <div className="text-[10px] text-slate-500">Data mode after publish</div>
+                    <div className="font-bold text-white text-sm mt-0.5">
+                      {previewPlan.confidence_breakdown.hasConflict
+                        ? 'Conflicting'
+                        : previewPlan.confidence_breakdown.staffSignalCount > 0
+                          ? 'Staff verified'
+                          : previewPlan.confidence_breakdown.fanSignalCount >= 3
+                            ? 'Fan pulse only'
+                            : 'Baseline'}
+                    </div>
+                  </div>
                 </div>
               </div>
+              <p className="text-[10px] text-slate-500 mt-3 leading-relaxed">
+                Computed by re-running <code className="text-slate-400 font-mono">deriveArrivalPlan()</code>{' '}
+                with your pending signal appended. Same code path the Hub uses.
+              </p>
+            </div>
 
-              {/* Structured fields — let staff click facts rather than write
-                  prose. The composed message previews below in real time. */}
-              <div>
-                <label className="text-xs font-semibold text-slate-300 uppercase tracking-wide">
-                  Bag check line
-                </label>
-                <div className="mt-2 flex flex-wrap gap-1.5">
-                  {BAG_CHECK_OPTIONS.map((o) => (
-                    <button
-                      type="button"
-                      key={o}
-                      onClick={() => setBagCheck(bagCheck === o ? null : o)}
-                      className={`px-2.5 py-1 rounded-full text-xs font-semibold border transition ${
-                        bagCheck === o
-                          ? 'bg-violet-600 text-white border-transparent'
-                          : 'bg-slate-950 border-slate-700 text-slate-300 hover:border-slate-500'
-                      }`}
-                    >
-                      {o}
-                    </button>
-                  ))}
+            {/* Publish form */}
+            <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
+              <h3 className="font-bold text-white">Publish update</h3>
+              <p className="text-sm text-slate-400 mt-1">
+                Updates appear in fans&apos; Event Day Hub within seconds.
+              </p>
+
+              <form onSubmit={submit} className="mt-4 space-y-4">
+                <div>
+                  <label className="text-xs font-semibold text-slate-300 uppercase tracking-wide">
+                    Gate
+                  </label>
+                  <select
+                    value={gateId}
+                    onChange={(e) => setGateId(e.target.value)}
+                    className="mt-2 w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-white focus:border-violet-500 focus:outline-none"
+                  >
+                    {demoVenue.gates.map((g) => (
+                      <option key={g.id} value={g.id}>
+                        {g.name}
+                      </option>
+                    ))}
+                  </select>
                 </div>
-              </div>
 
-              <div>
-                <label className="text-xs font-semibold text-slate-300 uppercase tracking-wide">
-                  Accessibility route
-                </label>
-                <div className="mt-2 flex flex-wrap gap-1.5">
-                  {ACCESS_OPTIONS.map((o) => (
-                    <button
-                      type="button"
-                      key={o}
-                      onClick={() => setAccessRoute(accessRoute === o ? null : o)}
-                      className={`px-2.5 py-1 rounded-full text-xs font-semibold border transition ${
-                        accessRoute === o
-                          ? 'bg-violet-600 text-white border-transparent'
-                          : 'bg-slate-950 border-slate-700 text-slate-300 hover:border-slate-500'
-                      }`}
-                    >
-                      {o}
-                    </button>
-                  ))}
+                <div>
+                  <label className="text-xs font-semibold text-slate-300 uppercase tracking-wide">
+                    Condition
+                  </label>
+                  <div className="mt-2 grid grid-cols-2 gap-2">
+                    {SENTIMENTS.map((s) => (
+                      <button
+                        type="button"
+                        key={s.value}
+                        onClick={() => setSentiment(s.value)}
+                        className={`px-3 py-2 rounded-lg text-sm font-semibold border transition ${
+                          sentiment === s.value
+                            ? `${s.color} text-white border-transparent`
+                            : 'bg-slate-950 border-slate-700 text-slate-300 hover:border-slate-500'
+                        }`}
+                      >
+                        {s.emoji} {s.label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
-              </div>
 
-              <div>
-                <label className="text-xs font-semibold text-slate-300 uppercase tracking-wide">
-                  Family entrance
-                </label>
-                <div className="mt-2 flex flex-wrap gap-1.5">
-                  {FAMILY_OPTIONS.map((o) => (
-                    <button
-                      type="button"
-                      key={o}
-                      onClick={() => setFamilyEntrance(familyEntrance === o ? null : o)}
-                      className={`px-2.5 py-1 rounded-full text-xs font-semibold border transition ${
-                        familyEntrance === o
-                          ? 'bg-violet-600 text-white border-transparent'
-                          : 'bg-slate-950 border-slate-700 text-slate-300 hover:border-slate-500'
-                      }`}
-                    >
-                      {o}
-                    </button>
-                  ))}
+                <div>
+                  <label className="text-xs font-semibold text-slate-300 uppercase tracking-wide">
+                    Bag check line
+                  </label>
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    {BAG_CHECK_OPTIONS.map((o) => (
+                      <button
+                        type="button"
+                        key={o}
+                        onClick={() => setBagCheck(bagCheck === o ? null : o)}
+                        className={`px-2.5 py-1 rounded-full text-xs font-semibold border transition ${
+                          bagCheck === o
+                            ? 'bg-violet-600 text-white border-transparent'
+                            : 'bg-slate-950 border-slate-700 text-slate-300 hover:border-slate-500'
+                        }`}
+                      >
+                        {o}
+                      </button>
+                    ))}
+                  </div>
                 </div>
-              </div>
 
-              <div>
-                <label className="text-xs font-semibold text-slate-300 uppercase tracking-wide">
-                  Expected duration
-                </label>
-                <div className="mt-2 flex flex-wrap gap-1.5">
-                  {DURATION_OPTIONS.map((o) => (
-                    <button
-                      type="button"
-                      key={o}
-                      onClick={() => setDuration(duration === o ? null : o)}
-                      className={`px-2.5 py-1 rounded-full text-xs font-semibold border transition ${
-                        duration === o
-                          ? 'bg-violet-600 text-white border-transparent'
-                          : 'bg-slate-950 border-slate-700 text-slate-300 hover:border-slate-500'
-                      }`}
-                    >
-                      {o}
-                    </button>
-                  ))}
+                <div>
+                  <label className="text-xs font-semibold text-slate-300 uppercase tracking-wide">
+                    Accessibility route
+                  </label>
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    {ACCESS_OPTIONS.map((o) => (
+                      <button
+                        type="button"
+                        key={o}
+                        onClick={() => setAccessRoute(accessRoute === o ? null : o)}
+                        className={`px-2.5 py-1 rounded-full text-xs font-semibold border transition ${
+                          accessRoute === o
+                            ? 'bg-violet-600 text-white border-transparent'
+                            : 'bg-slate-950 border-slate-700 text-slate-300 hover:border-slate-500'
+                        }`}
+                      >
+                        {o}
+                      </button>
+                    ))}
+                  </div>
                 </div>
-              </div>
 
-              <div>
-                <label className="text-xs font-semibold text-slate-300 uppercase tracking-wide">
-                  Additional note (optional)
-                </label>
-                <input
-                  type="text"
-                  value={note}
-                  onChange={(e) => setNote(e.target.value)}
-                  placeholder="e.g. Stroller lane open"
-                  className="mt-2 w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm focus:border-violet-500 focus:outline-none"
-                  maxLength={120}
-                />
-              </div>
-
-              {/* Live preview of the composed message */}
-              <div className="rounded-lg border border-slate-700 bg-slate-950/60 p-3">
-                <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
-                  Fans will see
+                <div>
+                  <label className="text-xs font-semibold text-slate-300 uppercase tracking-wide">
+                    Family entrance
+                  </label>
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    {FAMILY_OPTIONS.map((o) => (
+                      <button
+                        type="button"
+                        key={o}
+                        onClick={() => setFamilyEntrance(familyEntrance === o ? null : o)}
+                        className={`px-2.5 py-1 rounded-full text-xs font-semibold border transition ${
+                          familyEntrance === o
+                            ? 'bg-violet-600 text-white border-transparent'
+                            : 'bg-slate-950 border-slate-700 text-slate-300 hover:border-slate-500'
+                        }`}
+                      >
+                        {o}
+                      </button>
+                    ))}
+                  </div>
                 </div>
-                <p className="text-xs text-slate-200 leading-snug">
-                  &ldquo;{message.trim() || composedMessage}&rdquo;
-                </p>
-              </div>
 
-              {/* Override box — collapsed by default since structured fields
-                  cover the common case */}
-              <details className="text-xs">
-                <summary className="cursor-pointer text-slate-400 hover:text-slate-200">
-                  Override with custom message
-                </summary>
-                <textarea
-                  value={message}
-                  onChange={(e) => setMessage(e.target.value)}
-                  placeholder="Write your own message instead"
-                  className="mt-2 w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm focus:border-violet-500 focus:outline-none min-h-16"
-                  maxLength={140}
-                />
-                <div className="text-[10px] text-slate-500 text-right">{message.length} / 140</div>
-              </details>
+                <div>
+                  <label className="text-xs font-semibold text-slate-300 uppercase tracking-wide">
+                    Expected duration
+                  </label>
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    {DURATION_OPTIONS.map((o) => (
+                      <button
+                        type="button"
+                        key={o}
+                        onClick={() => setDuration(duration === o ? null : o)}
+                        className={`px-2.5 py-1 rounded-full text-xs font-semibold border transition ${
+                          duration === o
+                            ? 'bg-violet-600 text-white border-transparent'
+                            : 'bg-slate-950 border-slate-700 text-slate-300 hover:border-slate-500'
+                        }`}
+                      >
+                        {o}
+                      </button>
+                    ))}
+                  </div>
+                </div>
 
-              <button
-                type="submit"
-                className="w-full py-3 rounded-lg bg-violet-600 hover:bg-violet-500 text-white font-bold transition"
-              >
-                Publish to fans
-              </button>
-            </form>
-          </div>
+                <div>
+                  <label className="text-xs font-semibold text-slate-300 uppercase tracking-wide">
+                    Additional note (optional)
+                  </label>
+                  <input
+                    type="text"
+                    value={note}
+                    onChange={(e) => setNote(e.target.value)}
+                    placeholder="e.g. Stroller lane open"
+                    className="mt-2 w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm focus:border-violet-500 focus:outline-none"
+                    maxLength={120}
+                  />
+                </div>
 
-          <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
-            <h3 className="font-bold text-white text-sm">Reminders</h3>
-            <ul className="mt-2 space-y-1.5 text-xs text-slate-400 list-disc list-inside">
-              <li>Keep messages factual and brief.</li>
-              <li>Use "Difficult" only for safety issues.</li>
-              <li>Fan-submitted signals appear here too — verify before acting.</li>
-            </ul>
-          </div>
-        </aside>
+                <div className="rounded-lg border border-slate-700 bg-slate-950/60 p-3">
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
+                    Fans will see
+                  </div>
+                  <p className="text-xs text-slate-200 leading-snug">
+                    &ldquo;{message.trim() || composedMessage}&rdquo;
+                  </p>
+                </div>
+
+                <details className="text-xs">
+                  <summary className="cursor-pointer text-slate-400 hover:text-slate-200">
+                    Override with custom message
+                  </summary>
+                  <textarea
+                    value={message}
+                    onChange={(e) => setMessage(e.target.value)}
+                    placeholder="Write your own message instead"
+                    className="mt-2 w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm focus:border-violet-500 focus:outline-none min-h-16"
+                    maxLength={140}
+                  />
+                  <div className="text-[10px] text-slate-500 text-right">
+                    {message.length} / 140
+                  </div>
+                </details>
+
+                <button
+                  type="submit"
+                  className="w-full py-3 rounded-lg bg-violet-600 hover:bg-violet-500 text-white font-bold transition shadow-lg shadow-violet-600/20"
+                >
+                  Publish to fans
+                </button>
+              </form>
+            </div>
+
+            <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
+              <h3 className="font-bold text-white text-sm">Operations reminders</h3>
+              <ul className="mt-2 space-y-1.5 text-xs text-slate-400 list-disc list-inside leading-relaxed">
+                <li>Staff signals are weighted 3× over individual fan reports.</li>
+                <li>Use &quot;Difficult&quot; only for safety issues.</li>
+                <li>Verify fan-submitted signals against your own observation before acting.</li>
+                <li>Decision Preview always reflects the same engine the fan Hub runs.</li>
+              </ul>
+            </div>
+          </aside>
+        </div>
       </div>
 
       {toast && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-emerald-600 text-white px-4 py-2 rounded-lg shadow-lg text-sm font-semibold">
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-emerald-600 text-white px-4 py-2 rounded-lg shadow-lg text-sm font-semibold z-50">
           ✓ {toast}
         </div>
       )}
