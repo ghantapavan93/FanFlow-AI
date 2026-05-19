@@ -597,6 +597,86 @@ function StadiumIllustration({
  * Circular confidence meter — SVG arc with violet→fuchsia gradient
  * stroke. Animates its dashoffset on mount.
  */
+/**
+ * Animated shimmering gradient title. The gradient slowly slides across
+ * the text so the headline visibly breathes instead of sitting flat.
+ * Use sparingly — only on hero headlines.
+ */
+function ShimmerTitle({
+  children,
+  className = '',
+}: {
+  children: ReactNode
+  className?: string
+}) {
+  const reduced = useReducedMotion()
+  return (
+    <span
+      className={`inline-block bg-clip-text text-transparent bg-[linear-gradient(110deg,#7c3aed_0%,#a855f7_25%,#d946ef_50%,#a855f7_75%,#7c3aed_100%)] ${
+        reduced ? '' : 'bg-[length:200%_auto]'
+      } ${className}`}
+      style={
+        reduced
+          ? undefined
+          : {
+              animation: 'ff-shimmer-title 6s ease-in-out infinite',
+            }
+      }
+    >
+      {children}
+    </span>
+  )
+}
+
+/**
+ * Burst of sparkle particles flying outward from a central point.
+ * Used at the FanFlow Unlocked moment on Stage 4.
+ */
+function SparkleBurst({ count = 14 }: { count?: number }) {
+  const reduced = useReducedMotion()
+  if (reduced) return null
+  // Deterministic positions for SSR consistency
+  const particles = Array.from({ length: count }, (_, i) => {
+    const angle = (i / count) * Math.PI * 2
+    const dist = 120 + ((i * 17) % 60)
+    return {
+      x: Math.cos(angle) * dist,
+      y: Math.sin(angle) * dist,
+      delay: (i * 0.06) % 1.2,
+      size: 6 + (i % 4) * 2,
+      color: i % 3 === 0 ? '#d946ef' : i % 3 === 1 ? '#a855f7' : '#facc15',
+    }
+  })
+  return (
+    <div aria-hidden="true" className="pointer-events-none absolute inset-0 flex items-center justify-center">
+      {particles.map((p, i) => (
+        <motion.span
+          key={i}
+          className="absolute rounded-full"
+          style={{
+            width: p.size,
+            height: p.size,
+            background: p.color,
+            boxShadow: `0 0 12px ${p.color}`,
+          }}
+          initial={{ x: 0, y: 0, opacity: 0, scale: 0 }}
+          animate={{
+            x: p.x,
+            y: p.y,
+            opacity: [0, 1, 0],
+            scale: [0, 1, 0.4],
+          }}
+          transition={{
+            duration: 1.4,
+            delay: 0.9 + p.delay,
+            ease: [0.16, 1, 0.3, 1],
+          }}
+        />
+      ))}
+    </div>
+  )
+}
+
 function ConfidenceRing({
   value,
   size = 120,
@@ -1106,27 +1186,55 @@ function StageListing({ onAdvance, onBack }: { onAdvance: () => void; onBack: ()
       <AmbientBackdrop />
       <NavBar compact />
 
-      {/* === Purple hero strip with stadium light beams ============== */}
-      <div className="relative overflow-hidden bg-gradient-to-b from-violet-100/80 via-violet-50 to-transparent">
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(124,58,237,0.18),transparent_60%)]" />
+      {/* === Purple hero strip with stadium photo backdrop ========== */}
+      <div className="relative overflow-hidden">
+        {/* Real stadium photograph with deep purple wash */}
+        <div
+          aria-hidden="true"
+          className="absolute inset-0 bg-cover bg-center"
+          style={{
+            backgroundImage:
+              "url('https://images.unsplash.com/photo-1522778526097-ce0a22ceb253?w=1600&h=900&fit=crop')",
+          }}
+        />
+        <div className="absolute inset-0 bg-gradient-to-b from-violet-900/85 via-violet-800/85 to-violet-50" />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(217,70,239,0.4),transparent_60%),radial-gradient(ellipse_at_bottom,rgba(255,255,255,0.7),transparent_70%)]" />
+        {/* Floating light particles */}
+        {!reduced && (
+          <>
+            <motion.div
+              className="absolute top-10 left-1/4 w-2 h-2 rounded-full bg-white/70 blur-sm"
+              animate={{ y: [0, -20, 0], opacity: [0.4, 1, 0.4] }}
+              transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
+            />
+            <motion.div
+              className="absolute top-20 right-1/3 w-3 h-3 rounded-full bg-fuchsia-300/80 blur-sm"
+              animate={{ y: [0, -25, 0], opacity: [0.5, 1, 0.5] }}
+              transition={{ duration: 5, repeat: Infinity, ease: 'easeInOut', delay: 1 }}
+            />
+            <motion.div
+              className="absolute top-32 left-2/3 w-2 h-2 rounded-full bg-white/60 blur-sm"
+              animate={{ y: [0, -15, 0], opacity: [0.3, 0.9, 0.3] }}
+              transition={{ duration: 3.5, repeat: Infinity, ease: 'easeInOut', delay: 2 }}
+            />
+          </>
+        )}
         <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8 sm:py-10 relative">
           <button onClick={onBack} className="text-xs text-slate-500 hover:text-slate-700 mb-3">
             ← Back to discovery
           </button>
-          <div className="grid lg:grid-cols-[1fr_auto] gap-4 items-center">
+          <div className="grid lg:grid-cols-[1fr_auto] gap-4 items-center pt-2">
             <div>
-              <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-violet-700">
+              <div className="text-[11px] font-bold uppercase tracking-[0.22em] text-violet-200">
                 Discover
               </div>
-              <h1 className="text-[44px] sm:text-6xl lg:text-7xl xl:text-[88px] font-extrabold text-slate-900 tracking-[-0.03em] leading-[0.95] mt-3">
+              <h1 className="text-[44px] sm:text-6xl lg:text-7xl xl:text-[88px] font-extrabold text-white tracking-[-0.03em] leading-[0.95] mt-3 drop-shadow-[0_4px_24px_rgba(0,0,0,0.3)]">
                 World Cup
                 <br />
-                <span className="bg-gradient-to-br from-violet-600 via-violet-700 to-fuchsia-600 bg-clip-text text-transparent">
-                  Tickets
-                </span>
+                <ShimmerTitle>Tickets</ShimmerTitle>
               </h1>
-              <div className="text-sm text-slate-600 mt-4 flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+              <div className="text-sm text-white/90 mt-4 flex items-center gap-2 drop-shadow-md">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.6)] animate-pulse" />
                 <span className="font-bold tabular-nums">70,962</span> people viewing World Cup events in the past hour
               </div>
             </div>
@@ -1134,9 +1242,9 @@ function StageListing({ onAdvance, onBack }: { onAdvance: () => void; onBack: ()
               initial={reduced ? false : { opacity: 0, scale: 0.92, y: 8 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               transition={{ duration: 0.5, delay: 0.1, ease: [0.16, 1, 0.3, 1] }}
-              className="hidden lg:flex items-start gap-3 rounded-2xl bg-white/85 backdrop-blur border border-violet-200 p-4 max-w-xs shadow-[0_4px_24px_-4px_rgba(124,58,237,0.2)]"
+              className="hidden lg:flex items-start gap-3 rounded-2xl bg-white/95 backdrop-blur-md border border-white p-4 max-w-xs shadow-[0_20px_60px_-12px_rgba(124,58,237,0.6)]"
             >
-              <span className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500 to-fuchsia-600 text-white flex items-center justify-center text-base flex-shrink-0">
+              <span className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500 to-fuchsia-600 text-white flex items-center justify-center text-base flex-shrink-0 shadow-lg">
                 ✨
               </span>
               <div className="min-w-0">
@@ -1151,7 +1259,10 @@ function StageListing({ onAdvance, onBack }: { onAdvance: () => void; onBack: ()
 
           <div className="flex flex-wrap gap-2 mt-6">
             {['📍 Denton, TX', 'Team', 'All Rounds', 'All dates', 'Parking', 'Price'].map((f) => (
-              <span key={f} className="chip text-xs">
+              <span
+                key={f}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-white/95 backdrop-blur border border-white/60 text-xs font-semibold text-slate-700 shadow-lg"
+              >
                 {f} <span className="text-slate-400">▾</span>
               </span>
             ))}
@@ -1587,20 +1698,21 @@ function StageConfirmed({ onAdvance, onBack }: { onAdvance: () => void; onBack: 
             initial={reduced ? false : { opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.65, delay: 0.1, ease: [0.16, 1, 0.3, 1] }}
-            className="text-[44px] sm:text-6xl lg:text-7xl xl:text-[88px] font-extrabold text-slate-900 tracking-[-0.03em] leading-[0.95]"
+            className="text-[44px] sm:text-6xl lg:text-7xl xl:text-[88px] font-extrabold tracking-[-0.03em] leading-[0.95]"
           >
-            FanFlow Unlocked{' '}
+            <ShimmerTitle>FanFlow Unlocked</ShimmerTitle>{' '}
             <motion.span
-              className="inline-block bg-gradient-to-br from-violet-500 via-violet-600 to-fuchsia-600 bg-clip-text text-transparent"
-              animate={reduced ? undefined : { rotate: [0, -8, 8, -4, 0] }}
-              transition={reduced ? undefined : { duration: 1.4, delay: 0.6, ease: 'easeInOut' }}
+              className="inline-block text-fuchsia-500"
+              animate={reduced ? undefined : { rotate: [0, -8, 8, -4, 0], scale: [1, 1.2, 1] }}
+              transition={reduced ? undefined : { duration: 1.6, delay: 0.6, ease: 'easeInOut', repeat: Infinity, repeatDelay: 2.5 }}
             >
               ✨
             </motion.span>
           </motion.h1>
 
-          {/* MUCH bigger checkmark with multi-layer glow */}
+          {/* MUCH bigger checkmark with multi-layer glow + sparkle burst */}
           <div className="relative inline-flex items-center justify-center mt-10 sm:mt-12 mb-2">
+            <SparkleBurst count={18} />
             {!reduced && (
               <>
                 <motion.span
@@ -1951,9 +2063,7 @@ function StageBuilding({ onAdvance, onBack }: { onAdvance: () => void; onBack: (
             className="text-[40px] sm:text-5xl lg:text-6xl xl:text-7xl font-extrabold text-slate-900 tracking-[-0.03em] leading-[0.95]"
           >
             FanFlow is{' '}
-            <span className="bg-gradient-to-br from-violet-600 via-violet-700 to-fuchsia-600 bg-clip-text text-transparent">
-              building your plan
-            </span>
+            <ShimmerTitle>building your plan</ShimmerTitle>
           </motion.h2>
           <motion.p
             initial={reduced ? false : { opacity: 0, y: 6 }}
@@ -2196,7 +2306,7 @@ function StagePreview({ onBack }: { onBack: () => void }) {
             <h1 className="text-[44px] sm:text-6xl lg:text-7xl xl:text-[84px] font-extrabold text-slate-900 tracking-[-0.03em] mt-3 leading-[0.95]">
               You're all set
               <br />
-              for <span className="bg-gradient-to-br from-violet-600 via-violet-700 to-fuchsia-600 bg-clip-text text-transparent">Event Day</span>
+              for <ShimmerTitle>Event Day</ShimmerTitle>
             </h1>
             <p className="text-sm sm:text-base text-slate-600 mt-4 max-w-xl leading-relaxed flex flex-wrap items-center gap-2">
               <span className="inline-flex items-center gap-1.5 text-emerald-700 font-semibold">

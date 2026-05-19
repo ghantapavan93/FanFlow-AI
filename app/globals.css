@@ -184,6 +184,18 @@ body {
   animation: ff-fade 200ms ease-out;
 }
 
+/* Shimmer gradient title animation — used by /demo/fanflow-vision's
+   ShimmerTitle helper. Slides the gradient background slowly across
+   the text so hero headlines breathe instead of sitting flat. */
+@keyframes ff-shimmer-title {
+  0%, 100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
 /* Subtle page entry — applied to a route's root content wrapper for a calm
    fade-up on each navigation. Respects prefers-reduced-motion.
    IMPORTANT: uses `backwards` (not `both`) so we keep the pre-animation
