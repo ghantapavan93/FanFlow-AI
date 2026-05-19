@@ -406,12 +406,38 @@ function CardTile({ ev }: { ev: CardEvent }) {
  * Three layered radial gradients on a near-white base, no fixed bg-image
  * so it stays perfectly performant.
  */
+/**
+ * Atmospheric purple backdrop. Three deep radial gradients +  subtle
+ * dot pattern overlay + two glowing orbs that softly pulse. Same
+ * "premium" feel as the reference Figma mockups Pavan shared.
+ */
 function AmbientBackdrop() {
+  const reduced = useReducedMotion()
   return (
-    <div
-      aria-hidden="true"
-      className="pointer-events-none fixed inset-0 -z-10 bg-[radial-gradient(ellipse_80%_60%_at_50%_0%,rgba(124,58,237,0.10),transparent_60%),radial-gradient(ellipse_60%_40%_at_85%_30%,rgba(217,70,239,0.06),transparent_60%),radial-gradient(ellipse_60%_40%_at_15%_70%,rgba(99,102,241,0.05),transparent_60%)] bg-[#fafafe]"
-    />
+    <div aria-hidden="true" className="pointer-events-none fixed inset-0 -z-10 overflow-hidden">
+      {/* Layered radial purples */}
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_90%_70%_at_50%_0%,rgba(124,58,237,0.18),transparent_55%),radial-gradient(ellipse_70%_50%_at_85%_25%,rgba(217,70,239,0.14),transparent_55%),radial-gradient(ellipse_70%_50%_at_15%_75%,rgba(99,102,241,0.10),transparent_55%)] bg-[#fafafe]" />
+      {/* Dot pattern */}
+      <div
+        className="absolute inset-0 opacity-[0.22]"
+        style={{
+          backgroundImage:
+            'radial-gradient(circle at 1px 1px, rgba(124,58,237,0.35) 1px, transparent 0)',
+          backgroundSize: '28px 28px',
+        }}
+      />
+      {/* Two glowing orbs — gently pulse */}
+      <motion.div
+        className="absolute -top-32 -right-24 w-[520px] h-[520px] rounded-full bg-fuchsia-400/30 blur-3xl"
+        animate={reduced ? undefined : { scale: [1, 1.08, 1], opacity: [0.6, 0.85, 0.6] }}
+        transition={reduced ? undefined : { duration: 8, repeat: Infinity, ease: 'easeInOut' }}
+      />
+      <motion.div
+        className="absolute -bottom-40 -left-32 w-[600px] h-[600px] rounded-full bg-violet-500/25 blur-3xl"
+        animate={reduced ? undefined : { scale: [1, 1.12, 1], opacity: [0.5, 0.75, 0.5] }}
+        transition={reduced ? undefined : { duration: 10, repeat: Infinity, ease: 'easeInOut', delay: 1.5 }}
+      />
+    </div>
   )
 }
 
@@ -437,11 +463,11 @@ function GlassCard({
 
 /**
  * Stylized 3D-perspective stadium illustration. SVG only — no raster,
- * no external assets. Used in Listing, Seatmap, Preview, Building.
- * `glow` lights a single section in violet (for Seatmap's Section 117).
+ * no external assets. Triple-bowl design with people dots, light beams,
+ * location pins, and a subtle violet glow underneath.
  */
 function StadiumIllustration({
-  size = 240,
+  size = 280,
   glow = false,
   showPin = true,
 }: {
@@ -449,72 +475,120 @@ function StadiumIllustration({
   glow?: boolean
   showPin?: boolean
 }) {
+  // Deterministic people dots — same pattern every render
+  const people = [
+    [40, 90], [55, 75], [75, 65], [100, 55], [120, 52], [140, 55], [165, 65], [185, 75], [200, 90],
+    [45, 110], [62, 130], [82, 145], [120, 158], [158, 145], [178, 130], [195, 110],
+    [30, 70], [210, 70], [25, 95], [215, 95], [35, 115], [205, 115],
+    [50, 50], [70, 40], [110, 35], [130, 35], [170, 40], [190, 50],
+  ]
   return (
     <svg
       viewBox="0 0 240 180"
       width={size}
       height={(size * 180) / 240}
       aria-hidden="true"
-      className="select-none"
+      className="select-none drop-shadow-[0_20px_40px_rgba(124,58,237,0.35)]"
     >
       <defs>
-        <radialGradient id="stadium-glow" cx="50%" cy="55%" r="55%">
-          <stop offset="0%" stopColor="rgba(124,58,237,0.40)" />
-          <stop offset="60%" stopColor="rgba(124,58,237,0.10)" />
+        <radialGradient id="stadium-glow" cx="50%" cy="55%" r="60%">
+          <stop offset="0%" stopColor="rgba(124,58,237,0.55)" />
+          <stop offset="55%" stopColor="rgba(124,58,237,0.18)" />
           <stop offset="100%" stopColor="rgba(124,58,237,0)" />
         </radialGradient>
-        <linearGradient id="stadium-bowl" x1="0%" y1="0%" x2="0%" y2="100%">
+        <linearGradient id="stadium-outer" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stopColor="#a78bfa" />
+          <stop offset="100%" stopColor="#6d28d9" />
+        </linearGradient>
+        <linearGradient id="stadium-middle" x1="0%" y1="0%" x2="0%" y2="100%">
           <stop offset="0%" stopColor="#c4b5fd" />
           <stop offset="100%" stopColor="#7c3aed" />
         </linearGradient>
-        <linearGradient id="stadium-bowl-inner" x1="0%" y1="0%" x2="0%" y2="100%">
+        <linearGradient id="stadium-inner" x1="0%" y1="0%" x2="0%" y2="100%">
           <stop offset="0%" stopColor="#ede9fe" />
           <stop offset="100%" stopColor="#a78bfa" />
         </linearGradient>
+        <radialGradient id="field-grad" cx="50%" cy="50%" r="60%">
+          <stop offset="0%" stopColor="#4ade80" />
+          <stop offset="100%" stopColor="#15803d" />
+        </radialGradient>
+        <radialGradient id="section-glow" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stopColor="#d946ef" />
+          <stop offset="100%" stopColor="#7c3aed" />
+        </radialGradient>
       </defs>
-      <circle cx="120" cy="100" r="100" fill="url(#stadium-glow)" />
-      {/* Outer ring (perspective ellipse) */}
-      <ellipse cx="120" cy="105" rx="95" ry="42" fill="url(#stadium-bowl)" opacity="0.85" />
-      <ellipse cx="120" cy="103" rx="95" ry="42" fill="none" stroke="white" strokeOpacity="0.5" strokeWidth="1" />
-      {/* Inner bowl */}
-      <ellipse cx="120" cy="100" rx="78" ry="33" fill="url(#stadium-bowl-inner)" />
-      <ellipse cx="120" cy="98" rx="78" ry="33" fill="none" stroke="white" strokeOpacity="0.6" strokeWidth="1" />
+
+      {/* Glow base */}
+      <ellipse cx="120" cy="120" rx="120" ry="55" fill="url(#stadium-glow)" />
+
+      {/* Three layered bowls — outer to inner */}
+      <ellipse cx="120" cy="110" rx="108" ry="48" fill="url(#stadium-outer)" opacity="0.7" />
+      <ellipse cx="120" cy="108" rx="108" ry="48" fill="none" stroke="white" strokeOpacity="0.35" strokeWidth="0.8" />
+      <ellipse cx="120" cy="105" rx="92" ry="40" fill="url(#stadium-middle)" opacity="0.85" />
+      <ellipse cx="120" cy="103" rx="92" ry="40" fill="none" stroke="white" strokeOpacity="0.5" strokeWidth="0.8" />
+      <ellipse cx="120" cy="100" rx="74" ry="32" fill="url(#stadium-inner)" />
+      <ellipse cx="120" cy="98" rx="74" ry="32" fill="none" stroke="white" strokeOpacity="0.7" strokeWidth="0.8" />
+
       {/* Field */}
-      <ellipse cx="120" cy="95" rx="56" ry="22" fill="#34d399" />
-      <ellipse cx="120" cy="95" rx="56" ry="22" fill="none" stroke="white" strokeWidth="0.8" />
-      <line x1="120" y1="73" x2="120" y2="117" stroke="white" strokeWidth="0.6" />
-      <ellipse cx="120" cy="95" rx="8" ry="4" fill="none" stroke="white" strokeWidth="0.6" />
+      <ellipse cx="120" cy="95" rx="54" ry="22" fill="url(#field-grad)" />
+      <ellipse cx="120" cy="95" rx="54" ry="22" fill="none" stroke="white" strokeWidth="1" />
+      <line x1="120" y1="73" x2="120" y2="117" stroke="white" strokeWidth="0.8" />
+      <ellipse cx="120" cy="95" rx="9" ry="5" fill="none" stroke="white" strokeWidth="0.8" />
+      <ellipse cx="80" cy="95" rx="6" ry="4" fill="none" stroke="white" strokeOpacity="0.7" strokeWidth="0.6" />
+      <ellipse cx="160" cy="95" rx="6" ry="4" fill="none" stroke="white" strokeOpacity="0.7" strokeWidth="0.6" />
+
+      {/* People dots — tiny semi-transparent circles around the bowl */}
+      {people.map(([x, y], i) => (
+        <circle key={i} cx={x} cy={y} r="1.2" fill="white" opacity={0.55 + (i % 3) * 0.15} />
+      ))}
+
       {/* Section glow (Maria's section 117) */}
       {glow && (
         <>
           <path
-            d="M 90 65 L 150 65 L 158 78 L 82 78 Z"
-            fill="#7c3aed"
-            opacity="0.85"
+            d="M 90 64 L 150 64 L 158 78 L 82 78 Z"
+            fill="url(#section-glow)"
+            opacity="0.95"
           />
           <path
-            d="M 90 65 L 150 65 L 158 78 L 82 78 Z"
+            d="M 90 64 L 150 64 L 158 78 L 82 78 Z"
             fill="none"
             stroke="#ede9fe"
-            strokeWidth="1.5"
+            strokeWidth="2"
           />
+          {/* Section number label */}
+          <text x="120" y="74" textAnchor="middle" fontSize="8" fontWeight="700" fill="white">117</text>
         </>
       )}
+
       {/* Location pins around the bowl */}
       {showPin && (
         <>
-          <g transform="translate(120,30)">
-            <circle cx="0" cy="0" r="9" fill="#facc15" />
-            <text x="0" y="3" textAnchor="middle" fontSize="9" fontWeight="700" fill="white">★</text>
+          <g transform="translate(120,26)">
+            <circle cx="0" cy="6" r="4" fill="rgba(124,58,237,0.4)" />
+            <path d="M 0 0 L -7 -10 L 7 -10 Z" fill="#facc15" />
+            <circle cx="0" cy="-6" r="6" fill="#facc15" />
+            <text x="0" y="-3" textAnchor="middle" fontSize="7" fontWeight="700" fill="#7c3aed">★</text>
           </g>
-          <circle cx="55" cy="80" r="4" fill="#7c3aed" opacity="0.6" />
-          <circle cx="185" cy="80" r="4" fill="#7c3aed" opacity="0.6" />
-          <circle cx="120" cy="148" r="4" fill="#7c3aed" opacity="0.6" />
+          <circle cx="50" cy="80" r="3" fill="#d946ef" />
+          <circle cx="50" cy="80" r="6" fill="none" stroke="#d946ef" strokeOpacity="0.4" strokeWidth="1" />
+          <circle cx="190" cy="80" r="3" fill="#d946ef" />
+          <circle cx="190" cy="80" r="6" fill="none" stroke="#d946ef" strokeOpacity="0.4" strokeWidth="1" />
+          <circle cx="120" cy="145" r="3" fill="#d946ef" />
+          <circle cx="120" cy="145" r="6" fill="none" stroke="#d946ef" strokeOpacity="0.4" strokeWidth="1" />
         </>
       )}
-      {/* Stadium light beams */}
-      <line x1="20" y1="40" x2="60" y2="80" stroke="white" strokeOpacity="0.5" strokeWidth="2" strokeLinecap="round" />
-      <line x1="220" y1="40" x2="180" y2="80" stroke="white" strokeOpacity="0.5" strokeWidth="2" strokeLinecap="round" />
+
+      {/* Stadium light beams — four corners */}
+      <g stroke="white" strokeOpacity="0.7" strokeLinecap="round">
+        <line x1="15" y1="35" x2="55" y2="80" strokeWidth="1.5" />
+        <line x1="20" y1="30" x2="60" y2="75" strokeWidth="2" />
+        <line x1="225" y1="35" x2="185" y2="80" strokeWidth="1.5" />
+        <line x1="220" y1="30" x2="180" y2="75" strokeWidth="2" />
+      </g>
+      {/* Tower lights */}
+      <circle cx="18" cy="32" r="3" fill="#facc15" opacity="0.9" />
+      <circle cx="222" cy="32" r="3" fill="#facc15" opacity="0.9" />
     </svg>
   )
 }
@@ -1041,13 +1115,19 @@ function StageListing({ onAdvance, onBack }: { onAdvance: () => void; onBack: ()
           </button>
           <div className="grid lg:grid-cols-[1fr_auto] gap-4 items-center">
             <div>
-              <div className="kicker text-violet-700">Discover</div>
-              <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-slate-900 tracking-tight leading-[1.05] mt-2">
-                World Cup Tickets
+              <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-violet-700">
+                Discover
+              </div>
+              <h1 className="text-[44px] sm:text-6xl lg:text-7xl xl:text-[88px] font-extrabold text-slate-900 tracking-[-0.03em] leading-[0.95] mt-3">
+                World Cup
+                <br />
+                <span className="bg-gradient-to-br from-violet-600 via-violet-700 to-fuchsia-600 bg-clip-text text-transparent">
+                  Tickets
+                </span>
               </h1>
-              <div className="text-sm text-slate-600 mt-3 flex items-center gap-2">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                70,962 people viewing World Cup events in the past hour
+              <div className="text-sm text-slate-600 mt-4 flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                <span className="font-bold tabular-nums">70,962</span> people viewing World Cup events in the past hour
               </div>
             </div>
             <motion.div
@@ -1493,67 +1573,79 @@ function StageConfirmed({ onAdvance, onBack }: { onAdvance: () => void; onBack: 
           ← Back to seat selection
         </button>
 
-        {/* === Headline + glowing checkmark =========================== */}
-        <div className="text-center mb-8 sm:mb-10">
+        {/* === MASSIVE Headline + glowing checkmark ================== */}
+        <div className="text-center mb-12 sm:mb-16">
           <motion.div
-            className="kicker text-violet-700 mb-3"
+            className="text-[11px] sm:text-xs font-bold uppercase tracking-[0.18em] text-violet-700 mb-4"
             initial={reduced ? false : { opacity: 0, y: -4 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.4 }}
           >
-            Ticket confirmed
+            Ticket Confirmed
           </motion.div>
           <motion.h1
-            initial={reduced ? false : { opacity: 0, y: 8 }}
+            initial={reduced ? false : { opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.55, delay: 0.1, ease: [0.16, 1, 0.3, 1] }}
-            className="text-4xl sm:text-5xl lg:text-6xl font-bold text-slate-900 tracking-tight leading-[1.05]"
+            transition={{ duration: 0.65, delay: 0.1, ease: [0.16, 1, 0.3, 1] }}
+            className="text-[44px] sm:text-6xl lg:text-7xl xl:text-[88px] font-extrabold text-slate-900 tracking-[-0.03em] leading-[0.95]"
           >
             FanFlow Unlocked{' '}
             <motion.span
-              className="inline-block text-violet-600"
-              animate={reduced ? undefined : { rotate: [0, -10, 10, -6, 0] }}
+              className="inline-block bg-gradient-to-br from-violet-500 via-violet-600 to-fuchsia-600 bg-clip-text text-transparent"
+              animate={reduced ? undefined : { rotate: [0, -8, 8, -4, 0] }}
               transition={reduced ? undefined : { duration: 1.4, delay: 0.6, ease: 'easeInOut' }}
             >
               ✨
             </motion.span>
           </motion.h1>
 
-          {/* Big checkmark with concentric glow rings */}
-          <div className="relative inline-flex items-center justify-center mt-8 mb-6">
+          {/* MUCH bigger checkmark with multi-layer glow */}
+          <div className="relative inline-flex items-center justify-center mt-10 sm:mt-12 mb-2">
             {!reduced && (
               <>
                 <motion.span
-                  className="absolute w-32 h-32 sm:w-40 sm:h-40 rounded-full bg-violet-500/20 blur-2xl"
+                  className="absolute w-44 h-44 sm:w-56 sm:h-56 rounded-full bg-fuchsia-400/30 blur-3xl"
                   initial={{ scale: 0.6, opacity: 0 }}
-                  animate={{ scale: 1.2, opacity: 1 }}
-                  transition={{ duration: 1.2, delay: 0.3, ease: 'easeOut' }}
+                  animate={{ scale: 1.3, opacity: 1 }}
+                  transition={{ duration: 1.5, delay: 0.3, ease: 'easeOut' }}
                 />
                 <motion.span
-                  className="absolute w-24 h-24 sm:w-28 sm:h-28 rounded-full border-2 border-violet-300"
-                  initial={{ scale: 0.9, opacity: 0.6 }}
+                  className="absolute w-36 h-36 sm:w-44 sm:h-44 rounded-full bg-violet-500/30 blur-2xl"
+                  initial={{ scale: 0.7, opacity: 0 }}
+                  animate={{ scale: 1.2, opacity: 1 }}
+                  transition={{ duration: 1.2, delay: 0.35, ease: 'easeOut' }}
+                />
+                <motion.span
+                  className="absolute w-28 h-28 sm:w-36 sm:h-36 rounded-full border-2 border-violet-400/60"
+                  initial={{ scale: 0.9, opacity: 0.8 }}
                   animate={{ scale: 1.8, opacity: 0 }}
-                  transition={{ duration: 2, delay: 0.4, repeat: 1, ease: 'easeOut' }}
+                  transition={{ duration: 2.2, delay: 0.4, repeat: 1, ease: 'easeOut' }}
+                />
+                <motion.span
+                  className="absolute w-28 h-28 sm:w-36 sm:h-36 rounded-full border-2 border-fuchsia-400/60"
+                  initial={{ scale: 1, opacity: 0.6 }}
+                  animate={{ scale: 2.2, opacity: 0 }}
+                  transition={{ duration: 2.6, delay: 0.8, repeat: 1, ease: 'easeOut' }}
                 />
               </>
             )}
             <motion.div
-              className="relative w-20 h-20 sm:w-24 sm:h-24 rounded-full bg-gradient-to-br from-violet-500 via-violet-600 to-fuchsia-600 flex items-center justify-center shadow-[0_8px_32px_-4px_rgba(124,58,237,0.6)]"
+              className="relative w-28 h-28 sm:w-36 sm:h-36 rounded-full bg-gradient-to-br from-violet-500 via-violet-600 to-fuchsia-600 flex items-center justify-center shadow-[0_20px_60px_-12px_rgba(124,58,237,0.8)] ring-4 ring-white/60"
               initial={reduced ? false : { scale: 0.5, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
-              transition={{ duration: 0.55, delay: 0.4, ease: [0.16, 1, 0.3, 1] }}
+              transition={{ duration: 0.65, delay: 0.45, ease: [0.16, 1, 0.3, 1] }}
             >
-              <motion.svg viewBox="0 0 24 24" className="w-10 h-10 sm:w-12 sm:h-12 text-white">
+              <motion.svg viewBox="0 0 24 24" className="w-14 h-14 sm:w-20 sm:h-20 text-white">
                 <motion.path
                   d="M4 12.5l5 5L20 6.5"
                   fill="none"
                   stroke="currentColor"
-                  strokeWidth="3"
+                  strokeWidth="3.5"
                   strokeLinecap="round"
                   strokeLinejoin="round"
                   initial={reduced ? false : { pathLength: 0 }}
                   animate={{ pathLength: 1 }}
-                  transition={{ duration: 0.7, delay: 0.65, ease: [0.16, 1, 0.3, 1] }}
+                  transition={{ duration: 0.8, delay: 0.75, ease: [0.16, 1, 0.3, 1] }}
                 />
               </motion.svg>
             </motion.div>
@@ -1853,18 +1945,21 @@ function StageBuilding({ onAdvance, onBack }: { onAdvance: () => void; onBack: (
             </span>
           </motion.div>
           <motion.h2
-            initial={reduced ? false : { opacity: 0, y: 8 }}
+            initial={reduced ? false : { opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.55, delay: 0.1 }}
-            className="text-3xl sm:text-4xl lg:text-5xl font-bold text-slate-900 tracking-tight leading-[1.05]"
+            transition={{ duration: 0.65, delay: 0.1, ease: [0.16, 1, 0.3, 1] }}
+            className="text-[40px] sm:text-5xl lg:text-6xl xl:text-7xl font-extrabold text-slate-900 tracking-[-0.03em] leading-[0.95]"
           >
-            FanFlow is building your plan
+            FanFlow is{' '}
+            <span className="bg-gradient-to-br from-violet-600 via-violet-700 to-fuchsia-600 bg-clip-text text-transparent">
+              building your plan
+            </span>
           </motion.h2>
           <motion.p
             initial={reduced ? false : { opacity: 0, y: 6 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.25 }}
-            className="text-sm sm:text-base text-slate-500 mt-3 max-w-xl mx-auto leading-relaxed"
+            transition={{ duration: 0.5, delay: 0.3 }}
+            className="text-base sm:text-lg text-slate-600 mt-5 max-w-2xl mx-auto leading-relaxed"
           >
             Our multi-layer reasoning engine analyzes your ticket, venue context, and
             live signals to create the smartest way for you to arrive.
@@ -2093,15 +2188,19 @@ function StagePreview({ onBack }: { onBack: () => void }) {
         </button>
 
         {/* === Premium hero ====================================== */}
-        <div className="relative grid lg:grid-cols-[1.6fr_1fr] gap-4 items-center">
+        <div className="relative grid lg:grid-cols-[1.5fr_1fr] gap-6 items-center mt-2 mb-2">
           <div>
-            <div className="kicker text-violet-700">Premium Hub preview</div>
-            <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-slate-900 tracking-tight mt-2 leading-[1.05]">
-              You're all set for Event Day
+            <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-violet-700">
+              Premium Hub Preview
+            </div>
+            <h1 className="text-[44px] sm:text-6xl lg:text-7xl xl:text-[84px] font-extrabold text-slate-900 tracking-[-0.03em] mt-3 leading-[0.95]">
+              You're all set
+              <br />
+              for <span className="bg-gradient-to-br from-violet-600 via-violet-700 to-fuchsia-600 bg-clip-text text-transparent">Event Day</span>
             </h1>
-            <p className="text-sm sm:text-base text-slate-600 mt-3 max-w-xl leading-relaxed flex flex-wrap items-center gap-2">
-              <span className="inline-flex items-center gap-1 text-emerald-700 font-semibold">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+            <p className="text-sm sm:text-base text-slate-600 mt-4 max-w-xl leading-relaxed flex flex-wrap items-center gap-2">
+              <span className="inline-flex items-center gap-1.5 text-emerald-700 font-semibold">
+                <span className="w-2 h-2 rounded-full bg-emerald-500" />
                 Everything is aligned for a smooth arrival.
               </span>
               <span>Here's your personalized plan.</span>
@@ -2110,8 +2209,8 @@ function StagePreview({ onBack }: { onBack: () => void }) {
               </span>
             </p>
           </div>
-          <div className="flex justify-end opacity-90 hidden lg:flex">
-            <StadiumIllustration size={240} />
+          <div className="hidden lg:flex justify-end">
+            <StadiumIllustration size={320} />
           </div>
         </div>
 
