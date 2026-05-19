@@ -6,9 +6,13 @@ import Link from 'next/link'
 import { motion, AnimatePresence } from 'framer-motion'
 import type {
   AccessibilityNeed,
+  ArrivalPreference,
+  BringingItem,
+  FanPriority,
   GroupType,
   ReadinessPrefs,
   TransportMode,
+  VenueExperience,
 } from '@/lib/types'
 import { saveReadiness } from '@/lib/store'
 
@@ -60,6 +64,26 @@ const GROUP_OPTIONS: { value: GroupType; emoji: string; title: string; subtitle:
   { value: 'large_group', emoji: '👫👬', title: 'Larger group', subtitle: '4+ people' },
 ]
 
+const ARRIVAL_OPTIONS: { value: ArrivalPreference; emoji: string; title: string; subtitle: string }[] = [
+  { value: 'early', emoji: '🌅', title: 'Early bird', subtitle: 'Arrive well before gates open' },
+  { value: 'on_time', emoji: '⏰', title: 'Right on time', subtitle: 'Walk in as doors open' },
+  { value: 'last_minute', emoji: '🏃', title: 'Might be late', subtitle: 'Need the fastest route in' },
+]
+
+const PRIORITY_OPTIONS: { value: FanPriority; emoji: string; title: string; subtitle: string }[] = [
+  { value: 'fastest_entry', emoji: '⚡', title: 'Fastest entry', subtitle: 'Shortest line, quickest in' },
+  { value: 'calmest_route', emoji: '🧘', title: 'Calmest route', subtitle: 'Less crowded, more space' },
+  { value: 'closest_seat', emoji: '🎯', title: 'Closest to seat', subtitle: 'Minimal walking inside' },
+  { value: 'family_friendly', emoji: '👶', title: 'Best for families', subtitle: 'Safe, wide, kid-friendly' },
+]
+
+const BRINGING_OPTIONS: { value: BringingItem; emoji: string; title: string; subtitle: string }[] = [
+  { value: 'nothing', emoji: '👐', title: 'Nothing extra', subtitle: 'Phone + ticket only' },
+  { value: 'small_bag', emoji: '👜', title: 'Small bag', subtitle: 'Clutch or clear bag' },
+  { value: 'large_bag', emoji: '🎒', title: 'Backpack / large bag', subtitle: 'May need bag check' },
+  { value: 'medical_equipment', emoji: '🏥', title: 'Medical equipment', subtitle: 'Special screening lane' },
+]
+
 const NEED_OPTIONS: { value: AccessibilityNeed; emoji: string; title: string; subtitle?: string }[] = [
   { value: 'wheelchair', emoji: '♿', title: 'Wheelchair / step-free entry' },
   {
@@ -89,12 +113,15 @@ export default function ReadinessPage() {
   const [step, setStep] = useState(0)
   const [transport, setTransport] = useState<TransportMode | null>(null)
   const [group, setGroup] = useState<GroupType | null>(null)
+  const [arrivalPref, setArrivalPref] = useState<ArrivalPreference | null>(null)
+  const [priority, setPriority] = useState<FanPriority | null>(null)
+  const [bringing, setBringing] = useState<BringingItem | null>(null)
   const [needs, setNeeds] = useState<AccessibilityNeed[]>([])
   const [notes, setNotes] = useState('')
   const [feedback, setFeedback] = useState<string | null>(null)
   const [celebrating, setCelebrating] = useState(false)
 
-  const totalSteps = 4
+  const totalSteps = 7
   const progress = ((step + 1) / totalSteps) * 100
 
   // Auto-dismiss the calm micro-feedback toast after 1.6s
@@ -127,6 +154,38 @@ export default function ReadinessPage() {
     setFeedback(msg[g])
   }
 
+  const pickArrival = (a: ArrivalPreference) => {
+    setArrivalPref(a)
+    const msg: Record<ArrivalPreference, string> = {
+      early: "Early bird! Extra time built into your plan.",
+      on_time: "Right on time. Standard buffer applied.",
+      last_minute: "Fastest route prioritized for you.",
+    }
+    setFeedback(msg[a])
+  }
+
+  const pickPriority = (p: FanPriority) => {
+    setPriority(p)
+    const msg: Record<FanPriority, string> = {
+      fastest_entry: "Speed prioritized. Shortest-line gate selected.",
+      calmest_route: "Calm route preferred. Lower-traffic gate selected.",
+      closest_seat: "Closest gate to your section selected.",
+      family_friendly: "Family-safe gate and routing prioritized.",
+    }
+    setFeedback(msg[p])
+  }
+
+  const pickBringing = (b: BringingItem) => {
+    setBringing(b)
+    const msg: Record<BringingItem, string> = {
+      nothing: "Express screening — you're all set.",
+      small_bag: "Clear bag speeds up screening.",
+      large_bag: "Bag check time added to your buffer.",
+      medical_equipment: "Special screening lane noted.",
+    }
+    setFeedback(msg[b])
+  }
+
   const toggleNeed = (n: AccessibilityNeed) => {
     const wasSelected = needs.includes(n)
     setNeeds((prev) => (prev.includes(n) ? prev.filter((x) => x !== n) : [...prev, n]))
@@ -148,6 +207,8 @@ export default function ReadinessPage() {
   const canAdvance = () => {
     if (step === 0) return transport !== null
     if (step === 1) return group !== null
+    // Steps 2–4 (arrival, priority, bringing) are optional-skip-friendly
+    // but we still allow advancing even if null (skip = keep null)
     return true
   }
 
@@ -155,11 +216,18 @@ export default function ReadinessPage() {
     setCelebrating(true)
     // Save immediately; redirect after the brief celebration so the user sees it
     setTimeout(() => router.push(`/event/${eventId}/hub`), 1400)
+    const derivedVenueExp: VenueExperience | undefined =
+      needs.includes('first_time') ? 'first_time' : undefined
+
     const prefs: ReadinessPrefs = {
       transport: transport ?? 'transit',
       group: group ?? 'solo',
       needs: needs.length ? needs : ['none'],
       notes: notes.trim() || undefined,
+      arrival_preference: arrivalPref ?? undefined,
+      priority: priority ?? undefined,
+      bringing: bringing ?? undefined,
+      venue_experience: derivedVenueExp,
       updated_at: new Date().toISOString(),
     }
     saveReadiness(prefs)
@@ -322,6 +390,69 @@ export default function ReadinessPage() {
         {step === 2 && (
           <>
             <div>
+              <h2 className="text-2xl font-bold text-slate-900">When do you want to arrive?</h2>
+              <p className="text-slate-600 mt-1">We&apos;ll adjust timing buffers and route urgency.</p>
+            </div>
+            <div className="space-y-2">
+              {ARRIVAL_OPTIONS.map((opt) => (
+                <OptionCard
+                  key={opt.value}
+                  selected={arrivalPref === opt.value}
+                  onClick={() => pickArrival(opt.value)}
+                  emoji={opt.emoji}
+                  title={opt.title}
+                  subtitle={opt.subtitle}
+                />
+              ))}
+            </div>
+          </>
+        )}
+
+        {step === 3 && (
+          <>
+            <div>
+              <h2 className="text-2xl font-bold text-slate-900">What matters most today?</h2>
+              <p className="text-slate-600 mt-1">Pick your top priority — we&apos;ll optimize for it.</p>
+            </div>
+            <div className="space-y-2">
+              {PRIORITY_OPTIONS.map((opt) => (
+                <OptionCard
+                  key={opt.value}
+                  selected={priority === opt.value}
+                  onClick={() => pickPriority(opt.value)}
+                  emoji={opt.emoji}
+                  title={opt.title}
+                  subtitle={opt.subtitle}
+                />
+              ))}
+            </div>
+          </>
+        )}
+
+        {step === 4 && (
+          <>
+            <div>
+              <h2 className="text-2xl font-bold text-slate-900">Bringing anything through security?</h2>
+              <p className="text-slate-600 mt-1">Helps us estimate screening time at your gate.</p>
+            </div>
+            <div className="space-y-2">
+              {BRINGING_OPTIONS.map((opt) => (
+                <OptionCard
+                  key={opt.value}
+                  selected={bringing === opt.value}
+                  onClick={() => pickBringing(opt.value)}
+                  emoji={opt.emoji}
+                  title={opt.title}
+                  subtitle={opt.subtitle}
+                />
+              ))}
+            </div>
+          </>
+        )}
+
+        {step === 5 && (
+          <>
+            <div>
               <h2 className="text-2xl font-bold text-slate-900">Any accessibility needs?</h2>
               <p className="text-slate-600 mt-1">
                 Pick anything that applies. We'll route you to the right gate and support points.
@@ -343,7 +474,7 @@ export default function ReadinessPage() {
           </>
         )}
 
-        {step === 3 && (
+        {step === 6 && (
           <>
             <div>
               <h2 className="text-2xl font-bold text-slate-900">Anything else we should know?</h2>
@@ -363,12 +494,30 @@ export default function ReadinessPage() {
               <dl className="space-y-2 text-sm">
                 <div className="flex justify-between">
                   <dt className="text-slate-600">Transport</dt>
-                  <dd className="font-semibold text-slate-900 capitalize">{transport}</dd>
+                  <dd className="font-semibold text-slate-900 capitalize">{transport ?? '—'}</dd>
                 </div>
                 <div className="flex justify-between">
                   <dt className="text-slate-600">Group</dt>
                   <dd className="font-semibold text-slate-900">
                     {GROUP_OPTIONS.find((g) => g.value === group)?.title ?? '—'}
+                  </dd>
+                </div>
+                <div className="flex justify-between">
+                  <dt className="text-slate-600">Arrival</dt>
+                  <dd className="font-semibold text-slate-900">
+                    {ARRIVAL_OPTIONS.find((a) => a.value === arrivalPref)?.title ?? '—'}
+                  </dd>
+                </div>
+                <div className="flex justify-between">
+                  <dt className="text-slate-600">Priority</dt>
+                  <dd className="font-semibold text-slate-900">
+                    {PRIORITY_OPTIONS.find((p) => p.value === priority)?.title ?? '—'}
+                  </dd>
+                </div>
+                <div className="flex justify-between">
+                  <dt className="text-slate-600">Bags</dt>
+                  <dd className="font-semibold text-slate-900">
+                    {BRINGING_OPTIONS.find((b) => b.value === bringing)?.title ?? '—'}
                   </dd>
                 </div>
                 <div className="flex justify-between gap-3">

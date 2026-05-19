@@ -62,11 +62,31 @@ export type AccessibilityNeed =
   | 'first_time'
   | 'none'
 
+/** When the fan wants to arrive relative to the event. */
+export type ArrivalPreference = 'early' | 'on_time' | 'last_minute'
+
+/** What matters most to this fan on event day. */
+export type FanPriority = 'fastest_entry' | 'calmest_route' | 'closest_seat' | 'family_friendly'
+
+/** What the fan is bringing through security. */
+export type BringingItem = 'nothing' | 'small_bag' | 'large_bag' | 'medical_equipment'
+
+/** How familiar the fan is with this venue. */
+export type VenueExperience = 'first_time' | 'been_before' | 'regular'
+
 export interface ReadinessPrefs {
   transport: TransportMode
   group: GroupType
   needs: AccessibilityNeed[]
   notes?: string
+  /** When they want to arrive. Optional — added in expanded personalization. */
+  arrival_preference?: ArrivalPreference
+  /** What matters most to them. Optional. */
+  priority?: FanPriority
+  /** What they're bringing through security. Optional. */
+  bringing?: BringingItem
+  /** How well they know this venue. Optional. */
+  venue_experience?: VenueExperience
   updated_at: string
 }
 
