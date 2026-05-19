@@ -14,9 +14,17 @@ import { loadSelectedTicket } from '@/lib/ticketContext'
 import {
   getAllSignals,
   loadReadiness,
+  saveReadiness,
   subscribeToFanflowChanges,
 } from '@/lib/store'
-import type { ArrivalPlan, LiveSignal, ReadinessPrefs } from '@/lib/types'
+import type {
+  AccessibilityNeed,
+  ArrivalPlan,
+  GroupType,
+  LiveSignal,
+  ReadinessPrefs,
+  TransportMode,
+} from '@/lib/types'
 import { computeEventIntelligence, computeFanPulse } from '@/lib/intelligence'
 import type { EventIntelligence, FanPulseBreakdown } from '@/lib/intelligence'
 import { HelpSheet } from '@/components/shared/HelpSheet'
@@ -419,6 +427,11 @@ export default function EventHubPage() {
               View full arrival guide →
             </Link>
           </motion.section>
+
+          {/* === Inline Personalization Prompt ========================= */}
+          {!prefs && (
+            <PersonalizationPrompt onSaved={refresh} eventId={eventId} />
+          )}
 
           {/* === Dashboard tile grid =================================== */}
           <motion.section
@@ -1021,15 +1034,15 @@ function SmartAlerts({
     })
   }
 
-  // If no prefs set at all, show a gentle nudge + a generic safety note
+  // If no prefs set, show a safety-first baseline message (the inline
+  // personalization prompt above the tiles handles the main nudge now)
   if (!prefs) {
     alerts.push({
-      id: 'personalize-nudge',
-      icon: '✨',
-      title: 'Get personalized alerts',
-      body: 'Tell us about your group and needs — we\'ll tailor your gate recommendations, timing, and support info to match.',
-      tone: 'violet',
-      action: { label: 'Personalize now', href: `/event/${eventId}/readiness` },
+      id: 'safety-baseline',
+      icon: '🛡️',
+      title: 'Safety basics for today',
+      body: `Staff are stationed at every gate including ${gateLabel}. For urgent help, flag any high-vis vest or call 911. FanFlow updates your plan live as conditions change.`,
+      tone: 'emerald',
     })
   }
 
@@ -1145,5 +1158,321 @@ function SmartAlerts({
         })}
       </div>
     </motion.section>
+  )
+}
+
+/**
+ * PersonalizationPrompt — inline mini-questionnaire on the Hub.
+ *
+ * Appears between the Arrival Plan card and the tile grid when the fan
+ * hasn't set preferences. Three quick-pick steps (transport → group →
+ * needs) are compressed into one scrollable card. Answering saves to the
+ * store immediately and triggers `onSaved` so the parent re-derives the
+ * plan with the new inputs.
+ *
+ * The user can skip at any time; the Hub then shows baseline safety
+ * messages via SmartAlerts. If they complete the flow, personalized
+ * alerts unlock, the plan confidence increases, and the journey/map/
+ * conditions pages all adapt.
+ */
+const QUICK_TRANSPORT: { value: TransportMode; emoji: string; label: string }[] = [
+  { value: 'transit', emoji: '🚆', label: 'Transit' },
+  { value: 'driving', emoji: '🚗', label: 'Driving' },
+  { value: 'rideshare', emoji: '🚕', label: 'Rideshare' },
+  { value: 'walking', emoji: '🚶', label: 'Walking' },
+]
+
+const QUICK_GROUP: { value: GroupType; emoji: string; label: string }[] = [
+  { value: 'solo', emoji: '🧍', label: 'Solo' },
+  { value: 'couple', emoji: '👥', label: 'Two of us' },
+  { value: 'family_young_kids', emoji: '👨‍👩‍👧', label: 'Family (young)' },
+  { value: 'family_teens', emoji: '👨‍👩‍👦', label: 'Family (teens)' },
+  { value: 'large_group', emoji: '👫', label: 'Large group' },
+]
+
+const QUICK_NEEDS: { value: AccessibilityNeed; emoji: string; label: string }[] = [
+  { value: 'wheelchair', emoji: '♿', label: 'Step-free' },
+  { value: 'slow_pace', emoji: '🦯', label: 'Shorter walk' },
+  { value: 'stroller', emoji: '🍼', label: 'Stroller' },
+  { value: 'sensory_sensitive', emoji: '🧩', label: 'Sensory-safe' },
+  { value: 'first_time', emoji: '🧭', label: 'First time' },
+  { value: 'none', emoji: '✓', label: 'No needs' },
+]
+
+function PersonalizationPrompt({
+  onSaved,
+  eventId,
+}: {
+  onSaved: () => void
+  eventId: string
+}) {
+  const [step, setStep] = useState(0) // 0 = intro, 1 = transport, 2 = group, 3 = needs, 4 = done
+  const [dismissed, setDismissed] = useState(false)
+  const [transport, setTransport] = useState<TransportMode | null>(null)
+  const [group, setGroup] = useState<GroupType | null>(null)
+  const [needs, setNeeds] = useState<AccessibilityNeed[]>([])
+
+  if (dismissed) return null
+
+  const saveAndFinish = () => {
+    const prefs: ReadinessPrefs = {
+      transport: transport ?? 'transit',
+      group: group ?? 'solo',
+      needs: needs.length > 0 ? needs : ['none'],
+      updated_at: new Date().toISOString(),
+    }
+    saveReadiness(prefs)
+    setStep(4)
+    // Trigger parent refresh so derived data recalculates with new prefs
+    setTimeout(onSaved, 300)
+  }
+
+  const toggleNeed = (n: AccessibilityNeed) => {
+    if (n === 'none') {
+      setNeeds([])
+      return
+    }
+    setNeeds((prev) =>
+      prev.includes(n) ? prev.filter((x) => x !== n) : [...prev.filter((x) => x !== 'none'), n],
+    )
+  }
+
+  return (
+    <AnimatePresence mode="wait">
+      <motion.section
+        key={`prompt-step-${step}`}
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: -8 }}
+        transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+        className="relative rounded-3xl bg-gradient-to-br from-violet-50 via-white to-fuchsia-50/30 border border-violet-200 shadow-[0_4px_20px_-8px_rgba(124,58,237,0.15)] p-5 overflow-hidden"
+      >
+        {/* Subtle decorative gradient */}
+        <div
+          aria-hidden="true"
+          className="absolute -top-10 -right-10 w-28 h-28 rounded-full bg-gradient-to-br from-violet-200/50 to-fuchsia-200/30 blur-2xl"
+        />
+
+        {/* Step 0: Intro */}
+        {step === 0 && (
+          <div className="relative">
+            <div className="flex items-start gap-3 mb-3">
+              <span className="w-11 h-11 rounded-2xl bg-gradient-to-br from-violet-500 to-fuchsia-600 text-white flex items-center justify-center text-lg flex-shrink-0 shadow-md shadow-violet-500/25">
+                ✨
+              </span>
+              <div className="flex-1 min-w-0">
+                <div className="text-[10px] font-bold uppercase tracking-wider text-violet-700">
+                  Quick personalization
+                </div>
+                <div className="font-bold text-slate-900 text-[15px] leading-tight mt-0.5">
+                  3 quick questions to tailor your day
+                </div>
+              </div>
+            </div>
+            <p className="text-[12px] text-slate-600 leading-relaxed mb-1">
+              Tell us how you&apos;re arriving and who&apos;s with you. We&apos;ll adjust your
+              gate, timing, and safety info to match — takes under 30 seconds.
+            </p>
+            <p className="text-[11px] text-slate-500 mb-4">
+              Even if you skip, we&apos;ll still send you the important safety updates.
+            </p>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setStep(1)}
+                className="flex-1 px-4 py-2.5 rounded-xl bg-violet-600 hover:bg-violet-700 text-white font-bold text-sm transition"
+              >
+                Let&apos;s go →
+              </button>
+              <button
+                onClick={() => setDismissed(true)}
+                className="px-4 py-2.5 rounded-xl bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 font-semibold text-sm transition"
+              >
+                Skip
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Step 1: Transport */}
+        {step === 1 && (
+          <div className="relative">
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <div className="text-[10px] font-bold uppercase tracking-wider text-violet-700">
+                  Step 1 of 3
+                </div>
+                <div className="font-bold text-slate-900 text-base mt-0.5">
+                  How are you getting there?
+                </div>
+              </div>
+              <button
+                onClick={() => { setTransport('transit'); setStep(2) }}
+                className="text-[11px] text-slate-400 hover:text-slate-600"
+              >
+                Skip
+              </button>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              {QUICK_TRANSPORT.map((opt) => (
+                <button
+                  key={opt.value}
+                  onClick={() => { setTransport(opt.value); setStep(2) }}
+                  className={`flex items-center gap-2.5 px-3 py-3 rounded-xl border transition text-left ${
+                    transport === opt.value
+                      ? 'border-violet-600 bg-violet-50'
+                      : 'border-slate-200 bg-white hover:border-slate-300 active:bg-slate-50'
+                  }`}
+                >
+                  <span className="text-lg">{opt.emoji}</span>
+                  <span className="font-semibold text-slate-900 text-sm">{opt.label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Step 2: Group */}
+        {step === 2 && (
+          <div className="relative">
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <div className="text-[10px] font-bold uppercase tracking-wider text-violet-700">
+                  Step 2 of 3
+                </div>
+                <div className="font-bold text-slate-900 text-base mt-0.5">
+                  Who&apos;s coming with you?
+                </div>
+              </div>
+              <button
+                onClick={() => { setGroup('solo'); setStep(3) }}
+                className="text-[11px] text-slate-400 hover:text-slate-600"
+              >
+                Skip
+              </button>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              {QUICK_GROUP.map((opt) => (
+                <button
+                  key={opt.value}
+                  onClick={() => { setGroup(opt.value); setStep(3) }}
+                  className={`flex items-center gap-2.5 px-3 py-3 rounded-xl border transition text-left ${
+                    group === opt.value
+                      ? 'border-violet-600 bg-violet-50'
+                      : 'border-slate-200 bg-white hover:border-slate-300 active:bg-slate-50'
+                  }`}
+                >
+                  <span className="text-lg">{opt.emoji}</span>
+                  <span className="font-semibold text-slate-900 text-sm">{opt.label}</span>
+                </button>
+              ))}
+            </div>
+            <button
+              onClick={() => setStep(1)}
+              className="mt-2 text-[11px] text-violet-600 font-semibold hover:underline"
+            >
+              ← Back
+            </button>
+          </div>
+        )}
+
+        {/* Step 3: Needs */}
+        {step === 3 && (
+          <div className="relative">
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <div className="text-[10px] font-bold uppercase tracking-wider text-violet-700">
+                  Step 3 of 3
+                </div>
+                <div className="font-bold text-slate-900 text-base mt-0.5">
+                  Any accessibility needs?
+                </div>
+              </div>
+            </div>
+            <p className="text-[11px] text-slate-500 mb-2">
+              Tap any that apply. We&apos;ll route to the right gate and support.
+            </p>
+            <div className="flex flex-wrap gap-1.5">
+              {QUICK_NEEDS.map((opt) => {
+                const isSelected = opt.value === 'none'
+                  ? needs.length === 0
+                  : needs.includes(opt.value)
+                return (
+                  <button
+                    key={opt.value}
+                    onClick={() => toggleNeed(opt.value)}
+                    className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border text-sm font-semibold transition ${
+                      isSelected
+                        ? 'border-violet-600 bg-violet-50 text-violet-900'
+                        : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'
+                    }`}
+                  >
+                    <span>{opt.emoji}</span>
+                    {opt.label}
+                  </button>
+                )
+              })}
+            </div>
+            <div className="flex gap-2 mt-4">
+              <button
+                onClick={() => setStep(2)}
+                className="px-4 py-2.5 rounded-xl bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 font-semibold text-sm transition"
+              >
+                ← Back
+              </button>
+              <button
+                onClick={saveAndFinish}
+                className="flex-1 px-4 py-2.5 rounded-xl bg-violet-600 hover:bg-violet-700 text-white font-bold text-sm transition"
+              >
+                Save & personalize my plan ✓
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Step 4: Done confirmation */}
+        {step === 4 && (
+          <motion.div
+            initial={{ scale: 0.95, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            className="relative text-center py-3"
+          >
+            <motion.div
+              initial={{ scale: 0.5 }}
+              animate={{ scale: 1 }}
+              transition={{ type: 'spring', stiffness: 200, damping: 12 }}
+              className="w-14 h-14 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center text-2xl font-bold mx-auto mb-2"
+            >
+              ✓
+            </motion.div>
+            <div className="font-bold text-slate-900 text-base">Plan personalized!</div>
+            <p className="text-[12px] text-slate-600 mt-1 leading-relaxed">
+              Your gate, timing, alerts, and support info are now tailored to you.
+              {transport === 'driving' ? ' Parking buffer added.' : ''}
+              {group === 'family_young_kids' ? ' Family-friendly routing enabled.' : ''}
+            </p>
+            <Link
+              href={`/event/${eventId}/readiness`}
+              className="inline-flex items-center gap-1 mt-3 text-[11px] font-bold text-violet-700 hover:underline"
+            >
+              Fine-tune in full preferences ›
+            </Link>
+          </motion.div>
+        )}
+
+        {/* Progress bar */}
+        {step >= 1 && step <= 3 && (
+          <div className="mt-4 flex gap-1">
+            {[1, 2, 3].map((s) => (
+              <div
+                key={s}
+                className={`h-1 flex-1 rounded-full transition-colors ${
+                  s <= step ? 'bg-violet-600' : 'bg-slate-200'
+                }`}
+              />
+            ))}
+          </div>
+        )}
+      </motion.section>
+    </AnimatePresence>
   )
 }
