@@ -187,8 +187,14 @@ export default function ReadinessPage() {
   }
 
   const toggleNeed = (n: AccessibilityNeed) => {
+    // "None" clears every other selection (symmetric with the Hub prompt)
+    if (n === 'none') { setNeeds([]); return }
     const wasSelected = needs.includes(n)
-    setNeeds((prev) => (prev.includes(n) ? prev.filter((x) => x !== n) : [...prev, n]))
+    setNeeds((prev) =>
+      prev.includes(n)
+        ? prev.filter((x) => x !== n)
+        : [...prev.filter((x) => x !== 'none'), n],
+    )
     if (!wasSelected) {
       const msg: Record<AccessibilityNeed, string> = {
         wheelchair: 'Accessibility-aware routing enabled.',

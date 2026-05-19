@@ -7,7 +7,6 @@ import { motion, AnimatePresence, useReducedMotion } from 'framer-motion'
 import {
   demoEvent,
   demoTicket,
-  demoVenue,
   deriveArrivalPlan,
 } from '@/lib/seed'
 import { loadSelectedTicket } from '@/lib/ticketContext'
@@ -833,7 +832,7 @@ export default function EventHubPage() {
       </AnimatePresence>
 
       {/* Suppress unused-var lint while hydrated flag is reserved for future use */}
-      {hydrated && demoVenue && null}
+      {hydrated && null}
     </>
   )
 }
@@ -1133,6 +1132,18 @@ function SmartAlerts({
       action: { label: 'Get help', onClick: onHelp },
     })
   }
+
+  // Sort by urgency so the cap doesn't push out time-sensitive alerts.
+  // Higher tier = shown first. Ties preserve insertion order (stable sort).
+  const URGENCY: Record<string, number> = {
+    'fan-concern': 5, 'busy-entry': 5,              // live conditions — highest
+    'late-arrival': 4, 'bag-check': 4,              // time-sensitive actions
+    'medical-screening': 4, 'accessibility': 4,      // safety / accessibility
+    'sensory': 3, 'family-young': 3,                 // group-specific, actionable
+    'calm-route': 2, 'close-seat': 2,                // nice-to-know optimizations
+    'safety-baseline': 1, 'safety-proactive': 1,     // always-on safety
+  }
+  alerts.sort((a, b) => (URGENCY[b.id] ?? 2) - (URGENCY[a.id] ?? 2))
 
   // Cap at 4 to prevent the Hub from becoming a wall of cards
   const visible = alerts.slice(0, 4)
