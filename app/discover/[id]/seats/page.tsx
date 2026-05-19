@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import { demoEvent, demoTicket, demoVenue } from '@/lib/seed'
+import { saveSelectedTicket } from '@/lib/ticketContext'
 
 // Static mapping for the seven matches in /discover/[id]. Mirrors the
 // listing page so the seat picker can show the actual team names + date.
@@ -70,6 +71,14 @@ export default function DiscoverDetailPage() {
 
   const handleCheckout = () => {
     setCheckingOut(true)
+    // Persist the selected section so checkout-success / building-plan /
+    // Hub can actually reflect it instead of silently using demoTicket.
+    saveSelectedTicket({
+      section: selected.id,
+      row: demoTicket.row,
+      seat: demoTicket.seat,
+      event_id: eventId,
+    })
     // Brief "processing" beat for credibility — then route to the
     // cinematic checkout-success page which carries the FanFlow handoff.
     setTimeout(() => {

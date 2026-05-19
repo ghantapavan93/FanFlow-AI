@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef, type ReactNode } from 'react'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import { demoEvent, demoTicket, demoVenue, deriveArrivalPlan } from '@/lib/seed'
+import { loadSelectedTicket } from '@/lib/ticketContext'
 import {
   getAllSignals,
   loadChecklist,
@@ -82,6 +83,13 @@ export default function EventHubPage() {
   const [helpOpen, setHelpOpen] = useState(false)
   const [staffToast, setStaffToast] = useState<{ message: string; sentiment: string } | null>(null)
 
+  // Selected ticket — populated by the seat picker on /discover/[id]/seats
+  // (and by the vision walkthrough's seatmap stage). Falls back to seed
+  // demoTicket when nothing was selected — same as before, no regression
+  // for users who land on /hub directly.
+  const [selectedTicket, setSelectedTicket] = useState<ReturnType<typeof loadSelectedTicket>>(null)
+  const ticket = selectedTicket ?? demoTicket
+
   // Track the most-recent staff-signal id we've already shown a toast for.
   // The toast only fires when a NEW staff signal arrives (not on initial
   // mount). Prevents the demo from greeting the user with a stale "staff
@@ -92,6 +100,7 @@ export default function EventHubPage() {
   const refresh = useCallback(() => {
     setPrefs(loadReadiness())
     setSignals(getAllSignals())
+    setSelectedTicket(loadSelectedTicket())
   }, [])
 
   useEffect(() => {
@@ -221,8 +230,8 @@ export default function EventHubPage() {
                   Ticket confirmed
                 </div>
                 <div className="text-xs sm:text-sm text-emerald-800 mt-0.5">
-                  Section {demoTicket.section} · Row {demoTicket.row} · Seat{' '}
-                  {demoTicket.seat}
+                  Section {ticket.section} · Row {ticket.row} · Seat{' '}
+                  {ticket.seat}
                 </div>
                 <p className="text-xs text-emerald-700 mt-2 leading-relaxed">
                   Want a personalized arrival guide for your group? It takes about 90 seconds.
@@ -251,7 +260,7 @@ export default function EventHubPage() {
                 <span className="font-semibold text-emerald-800">Ticket confirmed</span>
                 <span className="text-slate-400">·</span>
                 <span className="text-slate-600 truncate">
-                  Section {demoTicket.section}, Row {demoTicket.row}
+                  Section {ticket.section}, Row {ticket.row}
                 </span>
               </div>
               <Link
@@ -263,6 +272,25 @@ export default function EventHubPage() {
             </div>
           )}
         </motion.div>
+
+        {/* Ticket context proof line — shows the Hub is actually using the
+            selected ticket (from /discover seatmap or vision route) and not
+            silently falling back to a hardcoded demo seed. */}
+        {hydrated && selectedTicket && (
+          <div className="rounded-xl bg-violet-50/70 border border-violet-200 px-3 py-2 flex items-center gap-2 text-[11px] text-violet-900">
+            <span className="font-bold uppercase tracking-wider text-[9px] text-violet-700">
+              Ticket context
+            </span>
+            <span className="text-slate-400">·</span>
+            <span className="font-mono">
+              Section {selectedTicket.section} · Row {selectedTicket.row} · 3 tickets
+            </span>
+            <span className="text-slate-400">·</span>
+            <span className="text-[10px] text-slate-600">
+              from your selection
+            </span>
+          </div>
+        )}
 
         {/* Event Hero — StubHub-style confirmation card, cinematic refinement */}
         <div className="card-base overflow-hidden">
@@ -525,7 +553,7 @@ export default function EventHubPage() {
                 { icon: '📍', label: `Look for ${plan.recommended_gate.name} signage from the parking lot — the gate name appears on all overhead signs.` },
                 { icon: '🛂', label: 'Have your mobile ticket open before joining the entrance queue — saves 1–2 minutes at bag check.' },
                 { icon: '🦺', label: 'Any staff member in a high-visibility vest can answer questions and radio for support.' },
-                { icon: '🚻', label: `Once inside, follow Section ${demoTicket.section} signs along the main concourse to your seat.` },
+                { icon: '🚻', label: `Once inside, follow Section ${ticket.section} signs along the main concourse to your seat.` },
               ].map((tip) => (
                 <li key={tip.label} className="flex items-start gap-2">
                   <span className="text-base leading-none mt-0.5 flex-shrink-0">{tip.icon}</span>
@@ -593,7 +621,8 @@ export default function EventHubPage() {
                       : 'bg-rose-500'
                   }`}
                 />
-                {plan.confidence.charAt(0).toUpperCase() + plan.confidence.slice(1)} confidence
+                {plan.confidence.charAt(0).toUpperCase() + plan.confidence.slice(1)} ·{' '}
+                {plan.confidence_breakdown.percent}%
               </span>
             </div>
 
@@ -657,7 +686,7 @@ export default function EventHubPage() {
               const c = picked.components
               const reasons: { label: string; tone: 'pos' | 'neg' }[] = []
               if (c.section_proximity >= 10)
-                reasons.push({ label: `Closest to Section ${demoTicket.section}`, tone: 'pos' })
+                reasons.push({ label: `Closest to Section ${ticket.section}`, tone: 'pos' })
               else if (c.section_proximity >= 6)
                 reasons.push({ label: `Near your section`, tone: 'pos' })
               if (c.accessibility_match > 0) {
@@ -714,6 +743,82 @@ export default function EventHubPage() {
                 </div>
               )
             })()}
+
+            {/* Trust labels — Plan source / Data mode / Last derived /
+                Signal count. Source-of-truth labeling for senior probe. */}
+            {(() => {
+              const cb = plan.confidence_breakdown
+              const derivedAge = Math.floor(
+                (Date.now() - new Date(cb.derivedAt).getTime()) / 1000,
+              )
+              const derivedLabel =
+                derivedAge < 5
+                  ? 'just now'
+                  : derivedAge < 60
+                    ? `${derivedAge}s ago`
+                    : `${Math.floor(derivedAge / 60)}m ago`
+              const mode = cb.hasConflict
+                ? { label: 'Conflicting signals', tone: 'text-rose-700' }
+                : cb.staffSignalCount > 0
+                  ? { label: 'Staff verified', tone: 'text-emerald-700' }
+                  : cb.fanSignalCount >= 3
+                    ? { label: 'Fan pulse only', tone: 'text-amber-700' }
+                    : cb.isLimitedData
+                      ? { label: 'Limited data', tone: 'text-slate-700' }
+                      : { label: 'Baseline venue guidance', tone: 'text-slate-700' }
+              return (
+                <div className="mb-3 rounded-xl bg-slate-50 border border-slate-200 p-3 text-[11px] text-slate-600 grid grid-cols-2 gap-2 leading-snug">
+                  <div>
+                    <div className="font-bold uppercase tracking-wider text-[9px] text-slate-500">Plan source</div>
+                    <div className="font-semibold text-slate-900 mt-0.5">Rule engine</div>
+                  </div>
+                  <div>
+                    <div className="font-bold uppercase tracking-wider text-[9px] text-slate-500">Data mode</div>
+                    <div className={`font-semibold mt-0.5 ${mode.tone}`}>{mode.label}</div>
+                  </div>
+                  <div>
+                    <div className="font-bold uppercase tracking-wider text-[9px] text-slate-500">Last derived</div>
+                    <div className="font-semibold text-slate-900 mt-0.5 font-mono">{derivedLabel}</div>
+                  </div>
+                  <div>
+                    <div className="font-bold uppercase tracking-wider text-[9px] text-slate-500">Signals used</div>
+                    <div className="font-semibold text-slate-900 mt-0.5">
+                      {cb.staffSignalCount} staff · {cb.fanSignalCount} fan
+                    </div>
+                  </div>
+                </div>
+              )
+            })()}
+
+            {/* Degraded-state banners — safe copy from spec */}
+            {plan.confidence_breakdown.hasConflict && (
+              <div className="mb-3 rounded-xl bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-900 flex items-start gap-2">
+                <span>⚠️</span>
+                <span>
+                  <span className="font-bold">Mixed reports detected.</span> Keeping the
+                  recommendation conservative until signals align.
+                </span>
+              </div>
+            )}
+            {plan.confidence_breakdown.staffSignalCount === 0 &&
+              !plan.confidence_breakdown.hasConflict && (
+                <div className="mb-3 rounded-xl bg-slate-50 border border-slate-200 px-3 py-2 text-xs text-slate-700 flex items-start gap-2">
+                  <span>🛡️</span>
+                  <span>
+                    {plan.confidence_breakdown.fanSignalCount >= 3 ? (
+                      <>
+                        <span className="font-bold">Fan pulse only.</span> Fan reports
+                        inform conditions. Staff and venue signage should still be followed.
+                      </>
+                    ) : (
+                      <>
+                        <span className="font-bold">No recent staff update.</span> Showing
+                        baseline venue guidance.
+                      </>
+                    )}
+                  </span>
+                </div>
+              )}
 
             <Link href={`/event/${eventId}/guide`} className="btn-primary w-full">
               View Full Arrival Guide →

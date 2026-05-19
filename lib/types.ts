@@ -88,6 +88,32 @@ export interface GateScoreBreakdown {
   is_recommended: boolean
 }
 
+/**
+ * Derived confidence object. Replaces the older binary high/medium/low
+ * label as the load-bearing field; the string `confidence` remains on
+ * ArrivalPlan for backward compatibility with existing UI and is now
+ * derived from `confidence_breakdown.percent`.
+ *
+ * `hasConflict` is true when staff and fan reports disagree on the same
+ * gate (e.g. staff says smooth, 3+ fans say busy). When true, the rule
+ * engine takes a conservative posture and the Hub surfaces a banner.
+ *
+ * `isStale` is true when the newest signal for the recommended gate is
+ * older than 60 minutes — the score still applies (filter is 2h), but
+ * the UI should communicate freshness.
+ */
+export interface ConfidenceBreakdown {
+  percent: number // 25..95, clamped
+  reasons: string[]
+  signalCount: number
+  staffSignalCount: number
+  fanSignalCount: number
+  hasConflict: boolean
+  isLimitedData: boolean
+  isStale: boolean
+  derivedAt: string // ISO timestamp
+}
+
 export interface ArrivalPlan {
   recommended_gate: Gate
   leave_by_time: string
@@ -95,6 +121,8 @@ export interface ArrivalPlan {
   route_summary: string
   confidence: 'high' | 'medium' | 'low'
   confidence_reason: string
+  /** Rich confidence breakdown. Always populated. */
+  confidence_breakdown: ConfidenceBreakdown
   explanation_text?: string
   support_points: SupportPoint[]
   gate_scores?: GateScoreBreakdown[]

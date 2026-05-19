@@ -32,7 +32,11 @@ describe('rule engine — scenario coverage', () => {
     expect(plan.recommended_gate.id).toBe('gate-3')
     expect(plan.recommended_gate.family_friendly).toBe(true)
     expect(plan.support_points.map((sp) => sp.type)).toContain('family_services')
-    expect(plan.confidence).toBe('high')
+    // With no live signals, the new derived-confidence model correctly
+    // refuses to claim 'high' — confidence drops to medium until a staff
+    // or 3+ fan reports back the plan. Prefs alone aren't enough.
+    expect(plan.confidence).toBe('medium')
+    expect(plan.confidence_breakdown.isLimitedData).toBe(true)
   })
 
   it('Solo regular fan — recommends Gate 3 but no family surfaces', () => {
@@ -61,11 +65,15 @@ describe('rule engine — scenario coverage', () => {
     expect(plan.recommended_gate.typical_wait_minutes).toBeLessThanOrEqual(8)
   })
 
-  it('No live signals — plan still derives cleanly, confidence stays high', () => {
+  it('No live signals — plan still derives cleanly, confidence drops to medium', () => {
     const s = getScenario('no-signals')!
     const plan = deriveArrivalPlan(s.prefs, s.signals)
     expect(plan.recommended_gate.id).toBe('gate-3')
-    expect(plan.confidence).toBe('high')
+    // New derived-confidence model: no staff signal + < 3 fan reports
+    // = isLimitedData, percent drops, label settles at 'medium'.
+    expect(plan.confidence).toBe('medium')
+    expect(plan.confidence_breakdown.isLimitedData).toBe(true)
+    expect(plan.confidence_breakdown.staffSignalCount).toBe(0)
     // gate_scores should be present and finite
     expect(plan.gate_scores).toBeDefined()
     expect(plan.gate_scores!.length).toBe(3)
@@ -196,5 +204,142 @@ describe('rule engine — new persona coverage (slow_pace, first_time)', () => {
       const same = without.gate_scores!.find((x) => x.gate_id === g.gate_id)!
       expect(g.total).toBe(same.total)
     }
+  })
+})
+
+describe('rule engine — fan-pulse threshold + conflict detection', () => {
+  const minsAgo = (n: number) =>
+    new Date(Date.now() - n * 60 * 1000).toISOString()
+
+  it('one fan report does NOT materially change the plan score', () => {
+    const oneFan = deriveArrivalPlan(null, [
+      {
+        id: 'fan-1',
+        gate_id: 'gate-3',
+        source: 'fan',
+        sentiment: 'busy',
+        message: 'busy at gate 3',
+        created_at: minsAgo(2),
+      },
+    ])
+    const baseline = deriveArrivalPlan(null, [])
+    const oneFanG3 = oneFan.gate_scores!.find((g) => g.gate_id === 'gate-3')!
+    const baselineG3 = baseline.gate_scores!.find((g) => g.gate_id === 'gate-3')!
+    // Below threshold (< 3 reports) — fan_signal stays 0 and totals match.
+    expect(oneFanG3.components.fan_signal).toBe(0)
+    expect(oneFanG3.total).toBe(baselineG3.total)
+  })
+
+  it('two fan reports also do not change the plan — still below threshold', () => {
+    const twoFan = deriveArrivalPlan(null, [
+      {
+        id: 'fan-1',
+        gate_id: 'gate-3',
+        source: 'fan',
+        sentiment: 'busy',
+        message: 'busy',
+        created_at: minsAgo(2),
+      },
+      {
+        id: 'fan-2',
+        gate_id: 'gate-3',
+        source: 'fan',
+        sentiment: 'busy',
+        message: 'busy too',
+        created_at: minsAgo(5),
+      },
+    ])
+    const g3 = twoFan.gate_scores!.find((g) => g.gate_id === 'gate-3')!
+    expect(g3.components.fan_signal).toBe(0)
+  })
+
+  it('three+ fan reports DO contribute — majority sentiment, weighted 1×', () => {
+    const threeFan = deriveArrivalPlan(null, [
+      {
+        id: 'fan-1',
+        gate_id: 'gate-3',
+        source: 'fan',
+        sentiment: 'busy',
+        message: 'busy',
+        created_at: minsAgo(2),
+      },
+      {
+        id: 'fan-2',
+        gate_id: 'gate-3',
+        source: 'fan',
+        sentiment: 'busy',
+        message: 'busy',
+        created_at: minsAgo(5),
+      },
+      {
+        id: 'fan-3',
+        gate_id: 'gate-3',
+        source: 'fan',
+        sentiment: 'busy',
+        message: 'busy',
+        created_at: minsAgo(8),
+      },
+    ])
+    const g3 = threeFan.gate_scores!.find((g) => g.gate_id === 'gate-3')!
+    // SENTIMENT_SCORE.busy = -2, weight × 1 → fan_signal === -2
+    expect(g3.components.fan_signal).toBe(-2)
+  })
+
+  it('staff signal applies individually with 3× weight even when fans are silent', () => {
+    const staffOnly = deriveArrivalPlan(null, [
+      {
+        id: 'staff-1',
+        gate_id: 'gate-3',
+        source: 'staff',
+        sentiment: 'smooth',
+        message: 'Smooth',
+        created_at: minsAgo(2),
+      },
+    ])
+    const g3 = staffOnly.gate_scores!.find((g) => g.gate_id === 'gate-3')!
+    // SENTIMENT_SCORE.smooth = +2, weight × 3 → staff_signal === +6
+    expect(g3.components.staff_signal).toBe(6)
+  })
+
+  it('conflict: staff smooth + 3 fans busy → hasConflict true, confidence drops', () => {
+    const conflictSignals = [
+      {
+        id: 'staff-1',
+        gate_id: 'gate-3',
+        source: 'staff' as const,
+        sentiment: 'smooth' as const,
+        message: 'Smooth',
+        created_at: minsAgo(2),
+      },
+      ...Array.from({ length: 3 }, (_, i) => ({
+        id: `fan-${i}`,
+        gate_id: 'gate-3',
+        source: 'fan' as const,
+        sentiment: 'busy' as const,
+        message: 'busy',
+        created_at: minsAgo(3 + i),
+      })),
+    ]
+    const plan = deriveArrivalPlan(null, conflictSignals)
+    expect(plan.confidence_breakdown.hasConflict).toBe(true)
+    expect(plan.confidence_breakdown.staffSignalCount).toBe(1)
+    expect(plan.confidence_breakdown.fanSignalCount).toBe(3)
+  })
+
+  it('confidence_breakdown always has the required shape', () => {
+    const plan = deriveArrivalPlan(null, [])
+    expect(plan.confidence_breakdown).toMatchObject({
+      percent: expect.any(Number),
+      reasons: expect.any(Array),
+      signalCount: expect.any(Number),
+      staffSignalCount: expect.any(Number),
+      fanSignalCount: expect.any(Number),
+      hasConflict: expect.any(Boolean),
+      isLimitedData: expect.any(Boolean),
+      isStale: expect.any(Boolean),
+      derivedAt: expect.any(String),
+    })
+    expect(plan.confidence_breakdown.percent).toBeGreaterThanOrEqual(25)
+    expect(plan.confidence_breakdown.percent).toBeLessThanOrEqual(95)
   })
 })

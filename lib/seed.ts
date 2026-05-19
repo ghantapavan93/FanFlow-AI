@@ -298,13 +298,39 @@ function scoreGateBreakdown(
       s.gate_id === gate.id &&
       Date.now() - new Date(s.created_at).getTime() < 2 * 60 * 60 * 1000,
   )
+
+  // Staff signals: applied individually with 3× weight. Each verified
+  // staff update from this gate moves the score directly.
   for (const s of recent) {
-    const contribution = SENTIMENT_SCORE[s.sentiment]
     if (s.source === 'staff') {
-      components.staff_signal += contribution * 3
-    } else {
-      components.fan_signal += contribution * 1
+      components.staff_signal += SENTIMENT_SCORE[s.sentiment] * 3
     }
+  }
+
+  // Fan signals: threshold-based aggregation. One fan vote does NOT
+  // change the plan — production trust model. We require ≥ 3 recent
+  // fan reports at this gate; only then does the MAJORITY sentiment
+  // contribute (once, not per-signal). Staff still always dominates
+  // because their per-signal weight is 3× and applied for every staff
+  // update.
+  const fanReports = recent.filter((s) => s.source === 'fan')
+  if (fanReports.length >= 3) {
+    const counts: Record<LiveSignal['sentiment'], number> = {
+      smooth: 0,
+      moderate: 0,
+      busy: 0,
+      difficult: 0,
+    }
+    for (const s of fanReports) counts[s.sentiment] += 1
+    let majority: LiveSignal['sentiment'] = 'moderate'
+    let max = -1
+    for (const key of Object.keys(counts) as LiveSignal['sentiment'][]) {
+      if (counts[key] > max) {
+        max = counts[key]
+        majority = key
+      }
+    }
+    components.fan_signal = SENTIMENT_SCORE[majority] * 1
   }
 
   const total =
@@ -458,10 +484,112 @@ export function deriveArrivalPlan(
     return prioritized.slice(0, 3)
   })()
 
-  const confidence: ArrivalPlan['confidence'] = prefs ? 'high' : 'medium'
-  const confidence_reason = prefs
-    ? 'Based on your preferences, official venue data, and recent staff confirmation'
-    : 'Based on venue layout and ticket section — personalize to raise confidence'
+  // === Derived confidence breakdown ====================================
+  // Compute a numeric percent from real inputs: signal counts, recency,
+  // staff/fan mix, conflict, prefs presence. The string `confidence`
+  // label is mapped from the percent so older UI keeps working.
+  const recommendedSignals = signals.filter(
+    (s) =>
+      s.gate_id === recommendedGate.id &&
+      Date.now() - new Date(s.created_at).getTime() < 2 * 60 * 60 * 1000,
+  )
+  const staffSignals = recommendedSignals.filter((s) => s.source === 'staff')
+  const fanSignals = recommendedSignals.filter((s) => s.source === 'fan')
+
+  // Conflict: latest staff says one thing, fan majority says the opposite
+  const detectConflict = (): boolean => {
+    if (staffSignals.length === 0 || fanSignals.length < 3) return false
+    const staffLatest = [...staffSignals].sort(
+      (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+    )[0]
+    const fanCounts: Record<LiveSignal['sentiment'], number> = {
+      smooth: 0,
+      moderate: 0,
+      busy: 0,
+      difficult: 0,
+    }
+    for (const s of fanSignals) fanCounts[s.sentiment] += 1
+    let majority: LiveSignal['sentiment'] = 'moderate'
+    let max = -1
+    for (const k of Object.keys(fanCounts) as LiveSignal['sentiment'][]) {
+      if (fanCounts[k] > max) {
+        max = fanCounts[k]
+        majority = k
+      }
+    }
+    const positive = (s: LiveSignal['sentiment']) =>
+      s === 'smooth' || s === 'moderate'
+    return positive(staffLatest.sentiment) !== positive(majority)
+  }
+  const hasConflict = detectConflict()
+
+  // Stale: newest signal for this gate is > 60 min old
+  const isStale = (() => {
+    if (recommendedSignals.length === 0) return false
+    const newest = recommendedSignals.reduce((acc, s) =>
+      new Date(s.created_at).getTime() > new Date(acc.created_at).getTime() ? s : acc,
+    )
+    return Date.now() - new Date(newest.created_at).getTime() > 60 * 60 * 1000
+  })()
+
+  const isLimitedData = staffSignals.length === 0 && fanSignals.length < 3
+
+  // Build the percent
+  const reasons: string[] = []
+  let percent = prefs ? 72 : 60
+  if (prefs) reasons.push('Personalized to your group and route')
+  else reasons.push('Baseline plan from ticket and venue context')
+
+  if (staffSignals.length > 0) {
+    percent += Math.min(15, staffSignals.length * 5)
+    reasons.push(
+      staffSignals.length === 1
+        ? '1 recent staff update applied (weighted 3×)'
+        : `${staffSignals.length} recent staff updates applied (weighted 3×)`,
+    )
+  }
+  if (fanSignals.length >= 3) {
+    percent += 5
+    reasons.push(`${fanSignals.length} fan reports aggregated`)
+  } else if (fanSignals.length > 0) {
+    reasons.push(
+      `${fanSignals.length} fan report${fanSignals.length === 1 ? '' : 's'} (below threshold — not affecting plan)`,
+    )
+  }
+  if (isStale) {
+    percent -= 10
+    reasons.push('No recent staff update — showing baseline venue guidance')
+  }
+  if (hasConflict) {
+    percent -= 10
+    reasons.push('Mixed reports detected — keeping recommendation conservative')
+  }
+  if (isLimitedData && !isStale) {
+    percent -= 5
+    reasons.push('Limited live data — leaning on venue baseline')
+  }
+
+  percent = Math.max(25, Math.min(95, percent))
+
+  const confidence: ArrivalPlan['confidence'] =
+    percent >= 75 ? 'high' : percent >= 55 ? 'medium' : 'low'
+  const confidence_reason =
+    reasons[0] ??
+    (prefs
+      ? 'Based on your preferences, official venue data, and recent staff confirmation'
+      : 'Based on venue layout and ticket section — personalize to raise confidence')
+
+  const confidence_breakdown = {
+    percent,
+    reasons,
+    signalCount: recommendedSignals.length,
+    staffSignalCount: staffSignals.length,
+    fanSignalCount: fanSignals.length,
+    hasConflict,
+    isLimitedData,
+    isStale,
+    derivedAt: new Date().toISOString(),
+  }
 
   return {
     recommended_gate: recommendedGate,
@@ -470,6 +598,7 @@ export function deriveArrivalPlan(
     route_summary: transitSummary(prefs?.transport ?? 'transit', recommendedGate.name),
     confidence,
     confidence_reason,
+    confidence_breakdown,
     explanation_text: buildExplanation(recommendedGate, prefs, demoTicket),
     support_points: supportPoints,
     gate_scores,

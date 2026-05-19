@@ -1871,7 +1871,19 @@ function StageSeatmap({ onAdvance, onBack }: { onAdvance: () => void; onBack: ()
             </div>
 
             <button
-              onClick={onAdvance}
+              onClick={() => {
+                // Persist Section 117 (Maria's seat) so the real Hub on
+                // hand-off reflects "Section 117" instead of falling back
+                // to the seed default.
+                import('@/lib/ticketContext').then(({ saveSelectedTicket }) => {
+                  saveSelectedTicket({
+                    section: MARIA_PLAN.section,
+                    row: MARIA_PLAN.row,
+                    event_id: 'wc2026-final',
+                  })
+                })
+                onAdvance()
+              }}
               className="btn-primary w-full !min-h-[48px] text-sm"
             >
               Continue to checkout · ${(1248).toLocaleString()}
