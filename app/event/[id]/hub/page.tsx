@@ -74,7 +74,7 @@ function CircularProgress({
   const offset = c - (c * percent) / 100
   return (
     <div className="relative flex items-center justify-center" style={{ width: size, height: size }}>
-      <svg width={size} height={size} className="-rotate-90">
+      <svg width={size} height={size} className="-rotate-90" style={{ filter: `drop-shadow(0 0 4px ${color}40)` }}>
         <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={trackColor} strokeWidth={stroke} />
         <motion.circle
           cx={size / 2}
@@ -97,6 +97,51 @@ function CircularProgress({
       </div>
     </div>
   )
+}
+
+/**
+ * Animated count-up text — parses "2.4M+" style strings and animates the
+ * numeric prefix from 0 to target when scrolled into view. Falls back to
+ * the static string for users who prefer reduced motion.
+ */
+function CountUpText({ text }: { text: string }) {
+  const [inView, setInView] = useState(false)
+  const [progress, setProgress] = useState(0)
+  const reduced = useReducedMotion()
+  const ref = useRef<HTMLSpanElement>(null)
+
+  useEffect(() => {
+    const el = ref.current
+    if (!el) return
+    const obs = new IntersectionObserver(
+      ([e]) => { if (e.isIntersecting) { setInView(true); obs.disconnect() } },
+      { threshold: 0.5 },
+    )
+    obs.observe(el)
+    return () => obs.disconnect()
+  }, [])
+
+  useEffect(() => {
+    if (!inView) return
+    if (reduced) { setProgress(1); return }
+    const start = Date.now()
+    const dur = 1400
+    let raf: number
+    const tick = () => {
+      const p = Math.min(1, (Date.now() - start) / dur)
+      setProgress(1 - Math.pow(1 - p, 3)) // ease-out cubic
+      if (p < 1) raf = requestAnimationFrame(tick)
+    }
+    raf = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(raf)
+  }, [inView, reduced])
+
+  const match = text.match(/^([\d.]+)(.*)$/)
+  if (!match) return <span ref={ref}>{text}</span>
+  const target = parseFloat(match[1])
+  const suffix = match[2]
+  const decimals = match[1].includes('.') ? match[1].split('.')[1].length : 0
+  return <span ref={ref}>{(target * progress).toFixed(decimals)}{suffix}</span>
 }
 
 /**
@@ -125,12 +170,15 @@ function BottomNav({
     }`
     const inner = (
       <>
-        <span
-          className={`flex items-center justify-center w-9 h-9 rounded-full text-xl ${
-            isActive ? 'bg-violet-100' : ''
-          }`}
-        >
-          {icon}
+        <span className="relative flex items-center justify-center w-9 h-9 rounded-full text-xl">
+          {isActive && (
+            <motion.span
+              layoutId="nav-active"
+              className="absolute inset-0 rounded-full bg-violet-100"
+              transition={{ type: 'spring', stiffness: 380, damping: 28 }}
+            />
+          )}
+          <span className="relative">{icon}</span>
         </span>
         {label}
       </>
@@ -308,11 +356,14 @@ export default function EventHubPage() {
             </h1>
             <div className="flex flex-wrap items-center gap-2 mt-3.5">
               <div className="inline-flex items-center gap-1.5 text-[13px] text-slate-600">
-                <motion.span
-                  className="w-2 h-2 rounded-full bg-emerald-500"
-                  animate={{ opacity: [1, 0.4, 1] }}
-                  transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
-                />
+                <span className="relative flex items-center justify-center w-4 h-4 flex-shrink-0">
+                  <span className="absolute inset-0 rounded-full bg-emerald-400/30 animate-[ff-pulse-ring_2s_ease-out_infinite]" />
+                  <motion.span
+                    className="relative w-2 h-2 rounded-full bg-emerald-500"
+                    animate={{ opacity: [1, 0.4, 1] }}
+                    transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
+                  />
+                </span>
                 Everything is aligned for a smooth arrival.
               </div>
               <Link
@@ -330,8 +381,9 @@ export default function EventHubPage() {
             initial={{ opacity: 0, y: -6 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.4 }}
-            className="rounded-2xl bg-white border border-emerald-200/70 px-3.5 py-2.5 flex items-center justify-between gap-3"
+            className="relative overflow-hidden rounded-2xl bg-white border border-emerald-200/70 px-3.5 py-2.5 flex items-center justify-between gap-3"
           >
+            <div className="shimmer-overlay" aria-hidden="true" />
             <div className="flex items-center gap-2 min-w-0 flex-1">
               <span className="w-7 h-7 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center text-xs font-bold flex-shrink-0">
                 ✓
@@ -388,9 +440,14 @@ export default function EventHubPage() {
                     <span>🚪</span>
                     Enter via
                   </div>
-                  <div className="font-extrabold text-violet-900 text-2xl tracking-tight leading-none mt-1">
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.8, y: 4 }}
+                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                    transition={{ type: 'spring', stiffness: 260, damping: 18, delay: 0.3 }}
+                    className="font-extrabold text-violet-900 text-2xl tracking-tight leading-none mt-1"
+                  >
                     {gateLabel}
-                  </div>
+                  </motion.div>
                   {gateSub && (
                     <div className="text-xs text-violet-700/80 mt-1">{gateSub}</div>
                   )}
@@ -509,21 +566,36 @@ export default function EventHubPage() {
               className="block rounded-3xl bg-gradient-to-br from-slate-50 to-white border border-slate-200 p-4 hover:border-violet-300 transition-colors group"
             >
               <div className="flex items-center gap-2 mb-3">
-                <motion.span
-                  className="w-2 h-2 rounded-full"
-                  style={{
-                    backgroundColor:
-                      intelligence.expectedEntryLoad === 'light'
-                        ? '#10b981'
-                        : intelligence.expectedEntryLoad === 'moderate'
-                          ? '#f59e0b'
-                          : intelligence.expectedEntryLoad === 'busy'
-                            ? '#f43f5e'
-                            : '#94a3b8',
-                  }}
-                  animate={{ opacity: [1, 0.4, 1] }}
-                  transition={{ duration: 2, repeat: Infinity }}
-                />
+                <span className="relative flex items-center justify-center w-4 h-4 flex-shrink-0">
+                  <span
+                    className="absolute inset-0 rounded-full animate-[ff-pulse-ring_2s_ease-out_infinite]"
+                    style={{
+                      backgroundColor:
+                        intelligence.expectedEntryLoad === 'light'
+                          ? 'rgba(16,185,129,0.3)'
+                          : intelligence.expectedEntryLoad === 'moderate'
+                            ? 'rgba(245,158,11,0.3)'
+                            : intelligence.expectedEntryLoad === 'busy'
+                              ? 'rgba(244,63,94,0.3)'
+                              : 'rgba(148,163,184,0.3)',
+                    }}
+                  />
+                  <motion.span
+                    className="relative w-2 h-2 rounded-full"
+                    style={{
+                      backgroundColor:
+                        intelligence.expectedEntryLoad === 'light'
+                          ? '#10b981'
+                          : intelligence.expectedEntryLoad === 'moderate'
+                            ? '#f59e0b'
+                            : intelligence.expectedEntryLoad === 'busy'
+                              ? '#f43f5e'
+                              : '#94a3b8',
+                    }}
+                    animate={{ opacity: [1, 0.4, 1] }}
+                    transition={{ duration: 2, repeat: Infinity }}
+                  />
+                </span>
                 <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
                   Event Flow
                 </span>
@@ -566,10 +638,21 @@ export default function EventHubPage() {
                 </div>
               </div>
               {intelligence.avoidsPeak && (
-                <div className="mt-3 flex items-center gap-1.5 text-[11px] text-emerald-700 font-semibold">
-                  <span>✓</span>
+                <motion.div
+                  initial={{ opacity: 0, x: -6 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ duration: 0.4, delay: 0.3, ease: [0.16, 1, 0.3, 1] }}
+                  className="mt-3 flex items-center gap-1.5 text-[11px] text-emerald-700 font-semibold"
+                >
+                  <motion.span
+                    initial={{ scale: 0 }}
+                    animate={{ scale: 1 }}
+                    transition={{ type: 'spring', stiffness: 300, damping: 15, delay: 0.4 }}
+                  >
+                    ✓
+                  </motion.span>
                   Your plan avoids peak congestion
-                </div>
+                </motion.div>
               )}
             </Link>
           </motion.section>
@@ -577,13 +660,13 @@ export default function EventHubPage() {
           {/* === Staff Verified Update ================================= */}
           {intelligence.latestStaffAtGate && (
             <motion.div
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, delay: 0.3 }}
+              initial={{ opacity: 0, y: 8, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              transition={{ duration: 0.5, delay: 0.3, ease: [0.16, 1, 0.3, 1] }}
             >
               <Link
                 href={`/event/${eventId}/pulse`}
-                className="block rounded-3xl bg-gradient-to-br from-violet-50 to-violet-50/40 border border-violet-200 p-4 hover:from-violet-100 hover:to-violet-50/70 transition-colors group"
+                className="block rounded-3xl bg-gradient-to-br from-violet-50 to-violet-50/40 border border-violet-200 p-4 hover:from-violet-100 hover:to-violet-50/70 transition-colors group shadow-[0_0_0_0_rgba(124,58,237,0)] hover:shadow-[0_0_12px_-2px_rgba(124,58,237,0.15)]"
               >
                 <div className="flex items-center gap-3">
                   <span className="w-11 h-11 rounded-2xl bg-gradient-to-br from-violet-500 to-fuchsia-600 text-white flex items-center justify-center text-lg flex-shrink-0 shadow-md shadow-violet-500/25">
@@ -620,8 +703,9 @@ export default function EventHubPage() {
           {/* === Safety Assurance ======================================= */}
           <motion.section
             initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.35 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, amount: 0.3 }}
+            transition={{ duration: 0.5 }}
             className="rounded-3xl bg-gradient-to-br from-emerald-50 via-white to-emerald-50/30 border border-emerald-200 p-4"
           >
             <div className="flex items-start gap-3">
@@ -643,13 +727,17 @@ export default function EventHubPage() {
                     'Staff-verified conditions',
                     'Nearby help mapped',
                     'Real-time routing',
-                  ].map((tag) => (
-                    <span
+                  ].map((tag, i) => (
+                    <motion.span
                       key={tag}
+                      initial={{ opacity: 0, scale: 0.85, y: 4 }}
+                      whileInView={{ opacity: 1, scale: 1, y: 0 }}
+                      viewport={{ once: true }}
+                      transition={{ duration: 0.35, delay: 0.1 * i + 0.2, ease: [0.16, 1, 0.3, 1] }}
                       className="inline-flex items-center px-2 py-0.5 rounded-full bg-emerald-100 text-[10px] font-semibold text-emerald-800"
                     >
                       ✓ {tag}
-                    </span>
+                    </motion.span>
                   ))}
                 </div>
               </div>
@@ -659,13 +747,29 @@ export default function EventHubPage() {
           {/* === Dark cinematic CTA =================================== */}
           <motion.section
             initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.55, delay: 0.4 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, amount: 0.3 }}
+            transition={{ duration: 0.55 }}
             className="relative rounded-3xl overflow-hidden bg-gradient-to-br from-slate-950 via-violet-950 to-slate-900 text-white p-5 hover-lift"
           >
             <div
               aria-hidden="true"
               className="absolute inset-0 opacity-60 bg-[radial-gradient(ellipse_at_20%_80%,rgba(167,139,250,0.35),transparent_55%),radial-gradient(ellipse_at_85%_15%,rgba(236,72,153,0.25),transparent_55%)]"
+            />
+            {/* Floating light orbs — drift slowly for a cinematic ambient feel */}
+            <motion.div
+              aria-hidden="true"
+              className="absolute w-56 h-56 rounded-full bg-violet-400/15 blur-3xl"
+              animate={{ x: [0, 40, 0], y: [0, -25, 0] }}
+              transition={{ duration: 7, repeat: Infinity, ease: 'easeInOut' }}
+              style={{ top: '-10%', left: '5%' }}
+            />
+            <motion.div
+              aria-hidden="true"
+              className="absolute w-44 h-44 rounded-full bg-fuchsia-400/10 blur-3xl"
+              animate={{ x: [0, -30, 0], y: [0, 20, 0] }}
+              transition={{ duration: 8, repeat: Infinity, ease: 'easeInOut' }}
+              style={{ bottom: '0%', right: '0%' }}
             />
 
             <div className="relative">
@@ -687,11 +791,18 @@ export default function EventHubPage() {
                   'Real-time updates as conditions change',
                   'Smarter routing around peak surges',
                   'Priority alerts that matter most',
-                ].map((b) => (
-                  <li key={b} className="flex items-start gap-2 leading-snug">
+                ].map((b, i) => (
+                  <motion.li
+                    key={b}
+                    initial={{ opacity: 0, x: -10 }}
+                    whileInView={{ opacity: 1, x: 0 }}
+                    viewport={{ once: true }}
+                    transition={{ duration: 0.4, delay: 0.12 * i + 0.15, ease: [0.16, 1, 0.3, 1] }}
+                    className="flex items-start gap-2 leading-snug"
+                  >
                     <span className="text-violet-300 font-bold flex-shrink-0 mt-0.5">✓</span>
                     <span>{b}</span>
-                  </li>
+                  </motion.li>
                 ))}
               </ul>
               <div className="flex items-center justify-between gap-3 mt-5 flex-wrap">
@@ -713,8 +824,9 @@ export default function EventHubPage() {
           {/* === Why FanFlow trust strip (6 pillars) =================== */}
           <motion.section
             initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.5 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, amount: 0.3 }}
+            transition={{ duration: 0.5 }}
             className="rounded-3xl bg-white border border-slate-200 p-4"
           >
             <div className="kicker mb-3">Why FanFlow</div>
@@ -726,9 +838,21 @@ export default function EventHubPage() {
                 { icon: '💜', title: 'Fan powered', sub: 'Community insights' },
                 { icon: '🤝', title: 'Human support', sub: 'Help when you need it' },
                 { icon: '🛡️', title: 'Always safe', sub: 'Follow staff & signage' },
-              ].map((p) => (
-                <div key={p.title} className="flex items-start gap-2">
-                  <span className="text-base flex-shrink-0 mt-0.5">{p.icon}</span>
+              ].map((p, i) => (
+                <motion.div
+                  key={p.title}
+                  initial={{ opacity: 0, y: 8 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true, amount: 0.5 }}
+                  transition={{ duration: 0.4, delay: 0.07 * i, ease: [0.16, 1, 0.3, 1] }}
+                  className="flex items-start gap-2"
+                >
+                  <motion.span
+                    className="text-base flex-shrink-0 mt-0.5"
+                    whileHover={{ scale: 1.25, rotate: [0, -8, 8, 0], transition: { duration: 0.3 } }}
+                  >
+                    {p.icon}
+                  </motion.span>
                   <div className="min-w-0">
                     <div className="font-bold text-slate-900 text-[12px] leading-tight">
                       {p.title}
@@ -737,7 +861,7 @@ export default function EventHubPage() {
                       {p.sub}
                     </div>
                   </div>
-                </div>
+                </motion.div>
               ))}
             </div>
           </motion.section>
@@ -745,14 +869,16 @@ export default function EventHubPage() {
           {/* === Stats bar — matches the reference's bottom strip ======== */}
           <motion.section
             initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.55 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, amount: 0.3 }}
+            transition={{ duration: 0.5 }}
             className="rounded-3xl overflow-hidden bg-gradient-to-br from-violet-600 via-violet-700 to-fuchsia-700 p-4 sm:p-5 text-white relative"
           >
             <div
               aria-hidden="true"
               className="absolute inset-0 opacity-20 bg-[radial-gradient(ellipse_at_top_right,rgba(255,255,255,0.4),transparent_60%)]"
             />
+            <div className="shimmer-overlay" aria-hidden="true" />
             <div className="relative">
               <div className="flex items-center gap-2 mb-3">
                 <span className="w-9 h-9 rounded-xl bg-white/15 border border-white/20 flex items-center justify-center text-base">
@@ -774,7 +900,7 @@ export default function EventHubPage() {
                 ].map((s) => (
                   <div key={s.l}>
                     <div className="font-extrabold text-[15px] sm:text-base tabular-nums leading-tight">
-                      {s.v}
+                      <CountUpText text={s.v} />
                     </div>
                     <div className="text-[9px] text-violet-200 mt-0.5 leading-tight">
                       {s.l}
@@ -863,17 +989,19 @@ function DashTile({
 }) {
   const inner = (
     <motion.div
-      initial={{ opacity: 0, y: 8, scale: 0.97 }}
+      initial={{ opacity: 0, y: 8, scale: 0.95 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
       transition={{ duration: 0.45, delay, ease: [0.16, 1, 0.3, 1] }}
-      whileHover={{ y: -2 }}
-      className="rounded-2xl bg-white border border-slate-200 p-3 text-left h-full hover:border-violet-300 hover:shadow-md hover:shadow-violet-500/10 transition-shadow cursor-pointer"
+      whileHover={{ y: -3, scale: 1.02, transition: { duration: 0.2 } }}
+      whileTap={{ scale: 0.96, transition: { duration: 0.1 } }}
+      className="rounded-2xl bg-white border border-slate-200 p-3 text-left h-full hover:border-violet-300 hover:shadow-lg hover:shadow-violet-500/15 transition-shadow cursor-pointer"
     >
-      <div
+      <motion.div
         className={`w-11 h-11 rounded-xl bg-gradient-to-br ${iconTone} flex items-center justify-center text-xl shadow-md mb-2`}
+        whileHover={{ rotate: [0, -6, 6, 0], transition: { duration: 0.4 } }}
       >
         {icon}
-      </div>
+      </motion.div>
       <div className="font-bold text-slate-900 text-sm leading-tight">{title}</div>
       <div className="text-[11px] text-slate-500 mt-0.5 leading-snug truncate">{stat}</div>
     </motion.div>
@@ -1205,10 +1333,11 @@ function SmartAlerts({
           return (
             <motion.div
               key={alert.id}
-              initial={{ opacity: 0, x: -8 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.4, delay: 0.05 * i, ease: [0.16, 1, 0.3, 1] }}
-              className={`rounded-2xl bg-gradient-to-br ${t.bg} border ${t.border} p-3.5`}
+              initial={{ opacity: 0, x: -12, scale: 0.97 }}
+              animate={{ opacity: 1, x: 0, scale: 1 }}
+              transition={{ duration: 0.45, delay: 0.08 * i, ease: [0.16, 1, 0.3, 1] }}
+              whileHover={{ x: 2, transition: { duration: 0.2 } }}
+              className={`rounded-2xl bg-gradient-to-br ${t.bg} border ${t.border} p-3.5 hover:shadow-md transition-shadow`}
             >
               <div className="flex items-start gap-3">
                 <span className={`w-9 h-9 rounded-xl ${t.iconBg} flex items-center justify-center text-base flex-shrink-0`}>
@@ -1648,12 +1777,14 @@ function PersonalizationPrompt({
         {step >= 1 && step <= TOTAL_PROMPT_STEPS && (
           <div className="mt-4 flex gap-0.5">
             {Array.from({ length: TOTAL_PROMPT_STEPS }, (_, i) => i + 1).map((s) => (
-              <div
-                key={s}
-                className={`h-1 flex-1 rounded-full transition-colors ${
-                  s <= step ? 'bg-violet-600' : 'bg-slate-200'
-                }`}
-              />
+              <div key={s} className="h-1 flex-1 rounded-full bg-slate-200 overflow-hidden">
+                <motion.div
+                  className="h-full rounded-full bg-violet-600"
+                  initial={{ width: '0%' }}
+                  animate={{ width: s <= step ? '100%' : '0%' }}
+                  transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
+                />
+              </div>
             ))}
           </div>
         )}
