@@ -145,6 +145,139 @@ function CountUpText({ text }: { text: string }) {
 }
 
 /**
+ * Journey Starts Now — compact vertical timeline rendered inline on the Hub.
+ * Walks the fan through the five-step arrival flow (Leave by → Arrive →
+ * Enter via gate → Find seat → Enjoy) using the same rule-engine values that
+ * power the full /journey page. The gate step is visually emphasized.
+ *
+ * The connecting line "fills" as the steps reveal, so the section reads as a
+ * progression rather than a static list.
+ */
+function JourneyTimeline({
+  eventId,
+  leaveBy,
+  arriveAt,
+  gateLabel,
+  section,
+}: {
+  eventId: string
+  leaveBy: string
+  arriveAt: string
+  gateLabel: string
+  section: string
+}) {
+  const reduced = useReducedMotion()
+
+  const kickoff = (() => {
+    const d = new Date(demoEvent.date)
+    let h = d.getHours()
+    const m = d.getMinutes().toString().padStart(2, '0')
+    const ap = h >= 12 ? 'PM' : 'AM'
+    h = h % 12
+    if (h === 0) h = 12
+    return `${h}:${m} ${ap}`
+  })()
+
+  const steps: Array<{
+    icon: string
+    label: string
+    value: string
+    accent?: boolean
+  }> = [
+    { icon: '🕐', label: 'Leave by', value: leaveBy },
+    { icon: '🏟️', label: 'Arrive at venue', value: arriveAt },
+    { icon: '🚪', label: 'Enter via', value: gateLabel, accent: true },
+    { icon: '🎫', label: 'Find your seat', value: `Section ${section}` },
+    { icon: '🎉', label: 'Enjoy the match', value: `Kickoff ${kickoff}` },
+  ]
+
+  return (
+    <motion.section
+      initial={{ opacity: 0, y: 12 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true, amount: 0.2 }}
+      transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+      className="relative rounded-3xl bg-white border border-violet-200/60 shadow-[0_6px_28px_-10px_rgba(124,58,237,0.16)] p-5 overflow-hidden"
+    >
+      <div
+        aria-hidden="true"
+        className="absolute -top-10 -right-10 w-32 h-32 rounded-full bg-gradient-to-br from-violet-200/40 to-fuchsia-200/30 blur-2xl"
+      />
+      <div className="relative flex items-center justify-between mb-4">
+        <div>
+          <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-violet-700">
+            <span>🧭</span>
+            Journey starts now
+          </div>
+          <div className="font-extrabold text-slate-900 text-lg leading-tight mt-0.5">
+            Your step-by-step arrival
+          </div>
+        </div>
+        <Link
+          href={`/event/${eventId}/journey`}
+          className="text-[11px] font-bold text-violet-700 whitespace-nowrap hover:underline"
+        >
+          Full journey ›
+        </Link>
+      </div>
+
+      <ol className="relative">
+        {/* Connecting rail — fills as the section enters view */}
+        <div
+          aria-hidden="true"
+          className="absolute left-[19px] top-3 bottom-3 w-0.5 bg-slate-100 rounded-full overflow-hidden"
+        >
+          <motion.div
+            className="w-full bg-gradient-to-b from-violet-400 to-fuchsia-400 rounded-full"
+            initial={{ height: reduced ? '100%' : '0%' }}
+            whileInView={{ height: '100%' }}
+            viewport={{ once: true }}
+            transition={{ duration: 1.1, delay: 0.2, ease: [0.16, 1, 0.3, 1] }}
+          />
+        </div>
+
+        {steps.map((s, i) => (
+          <motion.li
+            key={s.label}
+            initial={{ opacity: 0, x: -8 }}
+            whileInView={{ opacity: 1, x: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.4, delay: 0.12 * i + 0.1, ease: [0.16, 1, 0.3, 1] }}
+            className="relative flex items-center gap-3.5 pb-3.5 last:pb-0"
+          >
+            <span
+              className={`relative z-10 w-10 h-10 rounded-2xl flex items-center justify-center text-base flex-shrink-0 ring-4 ring-white ${
+                s.accent
+                  ? 'bg-gradient-to-br from-violet-500 to-fuchsia-600 text-white shadow-md shadow-violet-500/30'
+                  : 'bg-violet-50 border border-violet-100'
+              }`}
+            >
+              {s.icon}
+            </span>
+            <div className="flex-1 min-w-0 flex items-center justify-between gap-2">
+              <span
+                className={`text-[11px] font-semibold uppercase tracking-wider ${
+                  s.accent ? 'text-violet-700' : 'text-slate-500'
+                }`}
+              >
+                {s.label}
+              </span>
+              <span
+                className={`font-extrabold tabular-nums text-right leading-tight ${
+                  s.accent ? 'text-violet-900 text-base' : 'text-slate-900 text-sm'
+                }`}
+              >
+                {s.value}
+              </span>
+            </div>
+          </motion.li>
+        ))}
+      </ol>
+    </motion.section>
+  )
+}
+
+/**
  * Bottom tab navigation — same component referenced by every event sub-page
  * so the visual rhythm carries across.
  */
@@ -313,9 +446,9 @@ export default function EventHubPage() {
 
   return (
     <>
-      <div className="min-h-screen bg-gradient-to-b from-violet-50/40 via-white to-white pb-24">
+      <div className="min-h-screen bg-gradient-to-b from-violet-100/70 via-violet-50/25 to-white pb-24">
         {/* === Sticky brand bar ====================================== */}
-        <header className="sticky top-0 z-30 bg-white/90 backdrop-blur-md border-b border-slate-100">
+        <header className="sticky top-0 z-30 bg-white/80 backdrop-blur-xl border-b border-violet-100/60">
           <div className="container-mobile px-4 h-14 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Link
@@ -346,147 +479,206 @@ export default function EventHubPage() {
         </header>
 
         <main className="container-mobile px-4 py-5 space-y-4">
-          {/* === Hero =================================================== */}
+          {/* === Cinematic Hero — unlock moment ======================== */}
           <section className="pt-1">
-            <div className="kicker text-violet-700">Premium Event Day Hub</div>
-            <h1 className="font-extrabold text-slate-900 text-[34px] sm:text-4xl tracking-tight leading-[1.05] mt-2.5">
-              You&apos;re all set for
-              <br />
-              Event Day
+            <motion.div
+              initial={{ opacity: 0, y: -4 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5 }}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-50 border border-emerald-200 text-[11px] font-bold text-emerald-700 mb-3"
+            >
+              <span className="relative flex items-center justify-center w-4 h-4 flex-shrink-0">
+                <span className="absolute inset-0 rounded-full bg-emerald-400/30 animate-[ff-pulse-ring_2s_ease-out_infinite]" />
+                <span className="relative w-2 h-2 rounded-full bg-emerald-500" />
+              </span>
+              Ticket confirmed · Guide unlocked
+            </motion.div>
+            <h1 className="font-extrabold text-slate-900 text-[32px] sm:text-[36px] tracking-tight leading-[1.08]">
+              Your route is ready.
             </h1>
-            <div className="flex flex-wrap items-center gap-2 mt-3.5">
-              <div className="inline-flex items-center gap-1.5 text-[13px] text-slate-600">
-                <span className="relative flex items-center justify-center w-4 h-4 flex-shrink-0">
-                  <span className="absolute inset-0 rounded-full bg-emerald-400/30 animate-[ff-pulse-ring_2s_ease-out_infinite]" />
-                  <motion.span
-                    className="relative w-2 h-2 rounded-full bg-emerald-500"
-                    animate={{ opacity: [1, 0.4, 1] }}
-                    transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
-                  />
-                </span>
-                Everything is aligned for a smooth arrival.
-              </div>
+            <p className="text-[14px] text-slate-600 mt-2 leading-relaxed max-w-xs">
+              Gate, timing, and support — personalized for a smooth arrival.
+            </p>
+            <div className="flex items-center gap-2.5 mt-3">
               <Link
                 href="/demo/fanflow-vision"
-                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-violet-50 border border-violet-200 text-[11px] font-bold text-violet-700 hover:bg-violet-100 transition"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-violet-100 border border-violet-200/70 text-[11px] font-bold text-violet-700 hover:bg-violet-200/60 transition"
               >
                 <span>✦</span>
                 Vision Route
               </Link>
+              <span className="text-[11px] text-slate-400 font-medium">
+                Updated {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+              </span>
             </div>
           </section>
 
-          {/* === Ticket Confirmed strip ================================ */}
+          {/* === Premium Ticket Pass ================================== */}
           <motion.div
             initial={{ opacity: 0, y: -6 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.4 }}
-            className="relative overflow-hidden rounded-2xl bg-white border border-emerald-200/70 px-3.5 py-2.5 flex items-center justify-between gap-3"
+            transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
+            className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-violet-600 via-violet-700 to-fuchsia-700 text-white px-4 py-3.5 shadow-lg shadow-violet-500/20"
           >
             <div className="shimmer-overlay" aria-hidden="true" />
-            <div className="flex items-center gap-2 min-w-0 flex-1">
-              <span className="w-7 h-7 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center text-xs font-bold flex-shrink-0">
-                ✓
-              </span>
-              <div className="min-w-0">
-                <div className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 leading-none">
-                  Ticket confirmed
-                </div>
-                <div className="text-[12px] text-slate-700 mt-0.5 font-medium leading-tight truncate">
-                  Section {ticket.section} · Row {ticket.row} · Seat {ticket.seat}
+            <div
+              aria-hidden="true"
+              className="absolute inset-0 opacity-20 bg-[radial-gradient(ellipse_at_top_right,rgba(255,255,255,0.5),transparent_60%)]"
+            />
+            <div className="relative flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                <span className="w-9 h-9 rounded-xl bg-white/15 border border-white/20 flex items-center justify-center text-sm font-bold flex-shrink-0">
+                  🎟️
+                </span>
+                <div className="min-w-0">
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-violet-200 leading-none">
+                    Your Event Pass
+                  </div>
+                  <div className="text-[14px] font-bold mt-0.5 leading-tight truncate">
+                    Section {ticket.section} · Row {ticket.row} · Seat {ticket.seat}
+                  </div>
                 </div>
               </div>
-            </div>
-            <div className="flex items-center gap-1.5 text-[11px] text-slate-500 font-semibold tabular-nums flex-shrink-0">
-              <span>⏱️</span>
-              {countdown}
+              <div className="flex flex-col items-end gap-0.5 flex-shrink-0">
+                <div className="text-[10px] font-bold uppercase tracking-wider text-violet-200">Countdown</div>
+                <div className="text-[15px] font-extrabold tabular-nums leading-none">{countdown}</div>
+              </div>
             </div>
           </motion.div>
 
-          {/* === Recommended Plan summary card ========================= */}
+          {/* === Premium Arrival Plan Card ============================== */}
           <motion.section
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
-            className="relative rounded-3xl bg-white border border-slate-200 shadow-[0_4px_20px_-8px_rgba(124,58,237,0.12)] p-5 hover-lift overflow-hidden"
+            className="relative rounded-3xl bg-white border border-violet-200/60 shadow-[0_6px_28px_-8px_rgba(124,58,237,0.18)] p-5 hover-lift overflow-hidden"
           >
-            {/* Subtle gradient corner */}
+            {/* Ambient gradient orbs */}
             <div
               aria-hidden="true"
-              className="absolute -top-12 -right-12 w-32 h-32 rounded-full bg-gradient-to-br from-violet-200/40 to-fuchsia-200/30 blur-2xl"
+              className="absolute -top-14 -right-14 w-40 h-40 rounded-full bg-gradient-to-br from-violet-200/50 to-fuchsia-200/40 blur-2xl"
+            />
+            <div
+              aria-hidden="true"
+              className="absolute -bottom-10 -left-10 w-28 h-28 rounded-full bg-gradient-to-tr from-violet-100/40 to-fuchsia-100/30 blur-2xl"
             />
 
-            <div className="relative flex items-start justify-between gap-3 mb-3">
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-violet-700">
-                  <span>👑</span>
-                  Your Arrival Plan
-                </div>
-                <div className="text-xs text-slate-500 mt-0.5">Recommended for you</div>
-              </div>
-              <div className="flex flex-col items-center flex-shrink-0">
-                <CircularProgress percent={confidence} color={confidenceColor} size={56} stroke={5} />
-                <div className="text-[9px] font-bold uppercase tracking-wider text-slate-500 mt-1">
-                  {confidenceLabel} conf.
-                </div>
-              </div>
-            </div>
-
-            {/* Gate hero block */}
-            <div className="relative rounded-2xl bg-gradient-to-br from-violet-50 via-white to-fuchsia-50/40 border border-violet-200 p-3.5 mb-3">
-              <div className="flex items-start justify-between gap-3">
+            <div className="relative">
+              {/* Header row */}
+              <div className="flex items-start justify-between gap-3 mb-4">
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-violet-700">
-                    <span>🚪</span>
-                    Enter via
+                    <span>👑</span>
+                    Your Arrival Plan
                   </div>
-                  <motion.div
-                    initial={{ opacity: 0, scale: 0.8, y: 4 }}
-                    animate={{ opacity: 1, scale: 1, y: 0 }}
-                    transition={{ type: 'spring', stiffness: 260, damping: 18, delay: 0.3 }}
-                    className="font-extrabold text-violet-900 text-2xl tracking-tight leading-none mt-1"
-                  >
-                    {gateLabel}
-                  </motion.div>
-                  {gateSub && (
-                    <div className="text-xs text-violet-700/80 mt-1">{gateSub}</div>
-                  )}
+                  <div className="flex items-center gap-2 mt-1">
+                    <span className="text-[11px] text-slate-500">Rules-derived</span>
+                    <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-slate-400">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                      Live
+                    </span>
+                  </div>
                 </div>
-                <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full bg-violet-600 text-white text-[9px] font-bold uppercase tracking-wider whitespace-nowrap shadow-sm flex-shrink-0">
-                  ★ Best
-                </span>
+                <div className="flex flex-col items-center flex-shrink-0">
+                  <CircularProgress percent={confidence} color={confidenceColor} size={56} stroke={5} />
+                  <div className="text-[9px] font-bold uppercase tracking-wider text-slate-500 mt-1">
+                    {confidenceLabel} conf.
+                  </div>
+                </div>
               </div>
-            </div>
 
-            {/* Times row */}
-            <div className="grid grid-cols-2 gap-2 mb-3">
-              <div className="rounded-xl bg-slate-50 border border-slate-100 px-3 py-2">
-                <div className="flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider text-slate-500">
-                  <span>🕐</span>
-                  Leave by
+              {/* Gate hero — big and bold */}
+              <div className="relative rounded-2xl bg-gradient-to-br from-violet-600 via-violet-700 to-fuchsia-700 p-4 mb-3 overflow-hidden">
+                <div
+                  aria-hidden="true"
+                  className="absolute inset-0 opacity-20 bg-[radial-gradient(ellipse_at_top_right,rgba(255,255,255,0.5),transparent_60%)]"
+                />
+                <div className="relative flex items-start justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-violet-200">
+                      <span>🚪</span>
+                      Enter via
+                    </div>
+                    <motion.div
+                      initial={{ opacity: 0, scale: 0.8, y: 4 }}
+                      animate={{ opacity: 1, scale: 1, y: 0 }}
+                      transition={{ type: 'spring', stiffness: 260, damping: 18, delay: 0.3 }}
+                      className="font-extrabold text-white text-[34px] tracking-tight leading-none mt-1"
+                    >
+                      {gateLabel}
+                    </motion.div>
+                    {gateSub && (
+                      <div className="text-[11px] text-violet-200/80 mt-1">{gateSub}</div>
+                    )}
+                  </div>
+                  <span className="inline-flex items-center gap-0.5 px-2.5 py-1 rounded-full bg-white/20 backdrop-blur-sm text-white text-[10px] font-bold uppercase tracking-wider whitespace-nowrap flex-shrink-0 border border-white/20">
+                    ★ Best match
+                  </span>
                 </div>
-                <div className="font-bold text-slate-900 text-lg mt-0.5 tabular-nums leading-none">
-                  {plan.leave_by_time}
+                {/* Animated route strip — gate → seat */}
+                <div className="mt-3 flex items-center gap-2">
+                  <span className="text-[10px] font-bold text-violet-200">{gateLabel}</span>
+                  <div className="flex-1 relative h-[3px] rounded-full bg-white/20 overflow-hidden">
+                    <motion.div
+                      className="absolute inset-y-0 left-0 rounded-full bg-white/60"
+                      initial={{ width: '0%' }}
+                      animate={{ width: '100%' }}
+                      transition={{ duration: 1.5, delay: 0.5, ease: [0.16, 1, 0.3, 1] }}
+                    />
+                  </div>
+                  <span className="text-[10px] font-bold text-violet-200">Sec {ticket.section}</span>
                 </div>
               </div>
-              <div className="rounded-xl bg-slate-50 border border-slate-100 px-3 py-2">
-                <div className="flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider text-slate-500">
-                  <span>🎯</span>
-                  Arrive at
-                </div>
-                <div className="font-bold text-slate-900 text-lg mt-0.5 tabular-nums leading-none">
-                  {plan.arrival_time}
-                </div>
-              </div>
-            </div>
 
-            <Link
-              href={`/event/${eventId}/guide`}
-              className="block w-full text-center px-4 py-2.5 rounded-xl bg-violet-600 hover:bg-violet-700 text-white font-bold text-sm transition"
-            >
-              View full arrival guide →
-            </Link>
+              {/* Times row — big blocks */}
+              <div className="grid grid-cols-2 gap-2 mb-3">
+                <div className="rounded-xl bg-gradient-to-br from-slate-50 to-violet-50/30 border border-slate-200/80 px-3.5 py-2.5">
+                  <div className="text-[9px] font-bold uppercase tracking-wider text-slate-500">
+                    🕐 Leave by
+                  </div>
+                  <div className="font-extrabold text-slate-900 text-xl mt-1 tabular-nums leading-none">
+                    {plan.leave_by_time}
+                  </div>
+                </div>
+                <div className="rounded-xl bg-gradient-to-br from-slate-50 to-violet-50/30 border border-slate-200/80 px-3.5 py-2.5">
+                  <div className="text-[9px] font-bold uppercase tracking-wider text-slate-500">
+                    🎯 Arrive at
+                  </div>
+                  <div className="font-extrabold text-slate-900 text-xl mt-1 tabular-nums leading-none">
+                    {plan.arrival_time}
+                  </div>
+                </div>
+              </div>
+
+              {/* Why this plan — inline explanation */}
+              <div className="rounded-xl bg-violet-50/60 border border-violet-100 px-3.5 py-2.5 mb-3">
+                <div className="text-[10px] font-bold text-violet-700 uppercase tracking-wider mb-1">Why this plan?</div>
+                <p className="text-[11px] text-slate-600 leading-relaxed">
+                  {gateLabel} was selected for proximity to Section {ticket.section}
+                  {prefs?.transport === 'transit' ? ', transit drop-off access' : ''}
+                  {prefs?.needs.includes('wheelchair') || prefs?.needs.includes('slow_pace') ? ', step-free routing' : ''}
+                  {prefs?.group === 'family_young_kids' ? ', family-friendly lanes' : ''}
+                  . {intelligence.latestStaffAtGate ? 'Staff-verified conditions applied.' : 'Baseline guidance — no conflicting signals.'}
+                </p>
+              </div>
+
+              <Link
+                href={`/event/${eventId}/guide`}
+                className="block w-full text-center px-4 py-3 rounded-xl bg-violet-600 hover:bg-violet-700 text-white font-bold text-sm transition shadow-sm shadow-violet-500/20"
+              >
+                View full arrival guide →
+              </Link>
+            </div>
           </motion.section>
+
+          {/* === Journey Starts Now — inline guided timeline ========== */}
+          <JourneyTimeline
+            eventId={eventId}
+            leaveBy={plan.leave_by_time}
+            arriveAt={plan.arrival_time}
+            gateLabel={gateLabel}
+            section={ticket.section}
+          />
 
           {/* === Inline Personalization Prompt ========================= */}
           {!prefs && (
@@ -677,8 +869,11 @@ export default function EventHubPage() {
                     <div className="font-bold text-slate-900 text-[13px] mt-0.5 leading-tight line-clamp-2">
                       {intelligence.latestStaffAtGate.message}
                     </div>
-                    <div className="text-[10px] text-slate-500 mt-0.5">
-                      Verified · Weighted 3× over fan reports
+                    <div className="flex items-center gap-2 mt-1 flex-wrap">
+                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-violet-100 text-[9px] font-bold text-violet-700 uppercase tracking-wider">
+                        Staff verified
+                      </span>
+                      <span className="text-[10px] text-slate-400">Weighted 3× · Expires in 45 min</span>
                     </div>
                   </div>
                   <span className="inline-flex items-center text-[11px] font-bold text-violet-700 whitespace-nowrap flex-shrink-0 group-hover:translate-x-0.5 transition-transform">

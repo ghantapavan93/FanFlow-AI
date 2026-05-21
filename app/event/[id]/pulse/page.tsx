@@ -81,7 +81,7 @@ export default function PulsePage() {
 
   return (
     <>
-      <div className="min-h-screen bg-gradient-to-b from-violet-50/40 via-white to-white pb-24">
+      <div className="min-h-screen bg-gradient-to-b from-violet-100/60 via-violet-50/20 to-white pb-24">
         {/* Top brand bar */}
         <header className="sticky top-0 z-30 bg-white/90 backdrop-blur-md border-b border-slate-100">
           <div className="container-mobile px-4 h-14 flex items-center justify-between">
@@ -141,6 +141,34 @@ export default function PulsePage() {
               </div>
             </div>
 
+            {/* Participation signals — live, at-a-glance community state */}
+            <div className="grid grid-cols-3 gap-2 mb-3">
+              <div className="rounded-xl bg-violet-50 border border-violet-100 px-2.5 py-2 text-center">
+                <div className="font-extrabold text-violet-700 text-lg tabular-nums leading-none">
+                  {fanPulse.total}
+                </div>
+                <div className="text-[9px] font-semibold text-slate-500 mt-0.5 uppercase tracking-wide">
+                  Live reports
+                </div>
+              </div>
+              <div className="rounded-xl bg-slate-50 border border-slate-100 px-2.5 py-2 text-center">
+                <div className={`font-extrabold text-lg leading-none ${fanPulse.total >= 3 ? 'text-emerald-600' : 'text-slate-400'}`}>
+                  {fanPulse.total >= 3 ? '✓' : `${fanPulse.total}/3`}
+                </div>
+                <div className="text-[9px] font-semibold text-slate-500 mt-0.5 uppercase tracking-wide">
+                  Majority
+                </div>
+              </div>
+              <div className="rounded-xl bg-slate-50 border border-slate-100 px-2.5 py-2 text-center">
+                <div className="font-extrabold text-slate-900 text-lg tabular-nums leading-none">
+                  {pulseCount}
+                </div>
+                <div className="text-[9px] font-semibold text-slate-500 mt-0.5 uppercase tracking-wide">
+                  Your taps
+                </div>
+              </div>
+            </div>
+
             {/* 2x2 sentiment grid */}
             <div className="grid grid-cols-2 gap-2">
               <button
@@ -174,18 +202,43 @@ export default function PulsePage() {
             </div>
 
             {pulseCount > 0 && (
-              <motion.p
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                className="text-[11px] text-emerald-700 text-center mt-3 font-semibold"
+              <motion.div
+                initial={{ opacity: 0, y: 4 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="mt-3 rounded-xl bg-emerald-50 border border-emerald-200 p-3"
               >
-                ✓ Thanks — {pulseCount} report{pulseCount === 1 ? '' : 's'} sent.
-              </motion.p>
+                <div className="flex items-center gap-2 mb-1.5">
+                  <motion.span
+                    initial={{ scale: 0 }}
+                    animate={{ scale: 1 }}
+                    transition={{ type: 'spring', stiffness: 300, damping: 15 }}
+                    className="w-6 h-6 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center text-xs font-bold"
+                  >
+                    ✓
+                  </motion.span>
+                  <span className="text-[12px] text-emerald-800 font-bold">
+                    Report added · {pulseCount} total
+                  </span>
+                </div>
+                <div className="space-y-1 pl-8">
+                  <p className="text-[11px] text-emerald-700/80 leading-snug">
+                    <span className="font-semibold">1 report</span> helps visibility at {gateLabel}.
+                  </p>
+                  <p className="text-[11px] text-emerald-700/80 leading-snug">
+                    <span className="font-semibold">3+ similar reports</span> influence guidance for all fans.
+                  </p>
+                  <p className="text-[11px] text-emerald-700/80 leading-snug">
+                    <span className="font-semibold">Staff updates</span> carry 3× higher trust weight.
+                  </p>
+                </div>
+              </motion.div>
             )}
 
-            <p className="text-[11px] text-slate-500 mt-3 leading-relaxed text-center">
-              One report helps visibility. Multiple similar reports influence guidance.
-            </p>
+            {pulseCount === 0 && (
+              <p className="text-[11px] text-slate-500 mt-3 leading-relaxed text-center">
+                One report helps visibility. 3+ similar reports influence guidance.
+              </p>
+            )}
           </motion.section>
 
           {/* === Staff Verified Updates at Your Gate =================== */}
@@ -397,6 +450,34 @@ export default function PulsePage() {
             </motion.section>
           )}
 
+          {/* How Fan Pulse works — trust explanation */}
+          <motion.section
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.25 }}
+            className="rounded-3xl bg-gradient-to-br from-violet-50 via-white to-fuchsia-50/30 border border-violet-200 p-5"
+          >
+            <div className="kicker text-violet-700 mb-3">How Fan Pulse works</div>
+            <div className="space-y-3">
+              {[
+                { icon: '👤', title: 'Fan reports', desc: 'Individual fan taps. Visible to all fans, 1× weight.' },
+                { icon: '👥', title: 'Majority signal', desc: '3+ similar reports create a "majority" that influences routing.'},
+                { icon: '✓', title: 'Staff verified', desc: 'Staff signals carry 3× higher trust. One staff update overrides fan noise.' },
+                { icon: '🛡️', title: 'Anti-noise threshold', desc: '<3 fan reports = helpful info only. Won\'t change your plan until the pattern is clear.' },
+              ].map((item, i) => (
+                <div key={i} className="flex items-start gap-2.5">
+                  <span className="w-8 h-8 rounded-lg bg-violet-100 flex items-center justify-center text-sm flex-shrink-0 mt-0.5">
+                    {item.icon}
+                  </span>
+                  <div className="min-w-0">
+                    <div className="text-[12px] font-bold text-slate-900 leading-tight">{item.title}</div>
+                    <div className="text-[11px] text-slate-500 mt-0.5 leading-snug">{item.desc}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </motion.section>
+
           {/* Community proof */}
           <div className="rounded-3xl bg-gradient-to-br from-violet-50 via-white to-fuchsia-50/30 border border-violet-100 p-4 text-center">
             <div className="flex items-center justify-center gap-1.5 -space-x-2 mb-2">
@@ -413,8 +494,7 @@ export default function PulsePage() {
               +124 fans reported in the last 30 min
             </p>
             <p className="text-[10px] text-slate-500 mt-0.5">
-              Aggregate visibility for the recruiter demo — your taps publish real
-              signals into the in-memory store.
+              Your taps publish real signals into the live store — visible on the Hub and Staff Console.
             </p>
           </div>
         </main>

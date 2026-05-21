@@ -208,29 +208,27 @@ export function HelpSheet({ open, onClose, plan, eventId }: HelpSheetProps) {
             <p className="text-xs text-slate-500 mb-3 leading-relaxed">
               Based on your gate ({plan.recommended_gate.name.replace(/\s*\(.*\)/, '')}) and Section {demoTicket.section}. Tap to view on map.
             </p>
-            <div className="space-y-2">
+            <div className="grid grid-cols-2 gap-2.5">
               {plan.support_points.map((sp) => (
                 <Link
                   key={sp.id}
                   href={`/event/${eventId}/venue-map`}
                   onClick={onClose}
-                  className="list-row min-h-[56px]"
+                  className="flex flex-col gap-2 p-3.5 rounded-2xl bg-slate-50 border border-slate-100 hover:border-violet-200 hover:bg-violet-50/40 active:bg-violet-50 transition"
                 >
                   <span
-                    className="thumb-circle"
+                    className="w-11 h-11 rounded-2xl flex items-center justify-center text-white text-lg shadow-sm"
                     style={{ background: SUPPORT_TONE[sp.type] ?? '#7c3aed' }}
                     aria-hidden="true"
                   >
                     {SUPPORT_EMOJI[sp.type] ?? '📍'}
                   </span>
-                  <div className="flex-1 min-w-0">
-                    <div className="text-sm font-semibold text-slate-900 truncate">{sp.name}</div>
-                    <div className="text-xs text-slate-500 mt-0.5">
-                      {sp.walk_time_minutes ? `~${sp.walk_time_minutes} min walk · ` : ''}
-                      {SUPPORT_META_LABELS[sp.type] ?? sp.type}
+                  <div className="min-w-0">
+                    <div className="text-[13px] font-bold text-slate-900 leading-tight truncate">{sp.name}</div>
+                    <div className="text-[11px] text-slate-500 mt-0.5">
+                      {sp.walk_time_minutes ? `~${sp.walk_time_minutes} min walk` : SUPPORT_META_LABELS[sp.type] ?? sp.type}
                     </div>
                   </div>
-                  <span className="text-slate-300 flex-shrink-0">›</span>
                 </Link>
               ))}
             </div>

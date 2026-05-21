@@ -6,7 +6,7 @@ import { useParams } from 'next/navigation'
 import { motion } from 'framer-motion'
 import { deriveArrivalPlan, demoEvent, demoTicket, demoVenue } from '@/lib/seed'
 import { getAllSignals, loadReadiness, subscribeToFanflowChanges } from '@/lib/store'
-import type { LiveSignal, ReadinessPrefs } from '@/lib/types'
+import type { LiveSignal, ReadinessPrefs, SupportType } from '@/lib/types'
 import { computeEventIntelligence } from '@/lib/intelligence'
 import { HelpSheet } from '@/components/shared/HelpSheet'
 
@@ -15,6 +15,25 @@ type ExplainResponse = {
   source: 'template' | 'groq' | 'gemini'
   generatedAt: string
   latencyMs?: number
+}
+
+const SUPPORT_TONE: Record<SupportType, string> = {
+  first_aid: '#dc2626',
+  family_services: '#7c3aed',
+  accessibility: '#0ea5e9',
+  restroom: '#475569',
+  guest_services: '#0891b2',
+  quiet_space: '#16a34a',
+  concessions: '#ea580c',
+}
+const SUPPORT_EMOJI: Record<SupportType, string> = {
+  first_aid: '➕',
+  family_services: '👶',
+  accessibility: '♿',
+  restroom: '🚻',
+  guest_services: 'ℹ️',
+  quiet_space: '🧩',
+  concessions: '🍿',
 }
 
 export default function ArrivalGuidePage() {
@@ -135,16 +154,30 @@ export default function ArrivalGuidePage() {
   }, [plan, prefs, signals])
 
   return (
-    <div className="min-h-screen page-bg page-enter">
-      <div className="page-header px-4 h-14 flex items-center justify-between">
-        <h1 className="font-bold text-slate-900">Arrival Guide</h1>
-        <Link
-          href={`/event/${eventId}/hub`}
-          className="btn-ghost !min-h-[40px] text-sm text-violet-700"
-        >
-          ← Hub
-        </Link>
-      </div>
+    <div className="min-h-screen bg-gradient-to-b from-violet-100/60 via-violet-50/20 to-white pb-24 page-enter">
+      <header className="sticky top-0 z-30 bg-white/90 backdrop-blur-md border-b border-slate-100">
+        <div className="container-mobile px-4 h-14 flex items-center justify-between">
+          <Link
+            href={`/event/${eventId}/hub`}
+            className="text-sm text-slate-500 hover:text-slate-700"
+          >
+            ← Hub
+          </Link>
+          <div className="flex items-center gap-1">
+            <span className="font-bold text-slate-900 text-sm">Arrival Guide</span>
+            <span className="text-[10px] font-bold bg-gradient-to-br from-violet-600 to-fuchsia-600 text-white px-1.5 py-0.5 rounded">
+              LIVE
+            </span>
+          </div>
+          <Link
+            href={`/event/${eventId}/readiness`}
+            className="w-9 h-9 rounded-full bg-gradient-to-br from-violet-600 to-fuchsia-600 text-white font-bold text-sm flex items-center justify-center shadow-sm"
+            aria-label="Profile"
+          >
+            M
+          </Link>
+        </div>
+      </header>
 
       <div className="container-mobile px-4 py-5 sm:py-6 space-y-5 sm:space-y-6 safe-bottom">
         {/* Timeline — refined with icons + staggered reveal */}
@@ -577,17 +610,27 @@ export default function ArrivalGuidePage() {
               Open venue map →
             </Link>
           </div>
-          <div className="space-y-2">
+          <div className="grid grid-cols-2 gap-2.5">
             {plan.support_points.map((sp) => (
-              <div key={sp.id} className="p-3 bg-slate-50 rounded-lg border border-slate-200">
-                <div className="font-semibold text-slate-900">{sp.name}</div>
-                <div className="text-sm text-slate-600 mt-1">{sp.description}</div>
-                {sp.walk_time_minutes && (
-                  <div className="text-xs text-slate-500 mt-2">
-                    ~{sp.walk_time_minutes} min walk
+              <Link
+                key={sp.id}
+                href={`/event/${eventId}/venue-map`}
+                className="flex flex-col gap-2 p-3.5 rounded-2xl bg-slate-50 border border-slate-100 hover:border-violet-200 hover:bg-violet-50/40 active:bg-violet-50 transition"
+              >
+                <span
+                  className="w-11 h-11 rounded-2xl flex items-center justify-center text-white text-lg shadow-sm"
+                  style={{ background: SUPPORT_TONE[sp.type] ?? '#7c3aed' }}
+                  aria-hidden="true"
+                >
+                  {SUPPORT_EMOJI[sp.type] ?? '📍'}
+                </span>
+                <div className="min-w-0">
+                  <div className="text-[13px] font-bold text-slate-900 leading-tight truncate">{sp.name}</div>
+                  <div className="text-[11px] text-slate-500 mt-0.5">
+                    {sp.walk_time_minutes ? `~${sp.walk_time_minutes} min walk` : sp.description}
                   </div>
-                )}
-              </div>
+                </div>
+              </Link>
             ))}
           </div>
         </div>
@@ -611,6 +654,40 @@ export default function ArrivalGuidePage() {
         plan={plan}
         eventId={eventId}
       />
+
+      {/* Bottom tab nav — matches Hub. Guide is the active tab. */}
+      <nav
+        className="fixed bottom-0 inset-x-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200"
+        style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
+      >
+        <div className="container-mobile h-16 grid grid-cols-4 px-2">
+          <div className="flex flex-col items-center justify-center gap-0.5 h-full text-[10px] font-semibold text-violet-700">
+            <span className="flex items-center justify-center w-9 h-9 rounded-full text-xl bg-violet-100">✦</span>
+            Guide
+          </div>
+          <Link
+            href={`/event/${eventId}/venue-map`}
+            className="flex flex-col items-center justify-center gap-0.5 h-full text-[10px] font-semibold text-slate-500 hover:text-slate-700"
+          >
+            <span className="flex items-center justify-center w-9 h-9 rounded-full text-xl">🗺️</span>
+            Map
+          </Link>
+          <Link
+            href={`/event/${eventId}/pulse`}
+            className="flex flex-col items-center justify-center gap-0.5 h-full text-[10px] font-semibold text-slate-500 hover:text-slate-700"
+          >
+            <span className="flex items-center justify-center w-9 h-9 rounded-full text-xl">📊</span>
+            Pulse
+          </Link>
+          <button
+            onClick={() => setHelpOpen(true)}
+            className="flex flex-col items-center justify-center gap-0.5 h-full text-[10px] font-semibold text-slate-500 hover:text-slate-700"
+          >
+            <span className="flex items-center justify-center w-9 h-9 rounded-full text-xl">🎧</span>
+            Help
+          </button>
+        </div>
+      </nav>
     </div>
   )
 }

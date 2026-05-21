@@ -163,7 +163,7 @@ export default function ConditionsPage() {
 
   return (
     <>
-      <div className="min-h-screen bg-gradient-to-b from-violet-50/40 via-white to-white pb-24">
+      <div className="min-h-screen bg-gradient-to-b from-violet-100/60 via-violet-50/20 to-white pb-24">
         {/* Sticky brand bar */}
         <header className="sticky top-0 z-30 bg-white/90 backdrop-blur-md border-b border-slate-100">
           <div className="container-mobile px-4 h-14 flex items-center justify-between">
