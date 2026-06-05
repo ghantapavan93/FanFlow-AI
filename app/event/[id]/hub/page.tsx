@@ -7,6 +7,7 @@ import { motion, AnimatePresence, useReducedMotion } from 'framer-motion'
 import {
   demoEvent,
   demoTicket,
+  demoVenue,
   deriveArrivalPlan,
 } from '@/lib/seed'
 import { loadSelectedTicket } from '@/lib/ticketContext'
@@ -32,6 +33,8 @@ import { computeEventIntelligence, computeFanPulse } from '@/lib/intelligence'
 import type { EventIntelligence, FanPulseBreakdown } from '@/lib/intelligence'
 import { HelpSheet } from '@/components/shared/HelpSheet'
 import { SessionChip } from '@/components/shared/SessionChip'
+import { HubAISummary } from '@/components/hub/HubAISummary'
+import { formatDerivedAt } from '@/lib/sources'
 
 /**
  * Event Day Hub — premium mobile-native launcher dashboard.
@@ -507,8 +510,8 @@ export default function EventHubPage() {
                 <span>✦</span>
                 Vision Route
               </Link>
-              <span className="text-[11px] text-slate-400 font-medium">
-                Updated {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+              <span className="text-[11px] text-slate-400 font-medium" title={`Plan derived at ${new Date(plan.confidence_breakdown.derivedAt).toLocaleString()}`}>
+                {formatDerivedAt(plan.confidence_breakdown.derivedAt)}
               </span>
             </div>
           </section>
@@ -671,6 +674,16 @@ export default function EventHubPage() {
             </div>
           </motion.section>
 
+          {/* === Compact AI summary — calls existing endpoint ========= */}
+          <HubAISummary
+            plan={plan}
+            prefs={prefs}
+            signals={signals}
+            eventName={demoEvent.name}
+            venueName={demoVenue.name}
+            ticketSection={ticket.section}
+          />
+
           {/* === Journey Starts Now — inline guided timeline ========== */}
           <JourneyTimeline
             eventId={eventId}
@@ -713,12 +726,20 @@ export default function EventHubPage() {
                 delay={0.05}
               />
               <DashTile
+                href={`/event/${eventId}/parking`}
+                icon="🅿️"
+                iconTone="from-sky-500 to-cyan-600"
+                title="Parking"
+                stat={prefs?.transport === 'driving' ? 'Lot recommended' : 'Lots & arrival'}
+                delay={0.1}
+              />
+              <DashTile
                 href={`/event/${eventId}/conditions`}
                 icon="📡"
                 iconTone="from-emerald-500 to-cyan-600"
                 title="Conditions"
                 stat={recentSignalCount > 0 ? `${recentSignalCount} signals` : loadText}
-                delay={0.1}
+                delay={0.15}
               />
               <DashTile
                 href={`/event/${eventId}/pulse`}
@@ -726,7 +747,7 @@ export default function EventHubPage() {
                 iconTone="from-fuchsia-500 to-pink-600"
                 title="Pulse"
                 stat={fanPulseStat}
-                delay={0.15}
+                delay={0.2}
               />
               <DashTile
                 onClick={() => setHelpOpen(true)}
@@ -734,7 +755,15 @@ export default function EventHubPage() {
                 iconTone="from-rose-500 to-orange-500"
                 title="Help"
                 stat="Nearby support"
-                delay={0.2}
+                delay={0.25}
+              />
+              <DashTile
+                href={`/event/${eventId}/exit`}
+                icon="🚗"
+                iconTone="from-slate-600 to-violet-700"
+                title="ExitFlow"
+                stat="After the event"
+                delay={0.3}
               />
               <DashTile
                 href={`/event/${eventId}/readiness`}
@@ -742,7 +771,7 @@ export default function EventHubPage() {
                 iconTone="from-slate-500 to-slate-700"
                 title="Prefs"
                 stat={prefs ? 'Personalized' : 'Set up'}
-                delay={0.25}
+                delay={0.35}
               />
             </div>
           </motion.section>

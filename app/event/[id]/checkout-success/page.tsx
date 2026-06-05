@@ -197,136 +197,201 @@ export default function CheckoutSuccessPage() {
           />
         </motion.div>
 
-        {/* === Beat 4: FanFlow unlock wordmark === */}
+        {/* === Beats 4–6: Cinematic FanFlow Unlocked moment =============
+            One dark, glowing card that does the whole transition: badge,
+            event context, route line drawing from "you" to the venue,
+            module strip, and the single primary CTA. */}
         <motion.div
-          className="text-center py-2"
-          {...reveal(2.2)}
-        >
-          <motion.div
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-violet-50 border border-violet-200 mb-3"
-            initial={reduced ? false : { scale: 0.95, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            transition={{ duration: 0.5, delay: 2.3, ease: [0.16, 1, 0.3, 1] }}
-          >
-            <motion.span
-              className="text-base"
-              animate={reduced ? undefined : { rotate: [0, -10, 10, -6, 0] }}
-              transition={reduced ? undefined : { duration: 1.2, delay: 2.5, ease: 'easeInOut' }}
-            >
-              ✨
-            </motion.span>
-            <span className="text-xs font-bold uppercase tracking-[0.12em] text-violet-700">
-              FanFlow AI · Unlocked
-            </span>
-          </motion.div>
-          <h3 className="text-xl font-bold text-slate-900 tracking-tight px-4">
-            Your Event Day Guide is being prepared
-          </h3>
-          <p className="text-sm text-slate-500 mt-1 px-4">
-            Because you booked through StubHub, you get personalized arrival guidance — free.
-          </p>
-        </motion.div>
-
-        {/* === Beat 5: Four module cards stagger in === */}
-        <div className="grid grid-cols-2 gap-2.5">
-          {[
-            {
-              icon: '🎟️',
-              title: 'Event Day Hub',
-              sub: 'Countdown · plan · live signals',
-              tone: 'from-violet-50 to-white border-violet-200',
-              iconBg: 'bg-violet-600',
-            },
-            {
-              icon: '🧭',
-              title: 'Arrival Guide',
-              sub: 'Best gate · leave time · route',
-              tone: 'from-emerald-50 to-white border-emerald-200',
-              iconBg: 'bg-emerald-600',
-            },
-            {
-              icon: '🗺️',
-              title: 'Venue Map',
-              sub: 'Section walk · support nearby',
-              tone: 'from-sky-50 to-white border-sky-200',
-              iconBg: 'bg-sky-600',
-            },
-            {
-              icon: '📡',
-              title: 'Live Updates',
-              sub: 'Staff signals · fan pulse',
-              tone: 'from-amber-50 to-white border-amber-200',
-              iconBg: 'bg-amber-600',
-            },
-          ].map((m, i) => (
-            <motion.div
-              key={m.title}
-              className={`relative rounded-2xl border bg-gradient-to-br ${m.tone} p-3.5 overflow-hidden`}
-              initial={reduced ? false : { opacity: 0, y: 14, scale: 0.96 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              transition={{
-                duration: 0.5,
-                delay: reduced ? 0 : 3.0 + i * 0.18,
-                ease: [0.16, 1, 0.3, 1],
-              }}
-            >
-              <div className={`w-9 h-9 rounded-full ${m.iconBg} text-white flex items-center justify-center text-base mb-2`}>
-                {m.icon}
-              </div>
-              <div className="font-bold text-sm text-slate-900 leading-tight">{m.title}</div>
-              <div className="text-[11px] text-slate-500 mt-0.5 leading-snug">{m.sub}</div>
-              {/* Shimmer sweep on reveal */}
-              {!reduced && (
-                <motion.span
-                  className="absolute inset-y-0 left-0 w-1/3 bg-gradient-to-r from-transparent via-white/60 to-transparent pointer-events-none"
-                  initial={{ x: '-100%', opacity: 0 }}
-                  animate={{ x: '350%', opacity: [0, 1, 0] }}
-                  transition={{ duration: 0.9, delay: 3.0 + i * 0.18 + 0.2, ease: 'easeOut' }}
-                />
-              )}
-            </motion.div>
-          ))}
-        </div>
-
-        {/* === Beat 6: CTA strip === */}
-        <motion.div
-          className="rounded-2xl bg-slate-900 text-white p-4 sm:p-5"
-          initial={reduced ? false : { opacity: 0, y: 14 }}
+          className="relative overflow-hidden rounded-3xl text-white p-5 sm:p-6 mt-2"
+          style={{
+            background:
+              'radial-gradient(circle at 75% 12%, rgba(167,139,250,0.30), transparent 55%),' +
+              'radial-gradient(circle at 18% 95%, rgba(236,72,153,0.22), transparent 55%),' +
+              'linear-gradient(160deg, #0b0820 0%, #1a0f3d 55%, #150b35 100%)',
+          }}
+          initial={reduced ? false : { opacity: 0, y: 18 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.55, delay: reduced ? 0 : 4.5, ease: [0.16, 1, 0.3, 1] }}
+          transition={{ duration: 0.7, delay: reduced ? 0 : 2.0, ease: [0.16, 1, 0.3, 1] }}
         >
-          <div className="flex items-center gap-3">
+          {/* Stadium-energy background — soft scan beam + drifting orbs */}
+          {!reduced && (
+            <>
+              <motion.div
+                aria-hidden="true"
+                className="absolute -top-20 -left-10 w-60 h-60 rounded-full bg-violet-500/20 blur-3xl"
+                animate={{ x: [0, 30, 0], y: [0, 20, 0] }}
+                transition={{ duration: 9, repeat: Infinity, ease: 'easeInOut' }}
+              />
+              <motion.div
+                aria-hidden="true"
+                className="absolute -bottom-16 -right-10 w-72 h-72 rounded-full bg-fuchsia-500/15 blur-3xl"
+                animate={{ x: [0, -25, 0], y: [0, -15, 0] }}
+                transition={{ duration: 11, repeat: Infinity, ease: 'easeInOut' }}
+              />
+              <motion.div
+                aria-hidden="true"
+                className="absolute inset-x-0 top-1/3 h-px bg-gradient-to-r from-transparent via-violet-300/70 to-transparent"
+                initial={{ opacity: 0, scaleX: 0 }}
+                animate={{ opacity: [0, 0.7, 0], scaleX: [0, 1, 1] }}
+                transition={{ duration: 2.2, delay: 2.4, ease: 'easeInOut' }}
+              />
+            </>
+          )}
+
+          <div className="relative">
+            {/* Status badge */}
             <motion.div
-              className="w-10 h-10 rounded-full bg-violet-600 flex items-center justify-center text-base flex-shrink-0"
-              animate={reduced ? undefined : { scale: [1, 1.08, 1] }}
-              transition={reduced ? undefined : { duration: 2.2, repeat: Infinity, ease: 'easeInOut' }}
+              className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/10 border border-white/20 backdrop-blur-sm"
+              initial={reduced ? false : { scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              transition={{ duration: 0.5, delay: reduced ? 0 : 2.2, ease: [0.16, 1, 0.3, 1] }}
             >
-              ✦
+              <span className="relative flex w-2.5 h-2.5">
+                <span className="absolute inset-0 rounded-full bg-violet-300 animate-ping opacity-60" />
+                <span className="relative inline-block w-2.5 h-2.5 rounded-full bg-violet-400" />
+              </span>
+              <span className="text-[10px] font-bold uppercase tracking-[0.16em] text-violet-200">
+                FanFlow AI · Unlocked
+              </span>
             </motion.div>
-            <div className="flex-1 min-w-0">
-              <div className="font-bold text-sm">Build my event day plan</div>
-              <div className="text-xs text-slate-300 mt-0.5">
-                {autoCountdown !== null
-                  ? `Starting in ${autoCountdown}s…`
-                  : 'See how FanFlow picks your gate, leave-by time, and route.'}
+
+            {/* Cinematic title */}
+            <motion.h3
+              className="text-[26px] sm:text-3xl font-extrabold tracking-tight leading-[1.05] mt-3"
+              initial={reduced ? false : { opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.55, delay: reduced ? 0 : 2.45, ease: [0.16, 1, 0.3, 1] }}
+            >
+              Your ticket just became
+              <br className="hidden sm:block" />
+              an event-day companion.
+            </motion.h3>
+
+            {/* Event context line */}
+            <motion.p
+              className="text-[12px] text-violet-200/80 mt-2 leading-relaxed"
+              initial={reduced ? false : { opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 0.5, delay: reduced ? 0 : 2.65 }}
+            >
+              {demoEvent.name} · {demoVenue.name} · Section {demoTicket.section}
+            </motion.p>
+
+            {/* Route line — fan → venue, drawing in */}
+            <motion.div
+              className="mt-5 flex items-center gap-3"
+              initial={reduced ? false : { opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 0.45, delay: reduced ? 0 : 2.9 }}
+            >
+              <div className="flex flex-col items-center">
+                <span className="w-8 h-8 rounded-full bg-white/10 border border-white/30 backdrop-blur flex items-center justify-center text-sm">
+                  📍
+                </span>
+                <span className="text-[9px] font-bold uppercase tracking-wider text-violet-300 mt-1">
+                  You
+                </span>
               </div>
-            </div>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-2 mt-4">
-            <Link
-              href={`/event/${eventId}/building-plan`}
-              onClick={() => setAutoCountdown(null)}
-              className="inline-flex items-center justify-center gap-1 min-h-[44px] px-5 rounded-full bg-white text-slate-900 font-bold text-sm hover:bg-slate-100 transition"
+
+              <div className="flex-1 relative h-[3px]">
+                {/* Static track */}
+                <div className="absolute inset-0 rounded-full bg-white/10" />
+                {/* Animated route fill */}
+                <motion.div
+                  className="absolute inset-y-0 left-0 rounded-full bg-gradient-to-r from-violet-400 via-fuchsia-400 to-violet-300 shadow-[0_0_12px_rgba(167,139,250,0.5)]"
+                  initial={reduced ? { width: '100%' } : { width: '0%' }}
+                  animate={{ width: '100%' }}
+                  transition={{ duration: reduced ? 0 : 1.6, delay: reduced ? 0 : 3.05, ease: [0.16, 1, 0.3, 1] }}
+                />
+                {/* Travelling pulse */}
+                {!reduced && (
+                  <motion.span
+                    className="absolute top-1/2 -translate-y-1/2 w-2.5 h-2.5 rounded-full bg-white shadow-[0_0_10px_rgba(255,255,255,0.9)]"
+                    initial={{ left: '0%' }}
+                    animate={{ left: ['0%', '100%'] }}
+                    transition={{ duration: 1.6, delay: 3.05, ease: [0.16, 1, 0.3, 1] }}
+                  />
+                )}
+              </div>
+
+              <div className="flex flex-col items-center">
+                <span className="w-8 h-8 rounded-full bg-violet-500/30 border border-violet-300/50 backdrop-blur flex items-center justify-center text-sm">
+                  🏟
+                </span>
+                <span className="text-[9px] font-bold uppercase tracking-wider text-violet-200 mt-1">
+                  Venue
+                </span>
+              </div>
+            </motion.div>
+
+            {/* Module pills — what FanFlow unlocks */}
+            <motion.div
+              className="grid grid-cols-4 gap-1.5 mt-5"
+              initial={reduced ? false : { opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: reduced ? 0 : 3.6 }}
             >
-              Build my event day plan →
-            </Link>
-            <Link
-              href={`/event/${eventId}/readiness`}
-              onClick={() => setAutoCountdown(null)}
-              className="inline-flex items-center justify-center gap-1 min-h-[44px] px-5 rounded-full bg-violet-600 text-white font-bold text-sm hover:bg-violet-700 transition"
+              {[
+                { icon: '🧭', label: 'Plan' },
+                { icon: '🅿️', label: 'Parking' },
+                { icon: '🗺️', label: 'Map' },
+                { icon: '🚪', label: 'Exit' },
+              ].map((m, i) => (
+                <motion.div
+                  key={m.label}
+                  className="rounded-xl bg-white/5 border border-white/10 backdrop-blur-sm px-2 py-2 text-center"
+                  initial={reduced ? false : { opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{
+                    duration: 0.35,
+                    delay: reduced ? 0 : 3.7 + i * 0.08,
+                    ease: [0.16, 1, 0.3, 1],
+                  }}
+                >
+                  <div className="text-base">{m.icon}</div>
+                  <div className="text-[9px] font-bold uppercase tracking-wider text-violet-200 mt-0.5">
+                    {m.label}
+                  </div>
+                </motion.div>
+              ))}
+            </motion.div>
+
+            {/* Primary CTA */}
+            <motion.div
+              className="mt-5"
+              initial={reduced ? false : { opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: reduced ? 0 : 4.2 }}
             >
-              Personalize first
-            </Link>
+              <Link
+                href={`/event/${eventId}/building-plan`}
+                onClick={() => setAutoCountdown(null)}
+                className="group relative inline-flex w-full items-center justify-center gap-2 min-h-[52px] px-5 rounded-full bg-gradient-to-r from-violet-500 to-fuchsia-500 hover:from-violet-400 hover:to-fuchsia-400 text-white font-bold text-base shadow-[0_8px_24px_-6px_rgba(167,139,250,0.55)] transition overflow-hidden"
+              >
+                <span className="relative z-10">Build My Event Day Plan</span>
+                <span className="relative z-10 transition-transform group-hover:translate-x-0.5">→</span>
+                {!reduced && (
+                  <span
+                    aria-hidden="true"
+                    className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/30 to-transparent group-hover:translate-x-full transition-transform duration-1000"
+                  />
+                )}
+              </Link>
+              <div className="flex items-center justify-between gap-2 mt-3 text-[11px] text-violet-200/80">
+                <Link
+                  href={`/event/${eventId}/readiness`}
+                  onClick={() => setAutoCountdown(null)}
+                  className="hover:text-white underline-offset-2 hover:underline transition"
+                >
+                  Personalize first
+                </Link>
+                <span>
+                  {autoCountdown !== null
+                    ? `Starting in ${autoCountdown}s…`
+                    : 'Included free with your StubHub ticket'}
+                </span>
+              </div>
+            </motion.div>
           </div>
         </motion.div>
 

@@ -7,6 +7,7 @@ import { animate, motion, useReducedMotion } from 'framer-motion'
 import { demoTicket, demoVenue, deriveArrivalPlan } from '@/lib/seed'
 import { loadReadiness, getAllSignals } from '@/lib/store'
 import type { ArrivalPlan, ReadinessPrefs, LiveSignal } from '@/lib/types'
+import { SCENES } from '@/lib/scenes/scenes'
 
 /**
  * Building Plan — the FanFlow "thinking" screen.
@@ -171,8 +172,10 @@ export default function BuildingPlanPage() {
   const stepDone = (i: number) => tick >= i
   const showFinal = tick >= STEP_DELAYS.length
 
+  const scene = SCENES.fanflow_unlocked
+
   return (
-    <div className="min-h-screen bg-white">
+    <div className={`min-h-screen ${scene.backgroundClass}`}>
       {/* Minimal header — receipt feel, mirrors checkout-success */}
       <div className="border-b border-slate-100">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between">
