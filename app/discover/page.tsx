@@ -34,7 +34,15 @@ type EventCard = {
   brand?: string
   /** Image URL. If set, used instead of bg gradient. */
   img?: string
+  /** Wired into the full FanFlow demo flow (only the World Cup today). */
   eligible?: boolean
+  /**
+   * Shows the "FanFlow AI included" badge WITHOUT being wired into the
+   * full flow. Used to communicate that FanFlow is a platform-wide
+   * post-purchase layer — especially for big venues — not a one-event
+   * feature. These cards still fire the demo toast on click.
+   */
+  fanflow?: boolean
   trending?: boolean
 }
 
@@ -52,6 +60,7 @@ const HERO: EventCard[] = [
     name: 'NFL',
     bg: 'bg-gradient-to-br from-amber-700 via-amber-800 to-stone-900',
     img: 'https://images.unsplash.com/photo-1566577739112-5180d4bf9390?w=600&h=600&fit=crop',
+    fanflow: true,
   },
   {
     id: 'wc2026-final',
@@ -67,6 +76,7 @@ const HERO: EventCard[] = [
     date: '17 May - 31 Oct',
     bg: 'bg-gradient-to-br from-rose-500 via-pink-600 to-fuchsia-700',
     img: 'https://images.unsplash.com/photo-1501386761578-eac5c94b800a?w=600&h=600&fit=crop',
+    fanflow: true,
   },
 ]
 
@@ -80,7 +90,7 @@ const RECENTLY_VIEWED: EventCard[] = [
 
 // === Recommended for you ======================================
 const RECOMMENDED: (EventCard & { sub?: string })[] = [
-  { id: 'cowboys', name: 'Dallas Cowboys', views: '59.2k', date: '11 Aug - 03 Jan 2027', sub: '10 events near you', bg: 'bg-gradient-to-br from-blue-700 to-blue-900', brand: '🏈' },
+  { id: 'cowboys', name: 'Dallas Cowboys', views: '59.2k', date: '11 Aug - 03 Jan 2027', sub: '10 events near you', bg: 'bg-gradient-to-br from-blue-700 to-blue-900', brand: '🏈', fanflow: true },
   { id: 'rangers', name: 'Texas Rangers', views: '31.9k', date: '25 May - 24 Sep', sub: '60 events near you', bg: 'bg-gradient-to-br from-blue-700 to-blue-900', brand: 'T' },
   { id: 'sooners', name: 'Oklahoma Sooners Football', views: '1.4k', date: 'Sat, 10 Oct · 1:00 PM', sub: '1 event near you', bg: '', img: 'https://images.unsplash.com/photo-1543351611-58f69d7c1781?w=400&h=400&fit=crop' },
   { id: 'nate', name: 'Nate Bargatze', views: '25.3k', date: 'Sat, 06 Jun · 3:00 PM', sub: '2 events near you', bg: '', img: 'https://images.unsplash.com/photo-1582719508461-905c673771fd?w=400&h=400&fit=crop' },
@@ -106,13 +116,13 @@ const DEALS: EventCard[] = [
 const CONCERTS: EventCard[] = [
   { id: 'ella', name: 'Ella Langley', views: '5.6k', date: 'Sat, 15 Aug · 7:00 PM', venue: '1 event near you', bg: '', img: 'https://images.unsplash.com/photo-1516280440614-37939bbacd81?w=400&h=400&fit=crop' },
   { id: 'bts-c', name: 'BTS', views: '54.9k', date: '15 Aug - 16 Aug', venue: '2 events near you', bg: '', img: 'https://images.unsplash.com/photo-1501386761578-eac5c94b800a?w=400&h=400&fit=crop' },
-  { id: 'zach', name: 'Zach Bryan', views: '79.8k', date: 'Sat, 22 Aug · 7:00 PM', venue: '1 event near you', bg: '', img: 'https://images.unsplash.com/photo-1470229722913-7c0e2dbbafd3?w=400&h=400&fit=crop' },
+  { id: 'zach', name: 'Zach Bryan', views: '79.8k', date: 'Sat, 22 Aug · 7:00 PM', venue: '1 event near you', bg: '', img: 'https://images.unsplash.com/photo-1470229722913-7c0e2dbbafd3?w=400&h=400&fit=crop', fanflow: true },
   { id: 'ty', name: 'Ty Myers', views: '3.8k', date: 'Sat, 21 Nov · 7:30 PM', venue: '1 event near you', bg: '', img: 'https://images.unsplash.com/photo-1465847899084-d164df4dedc6?w=400&h=400&fit=crop' },
 ]
 
 // === Sports ===================================================
 const SPORTS: EventCard[] = [
-  { id: 'cowboys-s', name: 'Dallas Cowboys', views: '59.2k', date: '11 Aug - 03 Jan 2027', venue: '10 events near you', bg: 'bg-gradient-to-br from-blue-700 to-blue-900', brand: '🏈' },
+  { id: 'cowboys-s', name: 'Dallas Cowboys', views: '59.2k', date: '11 Aug - 03 Jan 2027', venue: '10 events near you', bg: 'bg-gradient-to-br from-blue-700 to-blue-900', brand: '🏈', fanflow: true },
   { id: 'stars', name: 'Dallas Stars', views: '13.1k', date: 'Sat, 20 Feb · 7:00 PM', venue: '1 event near you', bg: '', img: 'https://images.unsplash.com/photo-1515703407324-5f51c2ed299b?w=400&h=400&fit=crop' },
   { id: 'rangers-s', name: 'Texas Rangers', views: '31.9k', date: '25 May - 24 Sep', venue: '60 events near you', bg: 'bg-gradient-to-br from-blue-700 to-blue-900', brand: 'T' },
   { id: 'sooners-s', name: 'Oklahoma Sooners Football', views: '1.4k', date: 'Sat, 10 Oct · 1:00 PM', venue: '1 event near you', bg: '', img: 'https://images.unsplash.com/photo-1543351611-58f69d7c1781?w=400&h=400&fit=crop' },
@@ -219,7 +229,7 @@ function CompactCard({ ev, onMockClick }: { ev: EventCard & { sub?: string }; on
     <div className="group">
       <div className="relative">
         <HeartBtn views={ev.views} />
-        {ev.eligible && <FanflowBadge />}
+        {(ev.fanflow || ev.eligible) && <FanflowBadge />}
         <BrandTile ev={ev} />
       </div>
       <div className="mt-2.5 px-0.5">
@@ -246,7 +256,7 @@ function NumberedCard({ ev, onMockClick }: { ev: EventCard; onMockClick: () => v
     <div className="group">
       <div className="relative">
         <HeartBtn />
-        {ev.eligible && <FanflowBadge />}
+        {(ev.fanflow || ev.eligible) && <FanflowBadge />}
         <span className="absolute top-2.5 left-2.5 inline-flex items-center justify-center w-7 h-7 rounded-full bg-violet-600 text-white text-xs font-bold z-10">
           #{ev.rank}
         </span>
@@ -321,8 +331,9 @@ export default function DiscoverPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-2 flex items-center justify-center gap-2 text-[11px] sm:text-xs text-violet-800 text-center">
           <span className="font-bold">Demo:</span>
           <span>
-            StubHub-replica surface showing where FanFlow AI plugs in. Only the{' '}
-            <span className="font-semibold underline">World Cup</span> card is clickable.
+            FanFlow AI is included on supported events across the platform (look for the badge). The{' '}
+            <span className="font-semibold underline">World Cup</span> card is wired up for the full
+            post-purchase demo.
           </span>
         </div>
       </div>
@@ -351,7 +362,7 @@ export default function DiscoverPage() {
                 >
                   <div className="relative">
                     <HeartBtn />
-                    {ev.eligible && <FanflowBadge />}
+                    {(ev.fanflow || ev.eligible) && <FanflowBadge />}
                     <BrandTile ev={ev} size="lg" />
                   </div>
                   <div className="mt-3 px-1">

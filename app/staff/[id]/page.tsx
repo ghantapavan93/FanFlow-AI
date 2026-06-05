@@ -23,7 +23,22 @@ import {
   timestampedFilename,
 } from '@/lib/exports'
 import { computeOperationalAlerts } from '@/lib/operationalAlerts'
-import type { Incident, IncidentStatus, IncidentType, LiveSignal } from '@/lib/types'
+import { inferMapFocus, staffVerifiedAlert } from '@/lib/services/alertService'
+import type { Incident, IncidentStatus, IncidentType, LiveSignal, SceneId } from '@/lib/types'
+
+/** Display tokens for the map layer a staff signal would highlight. */
+const FOCUS_DISPLAY: Record<SceneId, { label: string; icon: string }> = {
+  parking: { label: 'Parking', icon: '🅿️' },
+  gate_guidance: { label: 'Gates', icon: '🚪' },
+  crowd_pulse: { label: 'Crowd', icon: '📊' },
+  restrooms: { label: 'Restrooms', icon: '🚻' },
+  accessibility: { label: 'Accessibility', icon: '♿' },
+  support: { label: 'Support', icon: '🤝' },
+  exit: { label: 'Exit', icon: '🚗' },
+  ticket_confirmed: { label: 'Hub', icon: '🎟️' },
+  fanflow_unlocked: { label: 'Hub', icon: '✦' },
+  personalization: { label: 'Prefs', icon: '⚙️' },
+}
 
 /**
  * Staff Operations Console
@@ -1980,14 +1995,50 @@ export default function StaffConsolePage() {
                   />
                 </div>
 
-                <div className="rounded-lg border border-slate-700 bg-slate-950/60 p-3">
-                  <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
-                    Fans will see
-                  </div>
-                  <p className="text-xs text-slate-200 leading-snug">
-                    &ldquo;{message.trim() || composedMessage}&rdquo;
-                  </p>
-                </div>
+                {(() => {
+                  // Build the SAME structured message the Alert Service would
+                  // emit on publish: rules pick the source label, severity, and
+                  // which map layer highlights. The fan-facing card renders from
+                  // this shape, so this preview is a faithful mirror of what
+                  // propagates into the Hub / Conditions / Pulse / Map.
+                  const text = message.trim() || composedMessage
+                  const preview = staffVerifiedAlert({
+                    id: 'staff-preview',
+                    title: 'Gate update',
+                    body: text,
+                    showMapFocus: inferMapFocus(text),
+                  })
+                  const focus = FOCUS_DISPLAY[preview.showMapFocus ?? 'crowd_pulse']
+                  const sev =
+                    sentiment === 'difficult'
+                      ? 'border-rose-500/40'
+                      : sentiment === 'busy'
+                        ? 'border-orange-500/40'
+                        : sentiment === 'moderate'
+                          ? 'border-amber-500/40'
+                          : 'border-emerald-500/40'
+                  return (
+                    <div className={`rounded-lg border ${sev} bg-slate-950/60 p-3`}>
+                      <div className="flex items-center justify-between gap-2 mb-1.5">
+                        <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                          Fans will see
+                        </div>
+                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/40 text-emerald-300 text-[9px] font-bold uppercase tracking-wider">
+                          ✓ {preview.sourceLabel}
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-200 leading-snug">
+                        &ldquo;{preview.body}&rdquo;
+                      </p>
+                      <div className="flex items-center gap-2 mt-2 flex-wrap">
+                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-slate-800 border border-slate-700 text-[9px] font-semibold text-slate-300">
+                          {focus.icon} Highlights {focus.label} layer
+                        </span>
+                        <span className="text-[9px] text-slate-500">Weighted 3× · syncs to all open fan tabs</span>
+                      </div>
+                    </div>
+                  )
+                })()}
 
                 <details className="text-xs">
                   <summary className="cursor-pointer text-slate-400 hover:text-slate-200">

@@ -392,6 +392,41 @@ export default function WorldCupTicketsPage() {
               </div>
             </div>
 
+            {/* What FanFlow unlocks after purchase */}
+            <motion.div
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: 0.15 }}
+              className="rounded-2xl bg-white border border-violet-200 p-4 sm:p-5"
+            >
+              <div className="flex items-center gap-2 mb-3">
+                <span className="text-base">✨</span>
+                <div className="text-[10px] font-bold uppercase tracking-[0.12em] text-violet-700">
+                  What FanFlow unlocks after checkout
+                </div>
+              </div>
+              <ul className="grid grid-cols-2 gap-x-3 gap-y-2">
+                {[
+                  { icon: '🧭', label: 'Personalized arrival plan' },
+                  { icon: '🅿️', label: 'Parking & gate guidance' },
+                  { icon: '🗺️', label: 'Venue map & route' },
+                  { icon: '🚻', label: 'Restrooms & facilities' },
+                  { icon: '♿', label: 'Accessibility support' },
+                  { icon: '✅', label: 'Staff-verified updates' },
+                  { icon: '📊', label: 'Live crowd pulse' },
+                  { icon: '🚗', label: 'Post-event exit help' },
+                ].map((item) => (
+                  <li key={item.label} className="flex items-center gap-1.5">
+                    <span className="text-sm flex-shrink-0">{item.icon}</span>
+                    <span className="text-[11px] text-slate-700 leading-tight">{item.label}</span>
+                  </li>
+                ))}
+              </ul>
+              <p className="text-[10px] text-slate-400 mt-3 leading-relaxed">
+                Included free the moment you confirm — no extra app, no extra cost.
+              </p>
+            </motion.div>
+
             {/* FanFlow why-this-matters callout */}
             <motion.div
               initial={{ opacity: 0, y: 8 }}
@@ -406,9 +441,9 @@ export default function WorldCupTicketsPage() {
                 </div>
               </div>
               <p className="text-xs text-violet-900/80 leading-relaxed">
-                Every World Cup ticket on StubHub now unlocks a personalized post-purchase guide:
-                best gate for your section, leave-by time tuned to your group, and live signals
-                from staff and fans. Free, the moment you confirm.
+                StubHub gets you the ticket. FanFlow takes over after checkout — best gate for your
+                section, leave-by time tuned to your group, parking, and live signals from staff and
+                fans. Especially powerful for massive venues like the World Cup final.
               </p>
             </motion.div>
           </aside>

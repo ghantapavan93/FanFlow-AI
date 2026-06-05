@@ -4,20 +4,75 @@ import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
-import { demoTicket, demoVenue, deriveArrivalPlan } from '@/lib/seed'
+import { demoParkingLots, demoTicket, demoVenue, deriveArrivalPlan } from '@/lib/seed'
 import { getAllSignals, loadReadiness, subscribeToFanflowChanges } from '@/lib/store'
 import type {
   Gate,
   LiveSignal,
+  ParkingLot,
   ReadinessPrefs,
   SupportPoint,
   SupportType,
 } from '@/lib/types'
 import { HelpSheet } from '@/components/shared/HelpSheet'
+import { SourceChip } from '@/components/shared/SourceChip'
+import { ConfidenceChip } from '@/components/shared/ConfidenceChip'
+import { getGateCrowd } from '@/lib/services/crowdService'
+import { PARKING_STATUS_COLOR, PARKING_STATUS_LABEL } from '@/lib/services/parkingService'
+import { SCENES } from '@/lib/scenes/scenes'
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Venue Map — the hero product surface.
+
+   A layer system drives the whole experience. Selecting a layer changes:
+     - the page background tint (via the scene engine)
+     - which overlay renders on the stadium SVG
+     - the content card shown beneath the map
+     - the route treatment
+
+   Every "live" claim (parking status, gate crowd, etc.) renders a
+   SourceChip + ConfidenceChip so the demo never overclaims. The rule
+   engine (deriveArrivalPlan) and crowd math (crowdService → computeFanPulse)
+   are untouched — this page only renders their output.
+   ─────────────────────────────────────────────────────────────────────── */
+
+type LayerId =
+  | 'route'
+  | 'parking'
+  | 'gates'
+  | 'crowd'
+  | 'restrooms'
+  | 'accessibility'
+  | 'support'
+  | 'exit'
+
+const LAYERS: { id: LayerId; label: string; icon: string }[] = [
+  { id: 'route', label: 'Route', icon: '🧭' },
+  { id: 'parking', label: 'Parking', icon: '🅿️' },
+  { id: 'gates', label: 'Gates', icon: '🚪' },
+  { id: 'crowd', label: 'Crowd', icon: '📊' },
+  { id: 'restrooms', label: 'Restrooms', icon: '🚻' },
+  { id: 'accessibility', label: 'Access', icon: '♿' },
+  { id: 'support', label: 'Support', icon: '🤝' },
+  { id: 'exit', label: 'Exit', icon: '🚗' },
+]
+
+/** Maps each layer to a scene so background + tone stay aligned. */
+const LAYER_SCENE: Record<LayerId, keyof typeof SCENES> = {
+  route: 'gate_guidance',
+  parking: 'parking',
+  gates: 'gate_guidance',
+  crowd: 'crowd_pulse',
+  restrooms: 'restrooms',
+  accessibility: 'accessibility',
+  support: 'support',
+  exit: 'exit',
+}
 
 type Marker =
   | { kind: 'gate'; data: Gate; recommended: boolean }
   | { kind: 'support'; data: SupportPoint }
+  | { kind: 'parking'; data: ParkingLot }
 
 const SUPPORT_META: Record<SupportType, { emoji: string; tone: string; label: string }> = {
   first_aid: { emoji: '➕', tone: '#dc2626', label: 'First Aid' },
@@ -29,26 +84,11 @@ const SUPPORT_META: Record<SupportType, { emoji: string; tone: string; label: st
   concessions: { emoji: '🍿', tone: '#ea580c', label: 'Concessions' },
 }
 
-const LEGEND: { type: SupportType }[] = [
-  { type: 'first_aid' },
-  { type: 'family_services' },
-  { type: 'accessibility' },
-  { type: 'quiet_space' },
-  { type: 'restroom' },
-  { type: 'guest_services' },
-]
+/** Which support types each "facility" layer surfaces. */
+const RESTROOM_TYPES: SupportType[] = ['restroom', 'family_services']
+const ACCESS_TYPES: SupportType[] = ['accessibility', 'guest_services']
+const SUPPORT_TYPES: SupportType[] = ['first_aid', 'guest_services', 'accessibility', 'quiet_space']
 
-/**
- * Venue Map — mobile-first immersive route experience.
- *
- * The page is structured as a single vertical scroll, like the rest of the
- * fan companion (Hub / Journey / Pulse): a cinematic route-summary hero, the
- * stadium map with a glowing animated route from the recommended gate to the
- * fan's section, a tap-to-inspect detail card, and a grid of visual support
- * tiles. A bottom tab nav keeps the navigation rhythm consistent with the
- * other event pages. Nothing here changes the rule engine — it only renders
- * `deriveArrivalPlan` output.
- */
 export default function VenueMapPage() {
   const params = useParams<{ id: string }>()
   const eventId = params?.id ?? 'wc2026-final'
@@ -56,10 +96,8 @@ export default function VenueMapPage() {
   const [prefs, setPrefs] = useState<ReadinessPrefs | null>(null)
   const [signals, setSignals] = useState<LiveSignal[]>([])
   const [selected, setSelected] = useState<Marker | null>(null)
-  const [filter, setFilter] = useState<'all' | 'gates' | SupportType>('all')
+  const [layer, setLayer] = useState<LayerId>('route')
   const [helpOpen, setHelpOpen] = useState(false)
-  // Incrementing this key remounts the animated <motion.path> and <motion.g>
-  // elements, replaying the path-drawing and marker stagger animations.
   const [replayKey, setReplayKey] = useState(0)
 
   useEffect(() => {
@@ -68,50 +106,47 @@ export default function VenueMapPage() {
       setSignals(getAllSignals())
     }
     refresh()
-    return subscribeToFanflowChanges(
-      ['fanflow:readiness', 'fanflow:signals'],
-      refresh,
-    )
+    return subscribeToFanflowChanges(['fanflow:readiness', 'fanflow:signals'], refresh)
   }, [])
+
+  // Replay the route/marker animation whenever the layer changes.
+  useEffect(() => {
+    setSelected(null)
+    setReplayKey((k) => k + 1)
+  }, [layer])
 
   const plan = useMemo(
     () => deriveArrivalPlan(prefs, signals.length ? signals : undefined),
     [prefs, signals],
   )
 
+  // Compute crowd state for every gate ONCE per signal change, from the
+  // already-loaded signals — instead of re-reading localStorage inside each
+  // render loop. Keyed by gate id for O(1) lookup in the SVG + content list.
+  const gateCrowds = useMemo(() => {
+    const map: Record<string, ReturnType<typeof getGateCrowd>> = {}
+    for (const g of demoVenue.gates) map[g.id] = getGateCrowd(g.id, signals)
+    return map
+  }, [signals])
+
   const recommendedGateId = plan.recommended_gate.id
-
-  const gateMarkers = demoVenue.gates.map((g) => ({
-    kind: 'gate' as const,
-    data: g,
-    recommended: g.id === recommendedGateId,
-  }))
-  const supportMarkers = demoVenue.support_points.map((sp) => ({
-    kind: 'support' as const,
-    data: sp,
-  }))
-
   const recommendedGate = demoVenue.gates.find((g) => g.id === recommendedGateId)!
   const gateLabel = recommendedGate.name.split(' (')[0]
 
-  // Route quality — light, friendly heuristic from the gate's live wait.
-  const routeQuality =
-    recommendedGate.typical_wait_minutes <= 8
-      ? { label: 'Clear route', tone: 'text-emerald-300', dot: 'bg-emerald-400' }
-      : recommendedGate.typical_wait_minutes <= 15
-        ? { label: 'Moderate flow', tone: 'text-amber-200', dot: 'bg-amber-300' }
-        : { label: 'Busy route', tone: 'text-rose-200', dot: 'bg-rose-300' }
+  const recommendedLot =
+    demoParkingLots.find((l) => l.recommended_gate_id === recommendedGateId && l.status === 'open') ??
+    demoParkingLots.find((l) => l.status === 'open') ??
+    demoParkingLots[0]
+
+  const scene = SCENES[LAYER_SCENE[layer]]
 
   return (
     <>
-      <div className="min-h-screen bg-gradient-to-b from-violet-100/60 via-violet-50/20 to-white pb-24 page-enter">
-        {/* Sticky brand bar — matches Hub / Journey / Pulse */}
+      <div className={`min-h-screen ${scene.backgroundClass} pb-24 page-enter`}>
+        {/* Sticky brand bar */}
         <header className="sticky top-0 z-30 bg-white/90 backdrop-blur-md border-b border-slate-100">
           <div className="container-mobile px-4 h-14 flex items-center justify-between">
-            <Link
-              href={`/event/${eventId}/hub`}
-              className="text-sm text-slate-500 hover:text-slate-700"
-            >
+            <Link href={`/event/${eventId}/hub`} className="text-sm text-slate-500 hover:text-slate-700">
               ← Hub
             </Link>
             <div className="flex items-center gap-1">
@@ -131,69 +166,63 @@ export default function VenueMapPage() {
         </header>
 
         <main className="container-mobile px-4 py-5 space-y-4">
-          {/* === Route summary hero — cinematic ====================== */}
+          {/* === Layer scene hero ==================================== */}
           <motion.section
+            key={`hero-${layer}`}
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
-            className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-violet-600 via-violet-700 to-fuchsia-700 text-white p-5 shadow-lg shadow-violet-500/20"
+            transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
+            className="surface-night relative overflow-hidden rounded-3xl text-white p-5 shadow-[0_10px_30px_-12px_rgba(76,29,149,0.55)]"
           >
             <div className="shimmer-overlay" aria-hidden="true" />
-            <div
+            <motion.div
               aria-hidden="true"
-              className="absolute inset-0 opacity-20 bg-[radial-gradient(ellipse_at_top_right,rgba(255,255,255,0.5),transparent_60%)]"
+              className="absolute -top-12 -right-10 w-44 h-44 rounded-full bg-violet-500/20 blur-3xl"
+              animate={{ x: [0, 18, 0], y: [0, 12, 0] }}
+              transition={{ duration: 8, repeat: Infinity, ease: 'easeInOut' }}
             />
             <div className="relative">
-              <div className="flex items-center justify-between gap-2 mb-2">
-                <div className="text-[10px] font-bold uppercase tracking-wider text-violet-200">
-                  Your route
-                </div>
-                <span className="inline-flex items-center gap-1.5 text-[10px] font-bold">
-                  <span className={`w-1.5 h-1.5 rounded-full ${routeQuality.dot} animate-pulse`} />
-                  <span className={routeQuality.tone}>{routeQuality.label}</span>
-                </span>
+              <div className="text-[10px] font-bold uppercase tracking-wider text-violet-200">
+                {scene.eyebrow}
               </div>
-              <div className="flex items-center gap-2.5 mb-3 flex-wrap">
-                <span className="font-extrabold text-2xl leading-none">{gateLabel}</span>
-                <span className="text-violet-200/70 text-xl">→</span>
-                <span className="font-extrabold text-2xl leading-none">Section {demoTicket.section}</span>
-              </div>
-              {/* Route strip with travelling dot */}
-              <div className="flex items-center gap-2 mb-4">
-                <span className="w-3 h-3 rounded-full bg-white/30 border-2 border-white flex-shrink-0" />
-                <div className="flex-1 relative h-[3px] rounded-full bg-white/20 overflow-hidden">
-                  <motion.div
-                    key={`fill-${replayKey}`}
-                    className="absolute inset-y-0 left-0 rounded-full bg-white/70"
-                    initial={{ width: '0%' }}
-                    animate={{ width: '100%' }}
-                    transition={{ duration: 1.5, ease: [0.16, 1, 0.3, 1] }}
-                  />
-                </div>
-                <span className="w-3 h-3 rounded-full bg-violet-300 border-2 border-white flex-shrink-0" />
-              </div>
-              <div className="grid grid-cols-4 gap-2 text-center">
-                <div>
-                  <div className="font-extrabold text-lg tabular-nums leading-none">~8</div>
-                  <div className="text-[10px] text-violet-200 mt-0.5">min walk</div>
-                </div>
-                <div>
-                  <div className="font-extrabold text-lg tabular-nums leading-none">~{recommendedGate.typical_wait_minutes}</div>
-                  <div className="text-[10px] text-violet-200 mt-0.5">min wait</div>
-                </div>
-                <div>
-                  <div className="font-extrabold text-lg leading-none">{recommendedGate.family_friendly ? '✓' : '—'}</div>
-                  <div className="text-[10px] text-violet-200 mt-0.5">Family</div>
-                </div>
-                <div>
-                  <div className="font-extrabold text-lg leading-none">{recommendedGate.accessibility ? '✓' : '—'}</div>
-                  <div className="text-[10px] text-violet-200 mt-0.5">Step-free</div>
-                </div>
-              </div>
+              <div className="font-extrabold text-2xl leading-tight mt-1">{scene.title}</div>
+              <p className="text-[12px] text-violet-100/85 mt-2 leading-relaxed">
+                {layer === 'route' &&
+                  `${gateLabel} → Section ${demoTicket.section}. Your cleanest path in.`}
+                {layer === 'parking' &&
+                  `${recommendedLot.name.replace(' (Recommended)', '')} → ${gateLabel}, about ${recommendedLot.walk_time_to_gate_minutes} min on foot.`}
+                {layer === 'gates' && `Comparing every gate by proximity, wait, and live signals.`}
+                {layer === 'crowd' && `Venue zones colored by current crowd signal.`}
+                {layer === 'restrooms' && `Nearest, family, and accessible facilities to Section ${demoTicket.section}.`}
+                {layer === 'accessibility' && `Step-free route, accessible entry, and guest services.`}
+                {layer === 'support' && `Verified help points, mapped to your seat.`}
+                {layer === 'exit' && `Best way out after the final whistle.`}
+              </p>
             </div>
           </motion.section>
 
-          {/* === Stadium map ========================================= */}
+          {/* === Layer toggle bar =================================== */}
+          <div className="flex gap-1.5 overflow-x-auto pb-1 -mx-1 px-1">
+            {LAYERS.map((l) => {
+              const active = layer === l.id
+              return (
+                <button
+                  key={l.id}
+                  onClick={() => setLayer(l.id)}
+                  className={`flex-shrink-0 inline-flex items-center gap-1.5 px-3 py-2 rounded-full text-[12px] font-semibold transition border ${
+                    active
+                      ? 'bg-violet-600 border-violet-500 text-white glow-violet'
+                      : 'bg-white border-slate-200 text-slate-600 hover:border-violet-300'
+                  }`}
+                >
+                  <span aria-hidden="true">{l.icon}</span>
+                  {l.label}
+                </button>
+              )
+            })}
+          </div>
+
+          {/* === Stadium map ======================================= */}
           <motion.section
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
@@ -201,46 +230,22 @@ export default function VenueMapPage() {
             className="rounded-3xl border border-slate-200 bg-white p-4 shadow-[0_4px_20px_-8px_rgba(124,58,237,0.10)]"
           >
             <div className="flex items-center justify-between mb-3">
-              <h2 className="font-bold text-slate-900 text-sm">MetLife Stadium</h2>
+              <h2 className="font-bold text-slate-900 text-sm">{demoVenue.name}</h2>
               <button
                 onClick={() => setReplayKey((k) => k + 1)}
                 className="text-[11px] font-semibold text-violet-700 hover:text-violet-800 inline-flex items-center gap-1"
-                aria-label="Replay route animation"
+                aria-label="Replay animation"
               >
-                ↻ Replay route
+                ↻ Replay
               </button>
-            </div>
-
-            {/* Filter chips */}
-            <div className="flex gap-1.5 overflow-x-auto pb-2 mb-2 -mx-1 px-1">
-              {(
-                [
-                  { id: 'all', label: 'All' },
-                  { id: 'gates', label: 'Gates' },
-                  { id: 'first_aid', label: 'First Aid' },
-                  { id: 'family_services', label: 'Family' },
-                  { id: 'accessibility', label: 'Accessibility' },
-                  { id: 'quiet_space', label: 'Quiet Space' },
-                  { id: 'restroom', label: 'Restrooms' },
-                  { id: 'guest_services', label: 'Guest Services' },
-                ] as const
-              ).map((f) => (
-                <button
-                  key={f.id}
-                  onClick={() => setFilter(f.id as typeof filter)}
-                  className={filter === f.id ? 'chip-active whitespace-nowrap' : 'chip whitespace-nowrap'}
-                >
-                  {f.label}
-                </button>
-              ))}
             </div>
 
             <div className="bg-slate-50 rounded-2xl border border-slate-200 overflow-hidden">
               <svg
-                viewBox="0 0 520 320"
+                viewBox="0 0 520 340"
                 className="w-full h-auto"
                 role="img"
-                aria-label="Stylized map of MetLife Stadium showing gates and support points"
+                aria-label={`Stylized ${demoVenue.name} map — ${layer} layer`}
               >
                 <defs>
                   <radialGradient id="field" cx="50%" cy="50%" r="50%">
@@ -249,274 +254,204 @@ export default function VenueMapPage() {
                   </radialGradient>
                 </defs>
 
-                {/* Concourse ring */}
-                <ellipse cx="260" cy="160" rx="220" ry="120" fill="#f1f5f9" stroke="#e2e8f0" strokeWidth="1.5" />
-                {/* Inner concourse */}
-                <ellipse cx="260" cy="160" rx="170" ry="85" fill="#ffffff" stroke="#e2e8f0" strokeWidth="1.5" />
-                {/* Field */}
-                <ellipse cx="260" cy="160" rx="120" ry="55" fill="url(#field)" stroke="#22c55e" strokeWidth="1.5" opacity="0.85" />
-                <line x1="260" y1="105" x2="260" y2="215" stroke="#fff" strokeWidth="1.5" />
-                <circle cx="260" cy="160" r="14" fill="none" stroke="#fff" strokeWidth="1.5" />
+                {/* Concourse + field */}
+                <ellipse cx="260" cy="170" rx="220" ry="120" fill="#f1f5f9" stroke="#e2e8f0" strokeWidth="1.5" />
+                <ellipse cx="260" cy="170" rx="170" ry="85" fill="#ffffff" stroke="#e2e8f0" strokeWidth="1.5" />
+                <ellipse cx="260" cy="170" rx="120" ry="55" fill="url(#field)" stroke="#22c55e" strokeWidth="1.5" opacity="0.85" />
+                <line x1="260" y1="115" x2="260" y2="225" stroke="#fff" strokeWidth="1.5" />
+                <circle cx="260" cy="170" r="14" fill="none" stroke="#fff" strokeWidth="1.5" />
+                <text x="260" y="28" textAnchor="middle" fontSize="10" fill="#94a3b8" fontWeight="600">NORTH</text>
+                <text x="260" y="320" textAnchor="middle" fontSize="10" fill="#94a3b8" fontWeight="600">SOUTH</text>
 
-                <text x="260" y="22" textAnchor="middle" fontSize="10" fill="#94a3b8" fontWeight="600">NORTH</text>
-                <text x="260" y="306" textAnchor="middle" fontSize="10" fill="#94a3b8" fontWeight="600">SOUTH</text>
-
-                {/* Section highlight — your seat, gentle pulse loop */}
+                {/* Seat marker — always visible */}
                 <motion.circle
-                  cx="260"
-                  cy="218"
-                  r="16"
-                  fill="#7c3aed"
-                  opacity="0.25"
+                  cx="260" cy="228" r="16" fill="#7c3aed" opacity="0.22"
                   animate={{ r: [12, 20, 12], opacity: [0.4, 0, 0.4] }}
                   transition={{ duration: 2.4, repeat: Infinity, ease: 'easeInOut' }}
                 />
-                <motion.circle
-                  cx="260"
-                  cy="218"
-                  r="8"
-                  fill="#7c3aed"
-                  stroke="#fff"
-                  strokeWidth="2"
-                  animate={{ scale: [1, 1.08, 1] }}
-                  transition={{ duration: 2.4, repeat: Infinity, ease: 'easeInOut' }}
-                  style={{ transformOrigin: '260px 218px' }}
-                />
-                <text x="260" y="240" textAnchor="middle" fontSize="9" fill="#7c3aed" fontWeight="700">
+                <circle cx="260" cy="228" r="8" fill="#7c3aed" stroke="#fff" strokeWidth="2" />
+                <text x="260" y="250" textAnchor="middle" fontSize="9" fill="#7c3aed" fontWeight="700">
                   Section {demoTicket.section}
                 </text>
 
-                {/* Route glow — blurred underlay */}
-                <motion.path
-                  key={`glow-${replayKey}`}
-                  d={`M ${recommendedGate.map_x} ${recommendedGate.map_y} L 260 218`}
-                  stroke="#7c3aed"
-                  strokeWidth="8"
-                  fill="none"
-                  strokeLinecap="round"
-                  opacity="0.15"
-                  initial={{ pathLength: 0 }}
-                  animate={{ pathLength: 1 }}
-                  transition={{ duration: 1.2, ease: [0.16, 1, 0.3, 1], delay: 0.4 }}
-                />
-                {/* Walking path — animated draw */}
-                <motion.path
-                  key={`route-${replayKey}`}
-                  d={`M ${recommendedGate.map_x} ${recommendedGate.map_y} L 260 218`}
-                  stroke="#7c3aed"
-                  strokeWidth="3"
-                  strokeDasharray="6 4"
-                  fill="none"
-                  strokeLinecap="round"
-                  opacity="0.85"
-                  initial={{ pathLength: 0 }}
-                  animate={{ pathLength: 1 }}
-                  transition={{ duration: 1.2, ease: [0.16, 1, 0.3, 1], delay: 0.4 }}
-                />
-                {/* Moving dot along route */}
-                <motion.circle
-                  key={`dot-${replayKey}`}
-                  r="4"
-                  fill="#7c3aed"
-                  stroke="#fff"
-                  strokeWidth="2"
-                  initial={{ cx: recommendedGate.map_x, cy: recommendedGate.map_y, opacity: 0 }}
-                  animate={{
-                    cx: [recommendedGate.map_x, 260],
-                    cy: [recommendedGate.map_y, 218],
-                    opacity: [0, 1, 1, 0],
-                  }}
-                  transition={{ duration: 2.5, delay: 1.2, repeat: Infinity, repeatDelay: 1, ease: 'easeInOut' }}
-                />
+                {/* ROUTE / GATES / CROWD / ACCESS / EXIT overlays use the gate→seat line */}
+                {(layer === 'route' || layer === 'accessibility') && (
+                  <RouteLine
+                    key={`route-${replayKey}`}
+                    from={{ x: recommendedGate.map_x ?? 260, y: recommendedGate.map_y ?? 90 }}
+                    to={{ x: 260, y: 228 }}
+                    color={layer === 'accessibility' ? '#0ea5e9' : '#7c3aed'}
+                  />
+                )}
 
-                {/* Support markers */}
-                {supportMarkers
-                  .filter((m) => filter === 'all' || filter === m.data.type)
-                  .map((m, i) => {
-                    const meta = SUPPORT_META[m.data.type]
-                    const x = m.data.map_x ?? 0
-                    const y = m.data.map_y ?? 0
-                    const isActive = selected?.kind === 'support' && selected.data.id === m.data.id
+                {layer === 'exit' && (
+                  <RouteLine
+                    key={`exit-${replayKey}`}
+                    from={{ x: 260, y: 228 }}
+                    to={{ x: recommendedLot.map_x ?? 60, y: recommendedLot.map_y ?? 60 }}
+                    color="#475569"
+                    dashed
+                  />
+                )}
+
+                {layer === 'parking' && (
+                  <RouteLine
+                    key={`park-route-${replayKey}`}
+                    from={{ x: recommendedLot.map_x ?? 60, y: recommendedLot.map_y ?? 60 }}
+                    to={{ x: recommendedGate.map_x ?? 260, y: recommendedGate.map_y ?? 90 }}
+                    color="#0ea5e9"
+                  />
+                )}
+
+                {/* Parking markers */}
+                {layer === 'parking' &&
+                  demoParkingLots.map((lot, i) => {
+                    const x = lot.map_x ?? 0
+                    const y = lot.map_y ?? 0
+                    const active = selected?.kind === 'parking' && selected.data.id === lot.id
                     return (
                       <motion.g
-                        key={`support-${m.data.id}-${replayKey}`}
-                        onClick={() => setSelected(m)}
+                        key={`lot-${lot.id}-${replayKey}`}
+                        onClick={() => setSelected({ kind: 'parking', data: lot })}
                         style={{ cursor: 'pointer', transformOrigin: `${x}px ${y}px` }}
                         initial={{ opacity: 0, scale: 0 }}
                         animate={{ opacity: 1, scale: 1 }}
-                        transition={{ duration: 0.45, delay: 0.6 + i * 0.06, ease: [0.16, 1, 0.3, 1] }}
+                        transition={{ duration: 0.4, delay: 0.2 + i * 0.08, ease: [0.16, 1, 0.3, 1] }}
                       >
-                        <circle cx={x} cy={y} r={isActive ? 13 : 10} fill={meta.tone} stroke="#fff" strokeWidth="2" opacity={isActive ? 1 : 0.9} />
-                        <text x={x} y={y + 4} textAnchor="middle" fontSize="11" fill="#fff">{meta.emoji}</text>
+                        <rect
+                          x={x - 13} y={y - 11} width="26" height="22" rx="5"
+                          fill={PARKING_STATUS_COLOR[lot.status]}
+                          stroke={active ? '#1e293b' : '#fff'} strokeWidth="2"
+                        />
+                        <text x={x} y={y + 5} textAnchor="middle" fontSize="12" fill="#fff" fontWeight="700">P</text>
                       </motion.g>
                     )
                   })}
 
-                {/* Gate markers (on top) */}
-                {gateMarkers
-                  .filter(() => filter === 'all' || filter === 'gates')
-                  .map((m, i) => {
-                    const x = m.data.map_x ?? 0
-                    const y = m.data.map_y ?? 0
-                    const isActive = selected?.kind === 'gate' && selected.data.id === m.data.id
-                    const fill = m.recommended ? '#7c3aed' : '#1e293b'
+                {/* Gate markers — route/gates/crowd/exit layers */}
+                {(layer === 'route' || layer === 'gates' || layer === 'crowd' || layer === 'exit') &&
+                  demoVenue.gates.map((g, i) => {
+                    const x = g.map_x ?? 0
+                    const y = g.map_y ?? 0
+                    const recommended = g.id === recommendedGateId
+                    const active = selected?.kind === 'gate' && selected.data.id === g.id
+                    const crowd = gateCrowds[g.id]
+                    const crowdColor =
+                      crowd.pressure === 'busy'
+                        ? '#ef4444'
+                        : crowd.pressure === 'moderate'
+                          ? '#f59e0b'
+                          : crowd.pressure === 'smooth'
+                            ? '#10b981'
+                            : '#64748b'
+                    const fill =
+                      layer === 'crowd'
+                        ? crowdColor
+                        : recommended
+                          ? '#7c3aed'
+                          : '#1e293b'
                     return (
                       <motion.g
-                        key={`gate-${m.data.id}-${replayKey}`}
-                        onClick={() => setSelected(m)}
+                        key={`gate-${g.id}-${replayKey}`}
+                        onClick={() => setSelected({ kind: 'gate', data: g, recommended })}
                         style={{ cursor: 'pointer', transformOrigin: `${x}px ${y}px` }}
                         initial={{ opacity: 0, scale: 0 }}
                         animate={{ opacity: 1, scale: 1 }}
-                        transition={{ duration: 0.5, delay: 0.1 + i * 0.08, ease: [0.16, 1, 0.3, 1] }}
+                        transition={{ duration: 0.45, delay: 0.1 + i * 0.08, ease: [0.16, 1, 0.3, 1] }}
                       >
-                        {m.recommended && (
-                          <circle cx={x} cy={y} r="22" fill="none" stroke="#7c3aed" strokeWidth="2" opacity="0.4">
+                        {(recommended && layer !== 'crowd') || (layer === 'crowd' && crowd.pressure === 'busy') ? (
+                          <circle cx={x} cy={y} r="22" fill="none" stroke={fill} strokeWidth="2" opacity="0.4">
                             <animate attributeName="r" from="14" to="26" dur="1.8s" repeatCount="indefinite" />
                             <animate attributeName="opacity" from="0.6" to="0" dur="1.8s" repeatCount="indefinite" />
                           </circle>
-                        )}
-                        <rect x={x - 16} y={y - 12} width="32" height="24" rx="6" fill={fill} stroke={isActive ? '#fbbf24' : '#fff'} strokeWidth="2" />
+                        ) : null}
+                        <rect
+                          x={x - 16} y={y - 12} width="32" height="24" rx="6"
+                          fill={fill} stroke={active ? '#fbbf24' : '#fff'} strokeWidth="2"
+                        />
                         <text x={x} y={y + 5} textAnchor="middle" fontSize="11" fill="#fff" fontWeight="700">
-                          {m.data.name.match(/Gate (\d+)/)?.[1] ?? '?'}
+                          {g.name.match(/Gate (\d+)/)?.[1] ?? '?'}
                         </text>
                       </motion.g>
                     )
                   })}
+
+                {/* Support / facility markers */}
+                {(layer === 'restrooms' || layer === 'accessibility' || layer === 'support') &&
+                  demoVenue.support_points
+                    .filter((sp) =>
+                      layer === 'restrooms'
+                        ? RESTROOM_TYPES.includes(sp.type)
+                        : layer === 'accessibility'
+                          ? ACCESS_TYPES.includes(sp.type)
+                          : SUPPORT_TYPES.includes(sp.type),
+                    )
+                    .map((sp, i) => {
+                      const meta = SUPPORT_META[sp.type]
+                      const x = sp.map_x ?? 0
+                      const y = sp.map_y ?? 0
+                      const active = selected?.kind === 'support' && selected.data.id === sp.id
+                      return (
+                        <motion.g
+                          key={`sp-${sp.id}-${replayKey}`}
+                          onClick={() => setSelected({ kind: 'support', data: sp })}
+                          style={{ cursor: 'pointer', transformOrigin: `${x}px ${y}px` }}
+                          initial={{ opacity: 0, scale: 0 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          transition={{ duration: 0.4, delay: 0.25 + i * 0.08, ease: [0.16, 1, 0.3, 1] }}
+                        >
+                          <circle cx={x} cy={y} r={active ? 13 : 10} fill={meta.tone} stroke="#fff" strokeWidth="2" opacity={active ? 1 : 0.92} />
+                          <text x={x} y={y + 4} textAnchor="middle" fontSize="11" fill="#fff">{meta.emoji}</text>
+                        </motion.g>
+                      )
+                    })}
               </svg>
             </div>
 
-            {/* Legend */}
-            <div className="mt-3 flex flex-wrap gap-x-3 gap-y-1.5 text-[11px] text-slate-600">
-              <div className="flex items-center gap-1.5">
-                <span className="inline-block w-3 h-3 rounded-sm" style={{ background: '#7c3aed' }} />
-                Recommended gate
-              </div>
-              <div className="flex items-center gap-1.5">
-                <span className="inline-block w-3 h-3 rounded-sm" style={{ background: '#1e293b' }} />
-                Other gate
-              </div>
-              {LEGEND.map(({ type }) => (
-                <div key={type} className="flex items-center gap-1.5">
-                  <span className="inline-block w-3 h-3 rounded-full" style={{ background: SUPPORT_META[type].tone }} />
-                  {SUPPORT_META[type].label}
-                </div>
-              ))}
+            {/* Honest source line under the map */}
+            <div className="mt-3 flex items-center justify-between gap-2 flex-wrap">
+              {layer === 'parking' || layer === 'crowd' ? (
+                <SourceChip source={layer === 'parking' ? 'simulated_demo' : 'fan_reported'} size="xs" />
+              ) : (
+                <span className="text-[10px] text-slate-400">Tap any marker for detail.</span>
+              )}
+              <span className="text-[10px] text-slate-400">Stylized map · follow venue signage.</span>
             </div>
           </motion.section>
 
-          {/* === Tap-to-inspect detail card ========================== */}
+          {/* === Tap-to-inspect detail card ======================== */}
           <AnimatePresence mode="wait">
             {selected && (
               <motion.section
-                key={selected.kind === 'gate' ? `g-${selected.data.id}` : `s-${selected.data.id}`}
+                key={
+                  selected.kind === 'gate'
+                    ? `g-${selected.data.id}`
+                    : selected.kind === 'parking'
+                      ? `p-${selected.data.id}`
+                      : `s-${selected.data.id}`
+                }
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -6 }}
                 transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
                 className="rounded-3xl border border-violet-200/70 bg-white p-5 shadow-[0_4px_20px_-8px_rgba(124,58,237,0.12)]"
               >
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0">
-                    <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
-                      {selected.kind === 'gate' ? 'Entrance' : SUPPORT_META[selected.data.type].label}
-                    </div>
-                    <h3 className="font-bold text-slate-900 text-lg mt-0.5 leading-tight">
-                      {selected.data.name}
-                    </h3>
-                  </div>
-                  <button
-                    onClick={() => setSelected(null)}
-                    className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 flex items-center justify-center text-sm flex-shrink-0"
-                    aria-label="Close details"
-                  >
-                    ✕
-                  </button>
-                </div>
-
-                {selected.kind === 'gate' ? (
-                  <>
-                    {selected.recommended && (
-                      <span className="inline-flex items-center gap-1 mt-2 text-[11px] bg-violet-100 text-violet-700 px-2.5 py-1 rounded-full font-semibold">
-                        ✨ Recommended for you
-                      </span>
-                    )}
-                    <dl className="mt-4 grid grid-cols-2 gap-2.5 text-sm">
-                      <div className="rounded-xl bg-slate-50 border border-slate-100 px-3 py-2">
-                        <dt className="text-[11px] text-slate-500">Typical wait</dt>
-                        <dd className="font-bold text-slate-900 mt-0.5">~{selected.data.typical_wait_minutes} min</dd>
-                      </div>
-                      <div className="rounded-xl bg-slate-50 border border-slate-100 px-3 py-2">
-                        <dt className="text-[11px] text-slate-500">Accessibility</dt>
-                        <dd className="font-bold text-slate-900 mt-0.5">{selected.data.accessibility ? 'Step-free' : 'Stairs'}</dd>
-                      </div>
-                      <div className="rounded-xl bg-slate-50 border border-slate-100 px-3 py-2">
-                        <dt className="text-[11px] text-slate-500">Family-friendly</dt>
-                        <dd className="font-bold text-slate-900 mt-0.5">{selected.data.family_friendly ? 'Yes' : 'Standard'}</dd>
-                      </div>
-                      <div className="rounded-xl bg-slate-50 border border-slate-100 px-3 py-2">
-                        <dt className="text-[11px] text-slate-500">Serves</dt>
-                        <dd className="font-bold text-slate-900 mt-0.5 text-[13px] leading-tight">{selected.data.sections.join(', ')}</dd>
-                      </div>
-                    </dl>
-                  </>
-                ) : (
-                  <>
-                    <p className="text-sm text-slate-600 mt-2 leading-relaxed">{selected.data.description}</p>
-                    {selected.data.walk_time_minutes && (
-                      <div className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-violet-50 border border-violet-100 px-3 py-1.5 text-[12px] font-semibold text-violet-700">
-                        🚶 ~{selected.data.walk_time_minutes} min walk from your seat
-                      </div>
-                    )}
-                  </>
-                )}
+                <DetailCard selected={selected} onClose={() => setSelected(null)} />
               </motion.section>
             )}
           </AnimatePresence>
 
-          {/* === Visual support tiles ================================ */}
-          <motion.section
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.1 }}
-            className="rounded-3xl border border-slate-200 bg-white p-5 shadow-[0_4px_20px_-8px_rgba(124,58,237,0.10)]"
-          >
-            <div className="flex items-center justify-between mb-3">
-              <div className="kicker text-violet-700">Support near your seat</div>
-              <span className="text-[10px] text-slate-400">Matched to your group</span>
-            </div>
-            <div className="grid grid-cols-2 gap-2.5">
-              {plan.support_points.map((sp, i) => {
-                const meta = SUPPORT_META[sp.type]
-                return (
-                  <motion.button
-                    key={sp.id}
-                    initial={{ opacity: 0, scale: 0.94 }}
-                    whileInView={{ opacity: 1, scale: 1 }}
-                    viewport={{ once: true }}
-                    transition={{ duration: 0.35, delay: i * 0.06, ease: [0.16, 1, 0.3, 1] }}
-                    whileTap={{ scale: 0.96 }}
-                    onClick={() => setSelected({ kind: 'support', data: sp })}
-                    className="flex flex-col gap-2 p-3.5 rounded-2xl bg-slate-50 border border-slate-100 hover:border-violet-200 hover:bg-violet-50/40 active:bg-violet-50 text-left transition"
-                  >
-                    <span
-                      className="w-11 h-11 rounded-2xl flex items-center justify-center text-white text-lg shadow-sm"
-                      style={{ background: meta.tone }}
-                    >
-                      {meta.emoji}
-                    </span>
-                    <div className="min-w-0">
-                      <div className="text-[13px] font-bold text-slate-900 leading-tight truncate">{sp.name}</div>
-                      <div className="text-[11px] text-slate-500 mt-0.5">
-                        {sp.walk_time_minutes ? `~${sp.walk_time_minutes} min walk` : meta.label}
-                      </div>
-                    </div>
-                  </motion.button>
-                )
-              })}
-            </div>
-          </motion.section>
+          {/* === Layer content card ================================ */}
+          <LayerContent
+            layer={layer}
+            plan={plan}
+            recommendedGate={recommendedGate}
+            recommendedLot={recommendedLot}
+            gateCrowds={gateCrowds}
+            onSelect={setSelected}
+          />
 
-          {/* === One-tap help ======================================== */}
+          {/* === One-tap help ===================================== */}
           <motion.button
             initial={{ opacity: 0, y: 8 }}
             whileInView={{ opacity: 1, y: 0 }}
@@ -538,22 +473,15 @@ export default function VenueMapPage() {
               <span className="text-violet-700 text-lg group-hover:translate-x-0.5 transition-transform">›</span>
             </div>
           </motion.button>
-
-          <p className="text-[10px] text-slate-400 text-center px-4 leading-relaxed">
-            Map is a stylized representation. Always follow official venue signage and staff instructions.
-          </p>
         </main>
 
-        {/* Bottom tab nav — matches Hub */}
+        {/* Bottom tab nav */}
         <nav
           className="fixed bottom-0 inset-x-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200"
           style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
         >
           <div className="container-mobile h-16 grid grid-cols-4 px-2">
-            <Link
-              href={`/event/${eventId}/hub`}
-              className="flex flex-col items-center justify-center gap-0.5 h-full text-[10px] font-semibold text-slate-500 hover:text-slate-700"
-            >
+            <Link href={`/event/${eventId}/hub`} className="flex flex-col items-center justify-center gap-0.5 h-full text-[10px] font-semibold text-slate-500 hover:text-slate-700">
               <span className="flex items-center justify-center w-9 h-9 rounded-full text-xl">✦</span>
               Guide
             </Link>
@@ -561,17 +489,11 @@ export default function VenueMapPage() {
               <span className="flex items-center justify-center w-9 h-9 rounded-full text-xl bg-violet-100">🗺️</span>
               Map
             </div>
-            <Link
-              href={`/event/${eventId}/pulse`}
-              className="flex flex-col items-center justify-center gap-0.5 h-full text-[10px] font-semibold text-slate-500 hover:text-slate-700"
-            >
+            <Link href={`/event/${eventId}/pulse`} className="flex flex-col items-center justify-center gap-0.5 h-full text-[10px] font-semibold text-slate-500 hover:text-slate-700">
               <span className="flex items-center justify-center w-9 h-9 rounded-full text-xl">📊</span>
               Pulse
             </Link>
-            <button
-              onClick={() => setHelpOpen(true)}
-              className="flex flex-col items-center justify-center gap-0.5 h-full text-[10px] font-semibold text-slate-500 hover:text-slate-700"
-            >
+            <button onClick={() => setHelpOpen(true)} className="flex flex-col items-center justify-center gap-0.5 h-full text-[10px] font-semibold text-slate-500 hover:text-slate-700">
               <span className="flex items-center justify-center w-9 h-9 rounded-full text-xl">🎧</span>
               Help
             </button>
@@ -581,5 +503,387 @@ export default function VenueMapPage() {
 
       <HelpSheet open={helpOpen} onClose={() => setHelpOpen(false)} plan={plan} eventId={eventId} />
     </>
+  )
+}
+
+/* ── Animated route line (glow underlay + dashed/solid path + travelling dot) ── */
+function RouteLine({
+  from,
+  to,
+  color,
+  dashed = false,
+}: {
+  from: { x: number; y: number }
+  to: { x: number; y: number }
+  color: string
+  dashed?: boolean
+}) {
+  const d = `M ${from.x} ${from.y} L ${to.x} ${to.y}`
+  return (
+    <>
+      <motion.path
+        d={d} stroke={color} strokeWidth="8" fill="none" strokeLinecap="round" opacity="0.15"
+        initial={{ pathLength: 0 }} animate={{ pathLength: 1 }}
+        transition={{ duration: 1.2, ease: [0.16, 1, 0.3, 1], delay: 0.3 }}
+      />
+      <motion.path
+        d={d} stroke={color} strokeWidth="3" fill="none" strokeLinecap="round"
+        strokeDasharray={dashed ? '6 4' : undefined} opacity="0.85"
+        initial={{ pathLength: 0 }} animate={{ pathLength: 1 }}
+        transition={{ duration: 1.2, ease: [0.16, 1, 0.3, 1], delay: 0.3 }}
+      />
+      <motion.circle
+        r="4" fill={color} stroke="#fff" strokeWidth="2"
+        initial={{ cx: from.x, cy: from.y, opacity: 0 }}
+        animate={{ cx: [from.x, to.x], cy: [from.y, to.y], opacity: [0, 1, 1, 0] }}
+        transition={{ duration: 2.4, delay: 1.1, repeat: Infinity, repeatDelay: 1, ease: 'easeInOut' }}
+      />
+    </>
+  )
+}
+
+/* ── Detail card for a tapped marker ── */
+function DetailCard({ selected, onClose }: { selected: Marker; onClose: () => void }) {
+  return (
+    <>
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+            {selected.kind === 'gate'
+              ? 'Entrance'
+              : selected.kind === 'parking'
+                ? 'Parking lot'
+                : SUPPORT_META[selected.data.type].label}
+          </div>
+          <h3 className="font-bold text-slate-900 text-lg mt-0.5 leading-tight">{selected.data.name}</h3>
+        </div>
+        <button
+          onClick={onClose}
+          className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 flex items-center justify-center text-sm flex-shrink-0"
+          aria-label="Close details"
+        >
+          ✕
+        </button>
+      </div>
+
+      {selected.kind === 'gate' && (
+        <>
+          {selected.recommended && (
+            <span className="inline-flex items-center gap-1 mt-2 text-[11px] bg-violet-100 text-violet-700 px-2.5 py-1 rounded-full font-semibold">
+              ✨ Recommended for you
+            </span>
+          )}
+          <dl className="mt-4 grid grid-cols-2 gap-2.5 text-sm">
+            <Stat label="Typical wait" value={`~${selected.data.typical_wait_minutes} min`} />
+            <Stat label="Accessibility" value={selected.data.accessibility ? 'Step-free' : 'Stairs'} />
+            <Stat label="Family-friendly" value={selected.data.family_friendly ? 'Yes' : 'Standard'} />
+            <Stat label="Serves" value={selected.data.sections.join(', ')} small />
+          </dl>
+        </>
+      )}
+
+      {selected.kind === 'parking' && (
+        <>
+          <div className="flex items-center gap-2 mt-2 flex-wrap">
+            <span
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold text-white"
+              style={{ background: PARKING_STATUS_COLOR[selected.data.status] }}
+            >
+              {PARKING_STATUS_LABEL[selected.data.status]}
+            </span>
+            <SourceChip source={selected.data.status_source} derivedAt={selected.data.derivedAt} size="xs" />
+            <ConfidenceChip level={selected.data.status_confidence} short />
+          </div>
+          <dl className="mt-4 grid grid-cols-2 gap-2.5 text-sm">
+            <Stat label="Walk to gate" value={`~${selected.data.walk_time_to_gate_minutes} min`} />
+            <Stat label="Capacity" value={selected.data.capacity_label} small />
+          </dl>
+          {selected.data.notes && (
+            <p className="text-[12px] text-slate-600 mt-3 leading-relaxed">{selected.data.notes}</p>
+          )}
+        </>
+      )}
+
+      {selected.kind === 'support' && (
+        <>
+          <p className="text-sm text-slate-600 mt-2 leading-relaxed">{selected.data.description}</p>
+          {selected.data.walk_time_minutes && (
+            <div className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-violet-50 border border-violet-100 px-3 py-1.5 text-[12px] font-semibold text-violet-700">
+              🚶 ~{selected.data.walk_time_minutes} min walk from your seat
+            </div>
+          )}
+        </>
+      )}
+    </>
+  )
+}
+
+function Stat({ label, value, small = false }: { label: string; value: string; small?: boolean }) {
+  return (
+    <div className="rounded-xl bg-slate-50 border border-slate-100 px-3 py-2">
+      <dt className="text-[11px] text-slate-500">{label}</dt>
+      <dd className={`font-bold text-slate-900 mt-0.5 ${small ? 'text-[13px] leading-tight' : ''}`}>{value}</dd>
+    </div>
+  )
+}
+
+/* ── Layer-specific content beneath the map ── */
+function LayerContent({
+  layer,
+  plan,
+  recommendedGate,
+  recommendedLot,
+  gateCrowds,
+  onSelect,
+}: {
+  layer: LayerId
+  plan: ReturnType<typeof deriveArrivalPlan>
+  recommendedGate: Gate
+  recommendedLot: ParkingLot
+  gateCrowds: Record<string, ReturnType<typeof getGateCrowd>>
+  onSelect: (m: Marker) => void
+}) {
+  if (layer === 'parking') {
+    return (
+      <motion.section
+        key="lc-parking"
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+        className="rounded-3xl border border-slate-200 bg-white p-5 shadow-[0_4px_20px_-8px_rgba(124,58,237,0.10)]"
+      >
+        <div className="flex items-center justify-between mb-3">
+          <div className="kicker text-violet-700">Parking lots</div>
+          <SourceChip source="simulated_demo" size="xs" />
+        </div>
+        <div className="space-y-2.5">
+          {demoParkingLots.map((lot) => (
+            <button
+              key={lot.id}
+              onClick={() => onSelect({ kind: 'parking', data: lot })}
+              className="w-full flex items-center gap-3 p-3 rounded-2xl bg-slate-50 border border-slate-100 hover:border-violet-200 hover:bg-violet-50/40 text-left transition"
+            >
+              <span
+                className="w-10 h-10 rounded-xl flex items-center justify-center text-white font-bold flex-shrink-0"
+                style={{ background: PARKING_STATUS_COLOR[lot.status] }}
+              >
+                P
+              </span>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="text-[13px] font-bold text-slate-900 truncate">
+                    {lot.name.replace(' (Recommended)', '')}
+                  </span>
+                  {lot.id === recommendedLot.id && (
+                    <span className="text-[9px] font-bold uppercase tracking-wider bg-violet-100 text-violet-700 px-1.5 py-0.5 rounded">
+                      ★ Best
+                    </span>
+                  )}
+                </div>
+                <div className="text-[11px] text-slate-500 mt-0.5">
+                  {PARKING_STATUS_LABEL[lot.status]} · ~{lot.walk_time_to_gate_minutes} min to gate
+                </div>
+              </div>
+              <ConfidenceChip level={lot.status_confidence} short />
+            </button>
+          ))}
+        </div>
+        <p className="text-[10px] text-slate-400 mt-3 leading-relaxed">
+          Parking statuses are simulated demo data — not a live availability feed.
+        </p>
+      </motion.section>
+    )
+  }
+
+  if (layer === 'gates' || layer === 'crowd') {
+    return (
+      <motion.section
+        key="lc-gates"
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+        className="rounded-3xl border border-slate-200 bg-white p-5 shadow-[0_4px_20px_-8px_rgba(124,58,237,0.10)]"
+      >
+        <div className="kicker text-violet-700 mb-3">
+          {layer === 'crowd' ? 'Crowd by gate' : 'Gate comparison'}
+        </div>
+        <div className="space-y-2">
+          {demoVenue.gates.map((g) => {
+            const crowd = gateCrowds[g.id]
+            const recommended = g.id === recommendedGate.id
+            const pressureLabel =
+              crowd.pressure === 'busy'
+                ? 'Busy'
+                : crowd.pressure === 'moderate'
+                  ? 'Moderate'
+                  : crowd.pressure === 'smooth'
+                    ? 'Smooth'
+                    : 'Estimated'
+            const pressureColor =
+              crowd.pressure === 'busy'
+                ? 'text-rose-600'
+                : crowd.pressure === 'moderate'
+                  ? 'text-amber-600'
+                  : crowd.pressure === 'smooth'
+                    ? 'text-emerald-600'
+                    : 'text-slate-500'
+            return (
+              <button
+                key={g.id}
+                onClick={() => onSelect({ kind: 'gate', data: g, recommended })}
+                className={`w-full flex items-center gap-3 p-3 rounded-2xl border text-left transition ${
+                  recommended
+                    ? 'bg-violet-50 border-violet-200'
+                    : 'bg-slate-50 border-slate-100 hover:border-violet-200'
+                }`}
+              >
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[13px] font-bold text-slate-900 truncate">
+                      {g.name.split(' (')[0]}
+                    </span>
+                    {recommended && (
+                      <span className="text-[9px] font-bold uppercase tracking-wider bg-violet-600 text-white px-1.5 py-0.5 rounded">
+                        Your gate
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2 mt-1">
+                    <span className={`text-[11px] font-semibold ${pressureColor}`}>{pressureLabel}</span>
+                    <SourceChip source={crowd.source} size="xs" short />
+                  </div>
+                </div>
+                <span className="text-[11px] text-slate-500 tabular-nums">~{g.typical_wait_minutes}m</span>
+              </button>
+            )
+          })}
+        </div>
+        <p className="text-[10px] text-slate-400 mt-3 leading-relaxed">
+          Live pressure comes from staff &amp; fan signals — not from ticket sales. Wait times are typical
+          estimates.
+        </p>
+      </motion.section>
+    )
+  }
+
+  if (layer === 'restrooms' || layer === 'accessibility' || layer === 'support') {
+    const types =
+      layer === 'restrooms' ? RESTROOM_TYPES : layer === 'accessibility' ? ACCESS_TYPES : SUPPORT_TYPES
+    const points = demoVenue.support_points.filter((sp) => types.includes(sp.type))
+    return (
+      <motion.section
+        key={`lc-${layer}`}
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+        className="rounded-3xl border border-slate-200 bg-white p-5 shadow-[0_4px_20px_-8px_rgba(124,58,237,0.10)]"
+      >
+        <div className="kicker text-violet-700 mb-3">
+          {layer === 'restrooms'
+            ? 'Restrooms & facilities'
+            : layer === 'accessibility'
+              ? 'Accessibility points'
+              : 'Support points'}
+        </div>
+        <div className="grid grid-cols-2 gap-2.5">
+          {points.map((sp) => {
+            const meta = SUPPORT_META[sp.type]
+            return (
+              <button
+                key={sp.id}
+                onClick={() => onSelect({ kind: 'support', data: sp })}
+                className="flex flex-col gap-2 p-3.5 rounded-2xl bg-slate-50 border border-slate-100 hover:border-violet-200 hover:bg-violet-50/40 text-left transition"
+              >
+                <span className="w-11 h-11 rounded-2xl flex items-center justify-center text-white text-lg shadow-sm" style={{ background: meta.tone }}>
+                  {meta.emoji}
+                </span>
+                <div className="min-w-0">
+                  <div className="text-[13px] font-bold text-slate-900 leading-tight truncate">{sp.name}</div>
+                  <div className="text-[11px] text-slate-500 mt-0.5">
+                    {sp.walk_time_minutes ? `~${sp.walk_time_minutes} min walk` : meta.label}
+                  </div>
+                </div>
+              </button>
+            )
+          })}
+        </div>
+      </motion.section>
+    )
+  }
+
+  if (layer === 'exit') {
+    return (
+      <motion.section
+        key="lc-exit"
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+        className="rounded-3xl border border-slate-200 bg-white p-5 shadow-[0_4px_20px_-8px_rgba(124,58,237,0.10)]"
+      >
+        <div className="flex items-center justify-between mb-3">
+          <div className="kicker text-violet-700">After the final whistle</div>
+          <SourceChip source="estimated" size="xs" />
+        </div>
+        <div className="space-y-2">
+          {[
+            { icon: '🚪', label: 'Best exit from your section', detail: `Nearest concourse exit toward ${recommendedLot.name.replace(' (Recommended)', '')}` },
+            { icon: '🚗', label: 'Back to parking', detail: `${recommendedLot.name.replace(' (Recommended)', '')} · ~${recommendedLot.walk_time_to_gate_minutes} min walk` },
+            { icon: '📱', label: 'Rideshare pickup', detail: 'Designated lot on the south side' },
+            { icon: '🚆', label: 'Transit option', detail: 'Rail platform via north concourse' },
+          ].map((row) => (
+            <div key={row.label} className="flex items-center gap-3 p-3 rounded-2xl bg-slate-50 border border-slate-100">
+              <span className="w-10 h-10 rounded-xl bg-white border border-slate-200 flex items-center justify-center text-lg flex-shrink-0">
+                {row.icon}
+              </span>
+              <div className="min-w-0">
+                <div className="text-[13px] font-bold text-slate-900 leading-tight">{row.label}</div>
+                <div className="text-[11px] text-slate-500 mt-0.5">{row.detail}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+        <p className="text-[10px] text-slate-400 mt-3 leading-relaxed">
+          Exit routing is estimated from venue layout — confirm against on-site signage and staff direction.
+        </p>
+      </motion.section>
+    )
+  }
+
+  // route (default) — support tiles matched to the plan
+  return (
+    <motion.section
+      key="lc-route"
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.5 }}
+      className="rounded-3xl border border-slate-200 bg-white p-5 shadow-[0_4px_20px_-8px_rgba(124,58,237,0.10)]"
+    >
+      <div className="flex items-center justify-between mb-3">
+        <div className="kicker text-violet-700">Support near your seat</div>
+        <span className="text-[10px] text-slate-400">Matched to your group</span>
+      </div>
+      <div className="grid grid-cols-2 gap-2.5">
+        {plan.support_points.map((sp) => {
+          const meta = SUPPORT_META[sp.type]
+          return (
+            <button
+              key={sp.id}
+              onClick={() => onSelect({ kind: 'support', data: sp })}
+              className="flex flex-col gap-2 p-3.5 rounded-2xl bg-slate-50 border border-slate-100 hover:border-violet-200 hover:bg-violet-50/40 text-left transition"
+            >
+              <span className="w-11 h-11 rounded-2xl flex items-center justify-center text-white text-lg shadow-sm" style={{ background: meta.tone }}>
+                {meta.emoji}
+              </span>
+              <div className="min-w-0">
+                <div className="text-[13px] font-bold text-slate-900 leading-tight truncate">{sp.name}</div>
+                <div className="text-[11px] text-slate-500 mt-0.5">
+                  {sp.walk_time_minutes ? `~${sp.walk_time_minutes} min walk` : meta.label}
+                </div>
+              </div>
+            </button>
+          )
+        })}
+      </div>
+    </motion.section>
   )
 }
