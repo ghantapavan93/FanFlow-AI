@@ -11,7 +11,7 @@ A post-purchase event-day guidance layer that turns a StubHub ticket confirmatio
 ```bash
 npm install
 npm run dev           # http://localhost:3000
-npm test              # 33 vitest assertions
+npm test              # 95 vitest assertions
 npx tsc --noEmit      # type check
 npm run build         # production build (do not run while dev is up)
 ```
@@ -34,7 +34,7 @@ For Vercel deploys, set both keys in **Project Settings → Environment Variable
 
 FanFlow has two prototype layers, and they live at different URLs by design:
 
-**1. Working Event Day Hub** — the real system at [`/event/wc2026-final/hub`](http://localhost:3000/event/wc2026-final/hub) and friends (`/readiness`, `/guide`, `/venue-map`, `/staff/wc2026-final`). Deterministic rules compute the arrival plan, an AI endpoint only explains it (with a template fallback), staff and fan signals update conditions live across tabs, scenario fixtures cover seven personas, and 33 vitest assertions lock the behavior in. This layer proves the *engineering*.
+**1. Working Event Day Hub** — the real system at [`/event/wc2026-final/hub`](http://localhost:3000/event/wc2026-final/hub) and friends (`/readiness`, `/guide`, `/venue-map`, `/staff/wc2026-final`). Deterministic rules compute the arrival plan, an AI endpoint only explains it (with a template fallback), staff and fan signals update conditions live across tabs, scenario fixtures cover seven personas, and 95 vitest assertions lock the behavior in. This layer proves the *engineering*.
 
 **2. Front-end vision walkthrough** — a single cinematic route at [`/demo/fanflow-vision`](http://localhost:3000/demo/fanflow-vision). It shows how FanFlow could appear inside a StubHub-style journey from event discovery to ticket confirmation to post-purchase guidance, advancing through six stages via an internal state machine: `discovery → listing → seatmap → confirmed → building → preview`. The route is intentionally front-end only — no marketplace API, no real rule engine call, no LLM hit — and its final CTA hands off to the real Hub. This layer proves the *product fit*.
 
