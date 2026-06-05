@@ -9,6 +9,7 @@ import type {
   Incident,
   GateScoreBreakdown,
   GateScoreComponents,
+  ParkingLot,
 } from './types'
 
 // Event date: 6 days from "now" pinned to 7:00 PM local time so the
@@ -191,6 +192,73 @@ export const demoIncidents: Incident[] = [
     created_at: new Date(Date.now() - 6 * 60 * 1000).toISOString(),
     updated_at: new Date(Date.now() - 6 * 60 * 1000).toISOString(),
     note: 'Guest near Section 117 asking for step-free route to seats.',
+  },
+]
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Parking lots — Phase A demo data for the new Parking & Arrival scene.
+   Honest labeling: every status is `simulated_demo` until a real parking
+   feed is wired. The Parking page renders the source chip prominently so
+   the demo never overclaims live availability.
+   ─────────────────────────────────────────────────────────────────────── */
+const _parkingDerivedAt = new Date().toISOString()
+
+export const demoParkingLots: ParkingLot[] = [
+  {
+    id: 'lot-c',
+    name: 'Lot C (Recommended)',
+    status: 'open',
+    walk_time_to_gate_minutes: 7,
+    recommended_gate_id: 'gate-3',
+    capacity_label: 'Plenty of spaces',
+    notes: 'Closest to your recommended gate. Step-free route to concourse.',
+    map_x: 60,
+    map_y: 60,
+    status_source: 'simulated_demo',
+    status_confidence: 'moderate',
+    derivedAt: _parkingDerivedAt,
+  },
+  {
+    id: 'north-garage',
+    name: 'North Garage',
+    status: 'filling',
+    walk_time_to_gate_minutes: 10,
+    recommended_gate_id: 'gate-1',
+    capacity_label: 'Filling fast',
+    notes: 'Covered parking. Expect a longer wait at exit.',
+    map_x: 260,
+    map_y: 24,
+    status_source: 'simulated_demo',
+    status_confidence: 'moderate',
+    derivedAt: _parkingDerivedAt,
+  },
+  {
+    id: 'east-lot',
+    name: 'East Lot',
+    status: 'limited',
+    walk_time_to_gate_minutes: 12,
+    recommended_gate_id: 'gate-7',
+    capacity_label: 'Limited availability',
+    notes: 'Best fit if you’re seated on the east side.',
+    map_x: 470,
+    map_y: 160,
+    status_source: 'simulated_demo',
+    status_confidence: 'low',
+    derivedAt: _parkingDerivedAt,
+  },
+  {
+    id: 'south-lot',
+    name: 'South Lot',
+    status: 'unknown',
+    walk_time_to_gate_minutes: 9,
+    recommended_gate_id: 'gate-1',
+    capacity_label: 'Status unconfirmed',
+    notes: 'Awaiting venue update.',
+    map_x: 260,
+    map_y: 300,
+    status_source: 'simulated_demo',
+    status_confidence: 'low',
+    derivedAt: _parkingDerivedAt,
   },
 ]
 

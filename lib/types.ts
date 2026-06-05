@@ -179,3 +179,106 @@ export interface Incident {
   note: string
   action?: string
 }
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Honest-source + confidence model
+   ─────────────────────────────────────────────────────────────────────────
+
+   FanFlow shows live-style guidance derived from a mix of staff signals,
+   fan reports, ticket/venue context, and stylized demo data. Every surface
+   that renders a "live" claim must label *where* that claim came from and
+   how strongly we stand behind it. These types are the contract for
+   <SourceChip> / <ConfidenceChip> so the label is identical wherever a
+   given fact appears.
+
+   Important rule from the product spec: ticket sales and seat capacity
+   can estimate demand, but they do NOT prove live gate pressure. Live
+   gate/parking/crowd state must come from `staff_verified`, `fan_reported`,
+   or `simulated_demo` — never `official` unless explicitly modeled.
+   ───────────────────────────────────────────────────────────────────── */
+
+export type SourceType =
+  | 'simulated_demo'
+  | 'estimated'
+  | 'fan_reported'
+  | 'staff_verified'
+  | 'official'
+
+export type ConfidenceLevel = 'low' | 'moderate' | 'high' | 'verified'
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Scene engine
+
+   A SceneId names a coherent UI moment (parking, gate guidance, exit,
+   etc.) so that background tone, motion accent, map focus, and copy
+   tone stay aligned wherever a scene is rendered.
+   ───────────────────────────────────────────────────────────────────── */
+
+export type SceneId =
+  | 'ticket_confirmed'
+  | 'fanflow_unlocked'
+  | 'personalization'
+  | 'parking'
+  | 'gate_guidance'
+  | 'crowd_pulse'
+  | 'restrooms'
+  | 'accessibility'
+  | 'support'
+  | 'exit'
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Structured message contract
+
+   Used by the AI Message Service. Rules/data populate every field except
+   the human-readable `body` — that's the only part an LLM is ever allowed
+   to author. Keeps facts deterministic and language polished.
+   ───────────────────────────────────────────────────────────────────── */
+
+export type MessageTone =
+  | 'celebration'
+  | 'helpful'
+  | 'awareness'
+  | 'support'
+  | 'official'
+
+export type MessageSeverity = 'info' | 'notice' | 'warning'
+
+export interface StructuredMessage {
+  id: string
+  title: string
+  body: string
+  tone: MessageTone
+  severity: MessageSeverity
+  source: SourceType
+  confidence: ConfidenceLevel
+  sourceLabel: string
+  recommendedAction?: string
+  expiresInMinutes?: number
+  showMapFocus?: SceneId
+  derivedAt: string
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Parking
+
+   ParkingStatus uses the traffic-light vocabulary the UI renders directly.
+   `status_source` and `status_confidence` follow the same honest-labeling
+   rule as live signals.
+   ───────────────────────────────────────────────────────────────────── */
+
+export type ParkingStatus = 'open' | 'filling' | 'limited' | 'full' | 'unknown'
+
+export interface ParkingLot {
+  id: string
+  name: string
+  status: ParkingStatus
+  walk_time_to_gate_minutes: number
+  recommended_gate_id: string
+  capacity_label: string
+  notes?: string
+  map_x?: number
+  map_y?: number
+  status_source: SourceType
+  status_confidence: ConfidenceLevel
+  derivedAt: string
+}
