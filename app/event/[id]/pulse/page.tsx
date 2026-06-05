@@ -1,9 +1,9 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
-import { motion } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 import { demoEvent, demoTicket, deriveArrivalPlan, demoVenue } from '@/lib/seed'
 import {
   getAllSignals,
@@ -32,6 +32,10 @@ export default function PulsePage() {
   const [signals, setSignals] = useState<LiveSignal[]>([])
   const [pulseCount, setPulseCount] = useState(0)
   const [helpOpen, setHelpOpen] = useState(false)
+  // Transient "your signal is flowing into the live layer" wave after a tap.
+  const [sentWave, setSentWave] = useState<LiveSignal['sentiment'] | null>(null)
+  const waveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useEffect(() => () => { if (waveTimer.current) clearTimeout(waveTimer.current) }, [])
 
   const refresh = useCallback(() => {
     setPrefs(loadReadiness())
@@ -57,6 +61,10 @@ export default function PulsePage() {
       created_at: new Date().toISOString(),
     })
     setPulseCount((c) => c + 1)
+    // Trigger the "signal sent → flows into the live layer" pulse wave.
+    setSentWave(sentiment)
+    if (waveTimer.current) clearTimeout(waveTimer.current)
+    waveTimer.current = setTimeout(() => setSentWave(null), 1900)
   }
 
   // Staff signals at the recommended gate (last 60 min) — prominent section
@@ -108,17 +116,86 @@ export default function PulsePage() {
         </header>
 
         <main className="container-mobile px-4 py-5 space-y-4">
-          {/* Hero */}
-          <section className="pt-1">
-            <div className="kicker text-violet-700">Fan Pulse</div>
-            <h1 className="font-extrabold text-slate-900 text-3xl tracking-tight leading-[1.05] mt-2">
-              Help others arrive smarter.
-            </h1>
-            <p className="text-sm text-slate-600 mt-2 leading-relaxed">
-              Your one-tap report helps every other fan headed to {gateLabel} make a
-              better call.
-            </p>
-          </section>
+          {/* Hero — human-powered intelligence, cinematic band */}
+          <motion.section
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+            className="surface-night relative overflow-hidden rounded-3xl p-5 text-white shadow-[0_10px_30px_-12px_rgba(76,29,149,0.55)]"
+          >
+            <motion.div
+              aria-hidden="true"
+              className="absolute -bottom-12 -left-8 w-44 h-44 rounded-full bg-fuchsia-500/20 blur-3xl"
+              animate={{ x: [0, 16, 0], y: [0, -10, 0] }}
+              transition={{ duration: 9, repeat: Infinity, ease: 'easeInOut' }}
+            />
+            <div className="relative">
+              <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.14em] text-violet-200">
+                <span className="relative flex w-2 h-2">
+                  <span className="absolute inset-0 rounded-full bg-fuchsia-300 animate-ping opacity-70" />
+                  <span className="relative inline-block w-2 h-2 rounded-full bg-fuchsia-300" />
+                </span>
+                Fan Pulse · live
+              </div>
+              <h1 className="font-extrabold text-[30px] sm:text-[34px] tracking-tight leading-[1.05] mt-2">
+                Help others arrive smarter.
+              </h1>
+              <p className="text-[13px] text-violet-100/85 mt-2 leading-relaxed">
+                Your one-tap report joins the live crowd layer for every fan headed to{' '}
+                {gateLabel}. 3+ similar reports start shaping guidance.
+              </p>
+            </div>
+          </motion.section>
+
+          {/* "Signal sent → flows into the live crowd layer" wave. Fires on
+              every tap; expanding rings + a confirmation chip. */}
+          <AnimatePresence>
+            {sentWave && (
+              <motion.div
+                key="sent-wave"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.25 }}
+                className="pointer-events-none fixed inset-0 z-50 flex items-center justify-center"
+                aria-live="polite"
+              >
+                <div className="relative flex items-center justify-center">
+                  {[0, 0.25, 0.5].map((d) => (
+                    <motion.span
+                      key={d}
+                      className={`absolute rounded-full border-2 ${
+                        sentWave === 'smooth'
+                          ? 'border-emerald-400'
+                          : sentWave === 'moderate'
+                            ? 'border-amber-400'
+                            : sentWave === 'busy'
+                              ? 'border-orange-400'
+                              : 'border-rose-400'
+                      }`}
+                      initial={{ width: 40, height: 40, opacity: 0.7 }}
+                      animate={{ width: 320, height: 320, opacity: 0 }}
+                      transition={{ duration: 1.6, delay: d, ease: 'easeOut' }}
+                    />
+                  ))}
+                  <motion.div
+                    initial={{ scale: 0.8, opacity: 0, y: 6 }}
+                    animate={{ scale: 1, opacity: 1, y: 0 }}
+                    exit={{ scale: 0.9, opacity: 0 }}
+                    transition={{ type: 'spring', stiffness: 260, damping: 18 }}
+                    className="surface-night relative rounded-2xl px-4 py-3 text-white text-center shadow-[0_10px_30px_-10px_rgba(76,29,149,0.6)]"
+                  >
+                    <div className="text-[11px] font-bold uppercase tracking-wider text-violet-200">
+                      Signal sent
+                    </div>
+                    <div className="text-[13px] font-semibold mt-0.5">
+                      Flowing into the live crowd layer
+                    </div>
+                  </motion.div>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
           {/* Question card */}
           <motion.section

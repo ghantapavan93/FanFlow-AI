@@ -14,8 +14,10 @@ import type { LiveSignal, ReadinessPrefs } from '@/lib/types'
 import { computeEventIntelligence, computeFanPulse } from '@/lib/intelligence'
 import { HelpSheet } from '@/components/shared/HelpSheet'
 import { AIExplanationCard } from '@/components/shared/AIExplanationCard'
+import { SourceChip } from '@/components/shared/SourceChip'
 import { demoEvent, demoTicket } from '@/lib/seed'
 import { loadSelectedTicket } from '@/lib/ticketContext'
+import type { SourceType } from '@/lib/types'
 
 /**
  * Live Conditions — bottom-nav adjacent page focused on the live signal
@@ -192,14 +194,84 @@ export default function ConditionsPage() {
         </header>
 
         <main className="container-mobile px-4 py-5 space-y-4">
-          {/* Hero */}
-          <section className="pt-1">
-            <div className="kicker text-violet-700">Live Conditions</div>
-            <h1 className="font-extrabold text-slate-900 text-[28px] tracking-tight leading-[1.1] mt-2">
-              Conditions at {gateLabel}
-            </h1>
-            <p className="text-[12px] text-slate-500 mt-1.5">Updated {refreshAge}</p>
-          </section>
+          {/* === "Right now" cinematic status band — leads with what's
+               happening, not a log. Entry load is the dominant headline. */}
+          <motion.section
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+            className="surface-night relative overflow-hidden rounded-3xl p-5 text-white shadow-[0_10px_30px_-12px_rgba(76,29,149,0.55)]"
+          >
+            <motion.div
+              aria-hidden="true"
+              className="absolute -top-12 -right-10 w-44 h-44 rounded-full bg-violet-500/20 blur-3xl"
+              animate={{ x: [0, 18, 0], y: [0, 12, 0] }}
+              transition={{ duration: 8, repeat: Infinity, ease: 'easeInOut' }}
+            />
+            <div className="relative">
+              <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.14em] text-violet-200">
+                <span className="relative flex w-2 h-2">
+                  <span className="absolute inset-0 rounded-full bg-emerald-300 animate-ping opacity-70" />
+                  <span className="relative inline-block w-2 h-2 rounded-full bg-emerald-300" />
+                </span>
+                Right now · {gateLabel}
+              </div>
+
+              <h1 className="font-extrabold text-[30px] sm:text-[34px] tracking-tight leading-[1.05] mt-2">
+                <span
+                  className={
+                    loadInfo.tone === 'emerald'
+                      ? 'text-emerald-300'
+                      : loadInfo.tone === 'amber'
+                        ? 'text-amber-200'
+                        : loadInfo.tone === 'rose'
+                          ? 'text-rose-300'
+                          : 'text-slate-300'
+                  }
+                >
+                  {loadInfo.text} entry
+                </span>
+              </h1>
+              <p className="text-[13px] text-violet-100/85 mt-1.5 leading-relaxed">
+                {loadInfo.sub}. {confidenceCopy}.
+              </p>
+
+              {/* Glass stat chips — confidence + signal mix at a glance */}
+              <div className="flex items-center gap-2 mt-4 flex-wrap">
+                <span className="glass inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold">
+                  <span className="tabular-nums font-extrabold">{confidence}%</span>
+                  <span className="text-violet-100/80">confidence</span>
+                </span>
+                <span className="glass inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold">
+                  <span className="tabular-nums font-extrabold text-emerald-300">
+                    {plan.confidence_breakdown.staffSignalCount}
+                  </span>
+                  <span className="text-violet-100/80">staff</span>
+                </span>
+                <span className="glass inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold">
+                  <span className="tabular-nums font-extrabold text-violet-200">
+                    {plan.confidence_breakdown.fanSignalCount}
+                  </span>
+                  <span className="text-violet-100/80">fan</span>
+                </span>
+              </div>
+
+              <div className="flex items-center gap-2 mt-3 flex-wrap">
+                <SourceChip
+                  source={
+                    (plan.confidence_breakdown.staffSignalCount > 0
+                      ? 'staff_verified'
+                      : plan.confidence_breakdown.fanSignalCount >= 3
+                        ? 'fan_reported'
+                        : 'estimated') as SourceType
+                  }
+                  derivedAt={plan.confidence_breakdown.derivedAt}
+                  size="xs"
+                />
+                <span className="text-[11px] text-violet-200/60">Updated {refreshAge}</span>
+              </div>
+            </div>
+          </motion.section>
 
           {/* Arrival Confidence ring card */}
           <motion.section

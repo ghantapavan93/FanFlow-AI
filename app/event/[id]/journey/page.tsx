@@ -147,17 +147,42 @@ export default function JourneyPage() {
         </header>
 
         <main className="container-mobile px-4 py-5 space-y-4">
-          {/* Hero */}
-          <section className="pt-1">
-            <div className="kicker text-violet-700">Your Journey</div>
-            <h1 className="font-extrabold text-slate-900 text-[34px] tracking-tight leading-[1.05] mt-2">
-              Starts now
-            </h1>
-            <p className="text-sm text-slate-600 mt-2 leading-relaxed">
-              Step-by-step, the way the rule engine plans it. The highlighted step
-              is your primary gate recommendation.
-            </p>
-          </section>
+          {/* Hero — cinematic event path */}
+          <motion.section
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+            className="surface-night relative overflow-hidden rounded-3xl p-5 text-white shadow-[0_10px_30px_-12px_rgba(76,29,149,0.55)]"
+          >
+            <motion.div
+              aria-hidden="true"
+              className="absolute -top-12 -right-10 w-44 h-44 rounded-full bg-violet-500/20 blur-3xl"
+              animate={{ x: [0, 16, 0], y: [0, 12, 0] }}
+              transition={{ duration: 8, repeat: Infinity, ease: 'easeInOut' }}
+            />
+            <div className="relative">
+              <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-violet-200">
+                Your journey
+              </div>
+              <h1 className="font-extrabold text-[34px] tracking-tight leading-[1.02] mt-1">
+                Starts now
+              </h1>
+              <p className="text-[13px] text-violet-100/85 mt-2 leading-relaxed">
+                The path the rule engine planned — your gate step is highlighted.
+              </p>
+              {/* Event path chips */}
+              <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1 mt-3 text-[11px] font-semibold">
+                {['Home', 'Arrive', 'Gate', 'Seat', 'Match'].map((step, i, arr) => (
+                  <span key={step} className="inline-flex items-center gap-1.5">
+                    <span className="glass inline-flex items-center rounded-full px-2 py-0.5 text-violet-50">
+                      {step}
+                    </span>
+                    {i < arr.length - 1 && <span className="text-violet-300/60">→</span>}
+                  </span>
+                ))}
+              </div>
+            </div>
+          </motion.section>
 
           {/* Timeline */}
           <motion.section

@@ -180,6 +180,43 @@ export default function ArrivalGuidePage() {
       </header>
 
       <div className="container-mobile px-4 py-5 sm:py-6 space-y-5 sm:space-y-6 safe-bottom">
+        {/* Cinematic recommendation hero — the headline decision up top */}
+        <motion.section
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+          className="surface-night relative overflow-hidden rounded-3xl p-5 text-white shadow-[0_10px_30px_-12px_rgba(76,29,149,0.55)]"
+        >
+          <motion.div
+            aria-hidden="true"
+            className="absolute -top-12 -right-10 w-44 h-44 rounded-full bg-violet-500/20 blur-3xl"
+            animate={{ x: [0, 16, 0], y: [0, 12, 0] }}
+            transition={{ duration: 8, repeat: Infinity, ease: 'easeInOut' }}
+          />
+          <div className="relative">
+            <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-violet-200">
+              Your arrival recommendation
+            </div>
+            <div className="font-extrabold text-2xl leading-tight mt-1">
+              Enter via {plan.recommended_gate.name.replace(/\s*\(.*\)\s*$/, '')}
+            </div>
+            <div className="flex flex-wrap items-center gap-2 mt-3">
+              <span className="glass inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold">
+                🕐 Leave {plan.leave_by_time}
+              </span>
+              <span className="glass inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold">
+                🎯 Arrive {plan.arrival_time}
+              </span>
+              <span className="glass inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold">
+                ⏱ ~{plan.recommended_gate.typical_wait_minutes} min wait
+              </span>
+            </div>
+            <p className="text-[11px] text-violet-200/70 mt-3 leading-relaxed">
+              Rules picked this plan. The AI explanation below puts it in plain words.
+            </p>
+          </div>
+        </motion.section>
+
         {/* Timeline — refined with icons + staggered reveal */}
         <div className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
           <h2 className="font-bold text-slate-900 mb-5 sm:mb-6 text-lg">Your journey timeline</h2>

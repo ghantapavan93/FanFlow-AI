@@ -240,7 +240,7 @@ export default function ReadinessPage() {
   }
 
   return (
-    <div className="min-h-screen page-bg page-enter">
+    <div className="min-h-screen bg-gradient-to-b from-violet-100/60 via-violet-50/20 to-white page-enter">
       <div className="page-header px-4 h-14 flex items-center justify-between">
         <h1 className="font-bold text-slate-900">Personalize your plan</h1>
         <Link
@@ -369,6 +369,31 @@ export default function ReadinessPage() {
                 />
               ))}
             </div>
+            {/* Live preview — show how this choice changes the plan */}
+            <AnimatePresence mode="wait">
+              {transport && (
+                <motion.div
+                  key={transport}
+                  initial={{ opacity: 0, y: 6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -4 }}
+                  transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+                  className="flex items-center gap-2 rounded-2xl bg-violet-50 border border-violet-200 px-3.5 py-2.5"
+                >
+                  <span className="text-violet-600 flex-shrink-0">✦</span>
+                  <p className="text-[12px] text-violet-900 leading-snug">
+                    <span className="font-semibold">FanFlow will add:</span>{' '}
+                    {transport === 'driving'
+                      ? 'parking & lot guidance with a car-to-gate route.'
+                      : transport === 'transit'
+                        ? 'rail-platform timing and a station-to-gate walk.'
+                        : transport === 'rideshare'
+                          ? 'a rideshare drop-off point closest to your gate.'
+                          : 'a walk-up route tuned to your section.'}
+                  </p>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </>
         )}
 
