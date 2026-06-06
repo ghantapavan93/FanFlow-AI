@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import './globals.css'
 import { DemoToolbar } from '@/components/debug/DemoToolbar'
+import { MotionProvider } from '@/components/providers/MotionProvider'
 
 export const metadata: Metadata = {
   title: 'FanFlow AI | From Ticket Confirmed to Venue Ready',
@@ -19,8 +20,10 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body>
-        {children}
-        <DemoToolbar />
+        <MotionProvider>
+          {children}
+          <DemoToolbar />
+        </MotionProvider>
       </body>
     </html>
   )
