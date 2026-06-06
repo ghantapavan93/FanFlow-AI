@@ -106,7 +106,7 @@ export default function ExitFlowPage() {
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
-            className="surface-night relative overflow-hidden rounded-3xl text-white p-5 shadow-[0_10px_30px_-12px_rgba(76,29,149,0.55)]"
+            className="surface-night relative overflow-hidden rounded-2xl text-white p-5 shadow-[0_10px_30px_-12px_rgba(76,29,149,0.55)]"
           >
             <div aria-hidden="true" className="absolute inset-0 opacity-30 bg-[radial-gradient(ellipse_at_top_right,rgba(167,139,250,0.4),transparent_60%)]" />
             <div className="relative">
@@ -152,7 +152,7 @@ export default function ExitFlowPage() {
           </div>
 
           {/* === Other options ==================================== */}
-          <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-[0_4px_20px_-8px_rgba(124,58,237,0.10)]">
+          <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_4px_20px_-8px_rgba(124,58,237,0.10)]">
             <div className="kicker text-violet-700 mb-3">Other ways out</div>
             <div className="space-y-2">
               {secondary.map((row) => (
@@ -175,7 +175,7 @@ export default function ExitFlowPage() {
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true, amount: 0.3 }}
             transition={{ duration: 0.5 }}
-            className="rounded-3xl bg-gradient-to-br from-violet-50 via-white to-fuchsia-50/30 border border-violet-200 p-5"
+            className="rounded-2xl bg-gradient-to-br from-violet-50 via-white to-fuchsia-50/30 border border-violet-200 p-5"
           >
             <div className="kicker text-violet-700 mb-2">Your day with FanFlow</div>
             <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[12px] font-semibold text-slate-700">

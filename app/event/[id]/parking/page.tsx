@@ -98,7 +98,7 @@ export default function ParkingPage() {
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
-            className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-sky-600 via-sky-700 to-violet-700 text-white p-5 shadow-lg shadow-sky-500/20"
+            className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-sky-600 via-sky-700 to-violet-700 text-white p-5 shadow-lg shadow-sky-500/20"
           >
             <div className="shimmer-overlay" aria-hidden="true" />
             <div aria-hidden="true" className="absolute inset-0 opacity-20 bg-[radial-gradient(ellipse_at_top_right,rgba(255,255,255,0.5),transparent_60%)]" />
