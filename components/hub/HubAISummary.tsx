@@ -168,7 +168,7 @@ export function HubAISummary({
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
-      className="surface-night relative overflow-hidden rounded-3xl p-4 text-white shadow-[0_10px_30px_-12px_rgba(76,29,149,0.55)]"
+      className="surface-night relative overflow-hidden rounded-2xl p-4 text-white shadow-[0_10px_30px_-12px_rgba(76,29,149,0.55)]"
     >
       {/* Ambient bloom — slow drift for a "live intelligence" feel */}
       <motion.div

@@ -34,6 +34,11 @@ import type { EventIntelligence, FanPulseBreakdown } from '@/lib/intelligence'
 import { HelpSheet } from '@/components/shared/HelpSheet'
 import { SessionChip } from '@/components/shared/SessionChip'
 import { HubAISummary } from '@/components/hub/HubAISummary'
+import { NextMoveCard } from '@/components/hub/NextMoveCard'
+import { ImpactStrip } from '@/components/hub/ImpactStrip'
+import { AskFanFlow } from '@/components/hub/AskFanFlow'
+import { GameDayControl } from '@/components/sim/GameDayControl'
+import { PersonaSwitcher } from '@/components/sim/PersonaSwitcher'
 import { formatDerivedAt } from '@/lib/sources'
 
 /**
@@ -200,7 +205,7 @@ function JourneyTimeline({
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true, amount: 0.2 }}
       transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
-      className="relative rounded-3xl bg-white border border-violet-200/60 shadow-[0_6px_28px_-10px_rgba(124,58,237,0.16)] p-5 overflow-hidden"
+      className="relative rounded-2xl bg-white border border-violet-200/60 shadow-[0_6px_28px_-10px_rgba(124,58,237,0.16)] p-5 overflow-hidden"
     >
       <div
         aria-hidden="true"
@@ -482,6 +487,9 @@ export default function EventHubPage() {
         </header>
 
         <main className="container-mobile px-4 py-5 space-y-4">
+          {/* === Persona switcher — reshapes the whole plan live ======= */}
+          <PersonaSwitcher />
+
           {/* === Cinematic Hero — unlock moment ======================== */}
           <section className="pt-1">
             <motion.div
@@ -510,7 +518,20 @@ export default function EventHubPage() {
                 <span>✦</span>
                 Vision Route
               </Link>
-              <span className="text-[11px] text-slate-400 font-medium" title={`Plan derived at ${new Date(plan.confidence_breakdown.derivedAt).toLocaleString()}`}>
+              {/* Relative freshness label. The underlying derivedAt timestamp
+                  is generated at render time, so it differs by a fraction of a
+                  second (and by locale am/AM) between the server render and the
+                  client hydration. suppressHydrationWarning tells React this
+                  node is expected to differ — without it React throws a hard
+                  hydration mismatch and re-renders the entire Hub on the client,
+                  which drops in-flight interactions (e.g. an Ask FanFlow submit).
+                  We also keep the tooltip relative (not toLocaleString) so it
+                  carries no volatile absolute time. */}
+              <span
+                className="text-[11px] text-slate-400 font-medium"
+                title="When FanFlow last recomputed your plan"
+                suppressHydrationWarning
+              >
                 {formatDerivedAt(plan.confidence_breakdown.derivedAt)}
               </span>
             </div>
@@ -554,7 +575,7 @@ export default function EventHubPage() {
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
-            className="relative rounded-3xl bg-white border border-violet-200/60 shadow-[0_6px_28px_-8px_rgba(124,58,237,0.18)] p-5 hover-lift overflow-hidden"
+            className="relative rounded-2xl bg-white border border-violet-200/60 shadow-[0_6px_28px_-8px_rgba(124,58,237,0.18)] p-5 hover-lift overflow-hidden"
           >
             {/* Ambient gradient orbs */}
             <div
@@ -674,6 +695,9 @@ export default function EventHubPage() {
             </div>
           </motion.section>
 
+          {/* === Anticipatory "next move" — flips live as signals change = */}
+          <NextMoveCard plan={plan} signals={signals} gateLabel={gateLabel} />
+
           {/* === Compact AI summary — calls existing endpoint ========= */}
           <HubAISummary
             plan={plan}
@@ -692,6 +716,12 @@ export default function EventHubPage() {
             gateLabel={gateLabel}
             section={ticket.section}
           />
+
+          {/* === Ask FanFlow — conversational answers from the plan ==== */}
+          <AskFanFlow plan={plan} signals={signals} gateLabel={gateLabel} />
+
+          {/* === Impact strip — the honest business case =============== */}
+          <ImpactStrip plan={plan} avoidsPeak={intelligence.avoidsPeak} />
 
           {/* === Inline Personalization Prompt ========================= */}
           {!prefs && (
@@ -784,7 +814,7 @@ export default function EventHubPage() {
           >
             <Link
               href={`/event/${eventId}/conditions`}
-              className="block rounded-3xl bg-gradient-to-br from-slate-50 to-white border border-slate-200 p-4 hover:border-violet-300 transition-colors group"
+              className="block rounded-2xl bg-gradient-to-br from-slate-50 to-white border border-slate-200 p-4 hover:border-violet-300 transition-colors group"
             >
               <div className="flex items-center gap-2 mb-3">
                 <span className="relative flex items-center justify-center w-4 h-4 flex-shrink-0">
@@ -887,7 +917,7 @@ export default function EventHubPage() {
             >
               <Link
                 href={`/event/${eventId}/pulse`}
-                className="block rounded-3xl bg-gradient-to-br from-violet-50 to-violet-50/40 border border-violet-200 p-4 hover:from-violet-100 hover:to-violet-50/70 transition-colors group shadow-[0_0_0_0_rgba(124,58,237,0)] hover:shadow-[0_0_12px_-2px_rgba(124,58,237,0.15)]"
+                className="block rounded-2xl bg-gradient-to-br from-violet-50 to-violet-50/40 border border-violet-200 p-4 hover:from-violet-100 hover:to-violet-50/70 transition-colors group shadow-[0_0_0_0_rgba(124,58,237,0)] hover:shadow-[0_0_12px_-2px_rgba(124,58,237,0.15)]"
               >
                 <div className="flex items-center gap-3">
                   <span className="w-11 h-11 rounded-2xl bg-gradient-to-br from-violet-500 to-fuchsia-600 text-white flex items-center justify-center text-lg flex-shrink-0 shadow-md shadow-violet-500/25">
@@ -930,7 +960,7 @@ export default function EventHubPage() {
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true, amount: 0.3 }}
             transition={{ duration: 0.5 }}
-            className="rounded-3xl bg-gradient-to-br from-emerald-50 via-white to-emerald-50/30 border border-emerald-200 p-4"
+            className="rounded-2xl bg-gradient-to-br from-emerald-50 via-white to-emerald-50/30 border border-emerald-200 p-4"
           >
             <div className="flex items-start gap-3">
               <span className="w-10 h-10 rounded-2xl bg-emerald-100 flex items-center justify-center text-lg flex-shrink-0">
@@ -974,7 +1004,7 @@ export default function EventHubPage() {
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true, amount: 0.3 }}
             transition={{ duration: 0.55 }}
-            className="relative rounded-3xl overflow-hidden bg-gradient-to-br from-slate-950 via-violet-950 to-slate-900 text-white p-5 hover-lift"
+            className="relative rounded-2xl overflow-hidden bg-gradient-to-br from-slate-950 via-violet-950 to-slate-900 text-white p-5 hover-lift"
           >
             <div
               aria-hidden="true"
@@ -1051,7 +1081,7 @@ export default function EventHubPage() {
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true, amount: 0.3 }}
             transition={{ duration: 0.5 }}
-            className="rounded-3xl bg-white border border-slate-200 p-4"
+            className="rounded-2xl bg-white border border-slate-200 p-4"
           >
             <div className="kicker mb-3">Why FanFlow</div>
             <div className="grid grid-cols-2 gap-3">
@@ -1096,7 +1126,7 @@ export default function EventHubPage() {
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true, amount: 0.3 }}
             transition={{ duration: 0.5 }}
-            className="rounded-3xl overflow-hidden bg-gradient-to-br from-violet-600 via-violet-700 to-fuchsia-700 p-4 sm:p-5 text-white relative"
+            className="rounded-2xl overflow-hidden bg-gradient-to-br from-violet-600 via-violet-700 to-fuchsia-700 p-4 sm:p-5 text-white relative"
           >
             <div
               aria-hidden="true"
@@ -1149,6 +1179,7 @@ export default function EventHubPage() {
           </p>
         </main>
 
+        <GameDayControl />
         <BottomNav eventId={eventId} active="guide" onHelp={() => setHelpOpen(true)} />
       </div>
 
@@ -1779,7 +1810,7 @@ function PersonalizationPrompt({
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, y: -8 }}
         transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
-        className="relative rounded-3xl bg-gradient-to-br from-violet-50 via-white to-fuchsia-50/30 border border-violet-200 shadow-[0_4px_20px_-8px_rgba(124,58,237,0.15)] p-5 overflow-hidden"
+        className="relative rounded-2xl bg-gradient-to-br from-violet-50 via-white to-fuchsia-50/30 border border-violet-200 shadow-[0_4px_20px_-8px_rgba(124,58,237,0.15)] p-5 overflow-hidden"
       >
         <div
           aria-hidden="true"
