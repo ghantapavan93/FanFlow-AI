@@ -19,7 +19,39 @@ import { SourceChip } from '@/components/shared/SourceChip'
 import { ConfidenceChip } from '@/components/shared/ConfidenceChip'
 import { getGateCrowd } from '@/lib/services/crowdService'
 import { PARKING_STATUS_COLOR, PARKING_STATUS_LABEL } from '@/lib/services/parkingService'
+import { GameDayControl } from '@/components/sim/GameDayControl'
+import { MapErrorBoundary } from '@/components/map/MapErrorBoundary'
 import { SCENES } from '@/lib/scenes/scenes'
+import dynamic from 'next/dynamic'
+
+// Real Leaflet map — client-only, dynamically imported so SSR never touches
+// the DOM-bound library. Classic SVG stays the default; this is the opt-in
+// "Live map". If it ever fails at runtime, MapErrorBoundary keeps the page up.
+const StadiumLeafletMap = dynamic(
+  () => import('@/components/map/StadiumLeafletMap').then((m) => m.StadiumLeafletMap),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="h-[340px] grid place-items-center text-slate-400 text-sm">
+        Loading live map…
+      </div>
+    ),
+  },
+)
+
+// Real free satellite basemap (Esri World Imagery, no API key) centered on the
+// real venue, with our markers on top. Same props as the abstract map.
+const SatelliteVenueMap = dynamic(
+  () => import('@/components/map/SatelliteVenueMap').then((m) => m.SatelliteVenueMap),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="h-[340px] grid place-items-center text-slate-400 text-sm">
+        Loading satellite map…
+      </div>
+    ),
+  },
+)
 
 /* ─────────────────────────────────────────────────────────────────────────
    Venue Map — the hero product surface.
@@ -99,6 +131,7 @@ export default function VenueMapPage() {
   const [layer, setLayer] = useState<LayerId>('route')
   const [helpOpen, setHelpOpen] = useState(false)
   const [replayKey, setReplayKey] = useState(0)
+  const [mapMode, setMapMode] = useState<'classic' | 'live' | 'satellite'>('classic')
 
   useEffect(() => {
     const refresh = () => {
@@ -140,6 +173,61 @@ export default function VenueMapPage() {
 
   const scene = SCENES[LAYER_SCENE[layer]]
 
+  // Shared marker/route props for whichever interactive map mode is active
+  // (abstract Leaflet or real-tile satellite). Built once from the live layer.
+  const crowdColorFor = (p: string) =>
+    p === 'busy' ? '#ef4444' : p === 'moderate' ? '#f59e0b' : p === 'smooth' ? '#10b981' : '#64748b'
+  const mapProps = {
+    gates:
+      layer === 'route' || layer === 'gates' || layer === 'crowd' || layer === 'exit'
+        ? demoVenue.gates
+        : [],
+    parkingLots: layer === 'parking' ? demoParkingLots : [],
+    supportPoints:
+      layer === 'restrooms' || layer === 'accessibility' || layer === 'support'
+        ? demoVenue.support_points.filter((sp) =>
+            (layer === 'restrooms'
+              ? RESTROOM_TYPES
+              : layer === 'accessibility'
+                ? ACCESS_TYPES
+                : SUPPORT_TYPES
+            ).includes(sp.type),
+          )
+        : [],
+    seat: { x: 260, y: 228, label: `Section ${demoTicket.section}` },
+    route:
+      layer === 'route' || layer === 'accessibility'
+        ? {
+            from: { x: recommendedGate.map_x ?? 260, y: recommendedGate.map_y ?? 90 },
+            to: { x: 260, y: 228 },
+            color: layer === 'accessibility' ? '#0ea5e9' : '#7c3aed',
+          }
+        : layer === 'exit'
+          ? {
+              from: { x: 260, y: 228 },
+              to: { x: recommendedLot.map_x ?? 60, y: recommendedLot.map_y ?? 60 },
+              color: '#475569',
+            }
+          : layer === 'parking'
+            ? {
+                from: { x: recommendedLot.map_x ?? 60, y: recommendedLot.map_y ?? 60 },
+                to: { x: recommendedGate.map_x ?? 260, y: recommendedGate.map_y ?? 90 },
+                color: '#0ea5e9',
+              }
+            : null,
+    recommendedGateId,
+    gateColors:
+      layer === 'crowd'
+        ? Object.fromEntries(
+            demoVenue.gates.map((g) => [g.id, crowdColorFor(gateCrowds[g.id].pressure)]),
+          )
+        : undefined,
+    onSelectGate: (g: Gate) =>
+      setSelected({ kind: 'gate' as const, data: g, recommended: g.id === recommendedGateId }),
+    onSelectSupport: (sp: SupportPoint) => setSelected({ kind: 'support' as const, data: sp }),
+    onSelectParking: (lot: ParkingLot) => setSelected({ kind: 'parking' as const, data: lot }),
+  }
+
   return (
     <>
       <div className={`min-h-screen ${scene.backgroundClass} pb-24 page-enter`}>
@@ -172,7 +260,7 @@ export default function VenueMapPage() {
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
-            className="surface-night relative overflow-hidden rounded-3xl text-white p-5 shadow-[0_10px_30px_-12px_rgba(76,29,149,0.55)]"
+            className="surface-night relative overflow-hidden rounded-2xl text-white p-5 shadow-[0_10px_30px_-12px_rgba(76,29,149,0.55)]"
           >
             <div className="shimmer-overlay" aria-hidden="true" />
             <motion.div
@@ -227,19 +315,44 @@ export default function VenueMapPage() {
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.05 }}
-            className="rounded-3xl border border-slate-200 bg-white p-4 shadow-[0_4px_20px_-8px_rgba(124,58,237,0.10)]"
+            className="rounded-2xl border border-slate-200 bg-white p-4 shadow-[0_4px_20px_-8px_rgba(124,58,237,0.10)]"
           >
-            <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center justify-between mb-3 gap-2">
               <h2 className="font-bold text-slate-900 text-sm">{demoVenue.name}</h2>
-              <button
-                onClick={() => setReplayKey((k) => k + 1)}
-                className="text-[11px] font-semibold text-violet-700 hover:text-violet-800 inline-flex items-center gap-1"
-                aria-label="Replay animation"
-              >
-                ↻ Replay
-              </button>
+              <div className="flex items-center gap-2">
+                <div className="inline-flex rounded-full border border-slate-200 bg-slate-50 p-0.5 text-[10px] font-bold">
+                  <button
+                    onClick={() => setMapMode('classic')}
+                    className={`px-2 py-1 rounded-full transition ${mapMode === 'classic' ? 'bg-white text-violet-700 shadow-sm' : 'text-slate-500'}`}
+                  >
+                    Classic
+                  </button>
+                  <button
+                    onClick={() => setMapMode('live')}
+                    className={`px-2 py-1 rounded-full transition ${mapMode === 'live' ? 'bg-violet-600 text-white shadow-sm' : 'text-slate-500'}`}
+                  >
+                    Live
+                  </button>
+                  <button
+                    onClick={() => setMapMode('satellite')}
+                    className={`px-2 py-1 rounded-full transition ${mapMode === 'satellite' ? 'bg-violet-600 text-white shadow-sm' : 'text-slate-500'}`}
+                  >
+                    Satellite
+                  </button>
+                </div>
+                {mapMode === 'classic' && (
+                  <button
+                    onClick={() => setReplayKey((k) => k + 1)}
+                    className="text-[11px] font-semibold text-violet-700 hover:text-violet-800 inline-flex items-center gap-1"
+                    aria-label="Replay animation"
+                  >
+                    ↻ Replay
+                  </button>
+                )}
+              </div>
             </div>
 
+            {mapMode === 'classic' && (
             <div className="bg-slate-50 rounded-2xl border border-slate-200 overflow-hidden">
               <svg
                 viewBox="0 0 520 340"
@@ -273,6 +386,40 @@ export default function VenueMapPage() {
                 <text x="260" y="250" textAnchor="middle" fontSize="9" fill="#7c3aed" fontWeight="700">
                   Section {demoTicket.section}
                 </text>
+
+                {/* Crowd heat field — pulsing density glow per gate, sized +
+                    timed by live pressure. Renders under the gate markers. */}
+                {layer === 'crowd' &&
+                  demoVenue.gates.map((g) => {
+                    const c = gateCrowds[g.id]
+                    const x = g.map_x ?? 0
+                    const y = g.map_y ?? 0
+                    const color =
+                      c.pressure === 'busy'
+                        ? '#ef4444'
+                        : c.pressure === 'moderate'
+                          ? '#f59e0b'
+                          : c.pressure === 'smooth'
+                            ? '#10b981'
+                            : '#94a3b8'
+                    const peak = c.pressure === 'busy' ? 40 : c.pressure === 'moderate' ? 32 : 24
+                    return (
+                      <motion.circle
+                        key={`heat-${g.id}-${replayKey}`}
+                        cx={x}
+                        cy={y}
+                        fill={color}
+                        initial={{ r: peak * 0.6, opacity: 0.05 }}
+                        animate={{ r: [peak * 0.55, peak, peak * 0.55], opacity: [0.22, 0.05, 0.22] }}
+                        transition={{
+                          duration: c.pressure === 'busy' ? 1.6 : 2.6,
+                          repeat: Infinity,
+                          ease: 'easeInOut',
+                        }}
+                        style={{ pointerEvents: 'none' }}
+                      />
+                    )
+                  })}
 
                 {/* ROUTE / GATES / CROWD / ACCESS / EXIT overlays use the gate→seat line */}
                 {(layer === 'route' || layer === 'accessibility') && (
@@ -407,6 +554,24 @@ export default function VenueMapPage() {
                     })}
               </svg>
             </div>
+            )}
+
+            {mapMode === 'live' && (
+              <MapErrorBoundary>
+                <StadiumLeafletMap {...mapProps} />
+              </MapErrorBoundary>
+            )}
+
+            {mapMode === 'satellite' && (
+              <MapErrorBoundary>
+                <SatelliteVenueMap {...mapProps} />
+                <p className="mt-2 text-[10px] text-slate-400 leading-relaxed">
+                  Free satellite basemap (© Esri). Marker positions are approximate, simulated demo
+                  data — not survey-accurate venue data, and not a Google Maps or MapsIndoors
+                  integration.
+                </p>
+              </MapErrorBoundary>
+            )}
 
             {/* Honest source line under the map */}
             <div className="mt-3 flex items-center justify-between gap-2 flex-wrap">
@@ -434,7 +599,7 @@ export default function VenueMapPage() {
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -6 }}
                 transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
-                className="rounded-3xl border border-violet-200/70 bg-white p-5 shadow-[0_4px_20px_-8px_rgba(124,58,237,0.12)]"
+                className="rounded-2xl border border-violet-200/70 bg-white p-5 shadow-[0_4px_20px_-8px_rgba(124,58,237,0.12)]"
               >
                 <DetailCard selected={selected} onClose={() => setSelected(null)} />
               </motion.section>
@@ -458,7 +623,7 @@ export default function VenueMapPage() {
             viewport={{ once: true }}
             transition={{ duration: 0.45 }}
             onClick={() => setHelpOpen(true)}
-            className="w-full rounded-3xl bg-gradient-to-br from-violet-50 to-white border border-violet-200 p-4 text-left hover:from-violet-100 transition group"
+            className="w-full rounded-2xl bg-gradient-to-br from-violet-50 to-white border border-violet-200 p-4 text-left hover:from-violet-100 transition group"
           >
             <div className="flex items-center gap-3">
               <span className="w-11 h-11 rounded-2xl bg-gradient-to-br from-violet-500 to-fuchsia-600 text-white flex items-center justify-center text-lg flex-shrink-0 shadow-md shadow-violet-500/25">
@@ -474,6 +639,8 @@ export default function VenueMapPage() {
             </div>
           </motion.button>
         </main>
+
+        <GameDayControl />
 
         {/* Bottom tab nav */}
         <nav
@@ -650,7 +817,7 @@ function LayerContent({
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
-        className="rounded-3xl border border-slate-200 bg-white p-5 shadow-[0_4px_20px_-8px_rgba(124,58,237,0.10)]"
+        className="rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_4px_20px_-8px_rgba(124,58,237,0.10)]"
       >
         <div className="flex items-center justify-between mb-3">
           <div className="kicker text-violet-700">Parking lots</div>
@@ -702,7 +869,7 @@ function LayerContent({
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
-        className="rounded-3xl border border-slate-200 bg-white p-5 shadow-[0_4px_20px_-8px_rgba(124,58,237,0.10)]"
+        className="rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_4px_20px_-8px_rgba(124,58,237,0.10)]"
       >
         <div className="kicker text-violet-700 mb-3">
           {layer === 'crowd' ? 'Crowd by gate' : 'Gate comparison'}
@@ -776,7 +943,7 @@ function LayerContent({
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
-        className="rounded-3xl border border-slate-200 bg-white p-5 shadow-[0_4px_20px_-8px_rgba(124,58,237,0.10)]"
+        className="rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_4px_20px_-8px_rgba(124,58,237,0.10)]"
       >
         <div className="kicker text-violet-700 mb-3">
           {layer === 'restrooms'
@@ -818,7 +985,7 @@ function LayerContent({
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
-        className="rounded-3xl border border-slate-200 bg-white p-5 shadow-[0_4px_20px_-8px_rgba(124,58,237,0.10)]"
+        className="rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_4px_20px_-8px_rgba(124,58,237,0.10)]"
       >
         <div className="flex items-center justify-between mb-3">
           <div className="kicker text-violet-700">After the final whistle</div>
@@ -856,7 +1023,7 @@ function LayerContent({
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5 }}
-      className="rounded-3xl border border-slate-200 bg-white p-5 shadow-[0_4px_20px_-8px_rgba(124,58,237,0.10)]"
+      className="rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_4px_20px_-8px_rgba(124,58,237,0.10)]"
     >
       <div className="flex items-center justify-between mb-3">
         <div className="kicker text-violet-700">Support near your seat</div>
