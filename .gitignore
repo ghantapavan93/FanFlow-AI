@@ -48,3 +48,7 @@ Thumbs.db
 # TypeScript incremental build cache
 tsconfig.tsbuildinfo
 *.tsbuildinfo
+
+# Skill-manager local state (personal tooling, not product code)
+.agents/
+skills-lock.json
