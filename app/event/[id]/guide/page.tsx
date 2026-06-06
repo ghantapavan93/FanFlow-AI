@@ -185,7 +185,7 @@ export default function ArrivalGuidePage() {
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
-          className="surface-night relative overflow-hidden rounded-3xl p-5 text-white shadow-[0_10px_30px_-12px_rgba(76,29,149,0.55)]"
+          className="surface-night relative overflow-hidden rounded-2xl p-5 text-white shadow-[0_10px_30px_-12px_rgba(76,29,149,0.55)]"
         >
           <motion.div
             aria-hidden="true"

@@ -60,9 +60,6 @@ export interface ConfidenceTone {
   label: string
   short: string
   textClass: string
-  ringClass: string
-  /** Percent representation for circular rings and bars. */
-  percent: number
 }
 
 export const CONFIDENCE_TONES: Record<ConfidenceLevel, ConfidenceTone> = {
@@ -70,29 +67,21 @@ export const CONFIDENCE_TONES: Record<ConfidenceLevel, ConfidenceTone> = {
     label: 'Low confidence',
     short: 'Low',
     textClass: 'text-rose-700',
-    ringClass: 'ring-rose-200',
-    percent: 35,
   },
   moderate: {
     label: 'Moderate confidence',
     short: 'Moderate',
     textClass: 'text-amber-700',
-    ringClass: 'ring-amber-200',
-    percent: 60,
   },
   high: {
     label: 'High confidence',
     short: 'High',
     textClass: 'text-emerald-700',
-    ringClass: 'ring-emerald-200',
-    percent: 80,
   },
   verified: {
     label: 'Staff verified',
     short: 'Verified',
     textClass: 'text-emerald-700',
-    ringClass: 'ring-emerald-300',
-    percent: 95,
   },
 }
 

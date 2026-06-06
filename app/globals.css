@@ -316,24 +316,10 @@ body {
   backdrop-filter: blur(12px);
 }
 
-/* Soft violet glow — for live dots, active chips, focal elements. */
+/* Quiet violet ring — marks the active/selected element. Restraint over
+   neon: a crisp 1px ring, not a wide glow halo. */
 .glow-violet {
-  box-shadow: 0 0 0 1px rgba(167, 139, 250, 0.35),
-    0 0 18px -2px rgba(167, 139, 250, 0.5);
-}
-
-/* Animated aurora gradient text — for cinematic headlines only (sparingly). */
-@keyframes ff-text-pan {
-  0%, 100% { background-position: 0% 50%; }
-  50% { background-position: 100% 50%; }
-}
-.text-aurora {
-  background: linear-gradient(90deg, #c4b5fd, #f0abfc, #a5b4fc, #c4b5fd);
-  background-size: 200% auto;
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-  animation: ff-text-pan 6s ease-in-out infinite;
+  box-shadow: 0 0 0 1px rgba(124, 58, 237, 0.45);
 }
 
 /* Route trail — a dashed stroke that flows along its path (SVG or border).
@@ -347,6 +333,5 @@ body {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .text-aurora { animation: none; }
   .route-trail { animation: none; }
 }

@@ -152,7 +152,7 @@ export default function JourneyPage() {
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
-            className="surface-night relative overflow-hidden rounded-3xl p-5 text-white shadow-[0_10px_30px_-12px_rgba(76,29,149,0.55)]"
+            className="surface-night relative overflow-hidden rounded-2xl p-5 text-white shadow-[0_10px_30px_-12px_rgba(76,29,149,0.55)]"
           >
             <motion.div
               aria-hidden="true"
@@ -189,7 +189,7 @@ export default function JourneyPage() {
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5 }}
-            className="rounded-3xl bg-white border border-slate-200 shadow-[0_4px_20px_-8px_rgba(124,58,237,0.10)] p-5"
+            className="rounded-2xl bg-white border border-slate-200 shadow-[0_4px_20px_-8px_rgba(124,58,237,0.10)] p-5"
           >
             <ol className="relative">
               <div
@@ -271,7 +271,7 @@ export default function JourneyPage() {
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.3 }}
-            className="relative rounded-3xl overflow-hidden bg-gradient-to-br from-slate-950 via-violet-950 to-slate-900 text-white p-5"
+            className="relative rounded-2xl overflow-hidden bg-gradient-to-br from-slate-950 via-violet-950 to-slate-900 text-white p-5"
           >
             <div
               aria-hidden="true"
@@ -375,7 +375,7 @@ export default function JourneyPage() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.5 }}
             onClick={() => setHelpOpen(true)}
-            className="w-full rounded-3xl bg-gradient-to-br from-violet-50 to-white border border-violet-200 p-4 text-left hover:from-violet-100 transition group"
+            className="w-full rounded-2xl bg-gradient-to-br from-violet-50 to-white border border-violet-200 p-4 text-left hover:from-violet-100 transition group"
           >
             <div className="flex items-center gap-3">
               <span className="w-11 h-11 rounded-2xl bg-gradient-to-br from-violet-500 to-fuchsia-600 text-white flex items-center justify-center text-lg flex-shrink-0 shadow-md shadow-violet-500/25">

@@ -15,6 +15,7 @@ import { computeEventIntelligence, computeFanPulse } from '@/lib/intelligence'
 import { HelpSheet } from '@/components/shared/HelpSheet'
 import { AIExplanationCard } from '@/components/shared/AIExplanationCard'
 import { SourceChip } from '@/components/shared/SourceChip'
+import { GameDayControl } from '@/components/sim/GameDayControl'
 import { demoEvent, demoTicket } from '@/lib/seed'
 import { loadSelectedTicket } from '@/lib/ticketContext'
 import type { SourceType } from '@/lib/types'
@@ -200,7 +201,7 @@ export default function ConditionsPage() {
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
-            className="surface-night relative overflow-hidden rounded-3xl p-5 text-white shadow-[0_10px_30px_-12px_rgba(76,29,149,0.55)]"
+            className="surface-night relative overflow-hidden rounded-2xl p-5 text-white shadow-[0_10px_30px_-12px_rgba(76,29,149,0.55)]"
           >
             <motion.div
               aria-hidden="true"
@@ -278,7 +279,7 @@ export default function ConditionsPage() {
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5 }}
-            className="rounded-3xl bg-white border border-slate-200 shadow-[0_4px_20px_-8px_rgba(124,58,237,0.10)] p-5"
+            className="rounded-2xl bg-white border border-slate-200 shadow-[0_4px_20px_-8px_rgba(124,58,237,0.10)] p-5"
           >
             <div className="flex items-center gap-5">
               <ConfidenceRing percent={confidence} color={confidenceColor} />
@@ -381,7 +382,7 @@ export default function ConditionsPage() {
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, delay: 0.2 }}
-              className="rounded-3xl bg-gradient-to-br from-violet-50 to-violet-50/40 border border-violet-200 p-4"
+              className="rounded-2xl bg-gradient-to-br from-violet-50 to-violet-50/40 border border-violet-200 p-4"
             >
               <div className="flex items-start gap-3">
                 <span className="w-11 h-11 rounded-2xl bg-gradient-to-br from-violet-500 to-fuchsia-600 text-white flex items-center justify-center text-lg flex-shrink-0 shadow-md shadow-violet-500/25">
@@ -406,7 +407,7 @@ export default function ConditionsPage() {
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.3 }}
-            className="rounded-3xl bg-white border border-slate-200 shadow-[0_4px_20px_-8px_rgba(124,58,237,0.10)] p-5"
+            className="rounded-2xl bg-white border border-slate-200 shadow-[0_4px_20px_-8px_rgba(124,58,237,0.10)] p-5"
           >
             <div className="flex items-center justify-between mb-3">
               <div>
@@ -509,6 +510,8 @@ export default function ConditionsPage() {
             instructions.
           </p>
         </main>
+
+        <GameDayControl />
 
         {/* Bottom tab nav */}
         <nav

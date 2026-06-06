@@ -121,7 +121,7 @@ export default function PulsePage() {
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
-            className="surface-night relative overflow-hidden rounded-3xl p-5 text-white shadow-[0_10px_30px_-12px_rgba(76,29,149,0.55)]"
+            className="surface-night relative overflow-hidden rounded-2xl p-5 text-white shadow-[0_10px_30px_-12px_rgba(76,29,149,0.55)]"
           >
             <motion.div
               aria-hidden="true"
@@ -202,7 +202,7 @@ export default function PulsePage() {
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5 }}
-            className="rounded-3xl bg-white border border-slate-200 shadow-[0_4px_20px_-8px_rgba(124,58,237,0.10)] p-5"
+            className="rounded-2xl bg-white border border-slate-200 shadow-[0_4px_20px_-8px_rgba(124,58,237,0.10)] p-5"
           >
             <div className="flex items-center gap-2 mb-3">
               <span className="w-9 h-9 rounded-2xl bg-violet-100 text-violet-700 flex items-center justify-center text-lg flex-shrink-0">
@@ -323,7 +323,7 @@ export default function PulsePage() {
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.05 }}
-            className="rounded-3xl bg-gradient-to-br from-violet-50 via-white to-violet-50/30 border border-violet-200 shadow-[0_4px_20px_-8px_rgba(124,58,237,0.10)] p-5"
+            className="rounded-2xl bg-gradient-to-br from-violet-50 via-white to-violet-50/30 border border-violet-200 shadow-[0_4px_20px_-8px_rgba(124,58,237,0.10)] p-5"
           >
             <div className="flex items-center gap-2 mb-3">
               <span className="w-9 h-9 rounded-2xl bg-gradient-to-br from-violet-500 to-fuchsia-600 text-white flex items-center justify-center text-sm flex-shrink-0 shadow-md shadow-violet-500/25">
@@ -401,7 +401,7 @@ export default function PulsePage() {
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.1 }}
-            className="rounded-3xl bg-white border border-slate-200 shadow-[0_4px_20px_-8px_rgba(124,58,237,0.10)] p-5"
+            className="rounded-2xl bg-white border border-slate-200 shadow-[0_4px_20px_-8px_rgba(124,58,237,0.10)] p-5"
           >
             <div className="flex items-center justify-between mb-3">
               <div>
@@ -480,7 +480,7 @@ export default function PulsePage() {
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, delay: 0.2 }}
-              className="rounded-3xl bg-white border border-slate-200 shadow-[0_4px_20px_-8px_rgba(124,58,237,0.10)] p-5"
+              className="rounded-2xl bg-white border border-slate-200 shadow-[0_4px_20px_-8px_rgba(124,58,237,0.10)] p-5"
             >
               <div className="kicker mb-3">Recent fan reports</div>
               <ul className="space-y-2">
@@ -532,7 +532,7 @@ export default function PulsePage() {
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.25 }}
-            className="rounded-3xl bg-gradient-to-br from-violet-50 via-white to-fuchsia-50/30 border border-violet-200 p-5"
+            className="rounded-2xl bg-gradient-to-br from-violet-50 via-white to-fuchsia-50/30 border border-violet-200 p-5"
           >
             <div className="kicker text-violet-700 mb-3">How Fan Pulse works</div>
             <div className="space-y-3">
@@ -556,7 +556,7 @@ export default function PulsePage() {
           </motion.section>
 
           {/* Community proof */}
-          <div className="rounded-3xl bg-gradient-to-br from-violet-50 via-white to-fuchsia-50/30 border border-violet-100 p-4 text-center">
+          <div className="rounded-2xl bg-gradient-to-br from-violet-50 via-white to-fuchsia-50/30 border border-violet-100 p-4 text-center">
             <div className="flex items-center justify-center gap-1.5 -space-x-2 mb-2">
               {['🧑', '👩', '🧑‍🦰', '👨', '👩‍🦱'].map((a, i) => (
                 <span

@@ -491,7 +491,7 @@ function GlassCard({
 }) {
   return (
     <div
-      className={`rounded-3xl bg-white/75 backdrop-blur-md border border-white/60 shadow-[0_8px_40px_-12px_rgba(124,58,237,0.18)] ring-1 ring-violet-100/60 ${className}`}
+      className={`rounded-2xl bg-white/75 backdrop-blur-md border border-white/60 shadow-[0_8px_40px_-12px_rgba(124,58,237,0.18)] ring-1 ring-violet-100/60 ${className}`}
     >
       {children}
     </div>
@@ -1601,7 +1601,7 @@ function StageSeatmap({ onAdvance, onBack }: { onAdvance: () => void; onBack: ()
 
         <div className="mt-6 grid lg:grid-cols-[1.4fr_1fr] gap-5">
           {/* 3D-perspective stadium with Section 117 glow + route line */}
-          <div className="relative rounded-3xl overflow-hidden bg-gradient-to-b from-violet-100/70 via-white to-white border border-violet-200/60 shadow-[0_20px_60px_-20px_rgba(124,58,237,0.3)] p-4 sm:p-5">
+          <div className="relative rounded-2xl overflow-hidden bg-gradient-to-b from-violet-100/70 via-white to-white border border-violet-200/60 shadow-[0_20px_60px_-20px_rgba(124,58,237,0.3)] p-4 sm:p-5">
             <div className="flex items-center justify-between mb-3">
               <div className="kicker text-violet-700">Stadium · 3D view</div>
               <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-[10px] font-bold uppercase tracking-wider text-emerald-700">
@@ -2006,7 +2006,7 @@ function StageConfirmed({ onAdvance, onBack }: { onAdvance: () => void; onBack: 
           initial={reduced ? false : { opacity: 0, y: 18 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, delay: 1.0, ease: [0.16, 1, 0.3, 1] }}
-          className="relative max-w-2xl mx-auto rounded-3xl overflow-hidden shadow-[0_24px_60px_-20px_rgba(124,58,237,0.4)]"
+          className="relative max-w-2xl mx-auto rounded-2xl overflow-hidden shadow-[0_24px_60px_-20px_rgba(124,58,237,0.4)]"
         >
           {/* Layered gradient backdrop */}
           <div className="absolute inset-0 bg-gradient-to-br from-violet-100 via-fuchsia-50 to-violet-200" />
@@ -2515,7 +2515,7 @@ function StageBuilding({ onAdvance, onBack }: { onAdvance: () => void; onBack: (
           initial={{ opacity: 0, y: 14 }}
           animate={allDone ? { opacity: 1, y: 0 } : { opacity: 0, y: 14 }}
           transition={{ duration: 0.55, ease: [0.16, 1, 0.3, 1] }}
-          className="mt-6 sm:mt-8 max-w-3xl mx-auto rounded-3xl overflow-hidden relative bg-gradient-to-br from-violet-600 via-violet-700 to-fuchsia-700 text-white p-6 sm:p-7 shadow-[0_20px_60px_-20px_rgba(124,58,237,0.5)]"
+          className="mt-6 sm:mt-8 max-w-3xl mx-auto rounded-2xl overflow-hidden relative bg-gradient-to-br from-violet-600 via-violet-700 to-fuchsia-700 text-white p-6 sm:p-7 shadow-[0_20px_60px_-20px_rgba(124,58,237,0.5)]"
         >
           <div className="absolute -right-10 -top-10 opacity-20 hidden sm:block">
             <StadiumIllustration size={220} showPin={false} />
@@ -2877,7 +2877,7 @@ function StagePreview({ onBack }: { onBack: () => void }) {
           initial={reduced ? false : { opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.55, delay: 0.5 }}
-          className="relative rounded-3xl overflow-hidden p-6 sm:p-8 text-white shadow-[0_20px_60px_-20px_rgba(15,23,42,0.5)]"
+          className="relative rounded-2xl overflow-hidden p-6 sm:p-8 text-white shadow-[0_20px_60px_-20px_rgba(15,23,42,0.5)]"
         >
           <div className="absolute inset-0 bg-gradient-to-br from-slate-900 via-slate-800 to-violet-900" />
           <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(124,58,237,0.4),transparent_50%),radial-gradient(ellipse_at_bottom_left,rgba(217,70,239,0.2),transparent_50%)]" />

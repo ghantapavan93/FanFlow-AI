@@ -19,26 +19,21 @@ export function ConfidenceChip({
   short?: boolean
 }) {
   const tone = CONFIDENCE_TONES[level]
+  const dot =
+    level === 'verified' || level === 'high'
+      ? 'bg-emerald-500'
+      : level === 'moderate'
+        ? 'bg-amber-500'
+        : 'bg-rose-500'
+  // Restraint: a single dot + label, no pill or progress bar. Pairs cleanly
+  // next to a SourceChip without reading as chip-soup.
   return (
     <span
-      className={`inline-flex items-center gap-1.5 rounded-full bg-white border border-slate-200 px-2 py-0.5 text-[10px] font-semibold ${tone.textClass}`}
+      className={`inline-flex items-center gap-1.5 text-[11px] font-medium ${tone.textClass}`}
       title={tone.label}
     >
-      <span className="relative w-6 h-1 rounded-full bg-slate-100 overflow-hidden">
-        <span
-          className={`absolute inset-y-0 left-0 rounded-full ${
-            level === 'verified'
-              ? 'bg-emerald-500'
-              : level === 'high'
-                ? 'bg-emerald-400'
-                : level === 'moderate'
-                  ? 'bg-amber-400'
-                  : 'bg-rose-400'
-          }`}
-          style={{ width: `${tone.percent}%` }}
-        />
-      </span>
-      <span className="uppercase tracking-wider">{short ? tone.short : tone.label}</span>
+      <span className={`w-1.5 h-1.5 rounded-full ${dot}`} aria-hidden="true" />
+      {short ? tone.short : tone.label}
     </span>
   )
 }
