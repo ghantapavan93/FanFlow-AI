@@ -143,7 +143,13 @@ export default function CheckoutSuccessPage() {
                 FIFA World Cup 2026
               </span>
             </div>
-            <span className="text-[10px] font-mono opacity-70">{new Date().toLocaleDateString()}</span>
+            {/* Decorative purchase date. Rendered at request time, so it can
+                differ between the server render and client hydration (locale
+                format, or a midnight date rollover) — suppressHydrationWarning
+                keeps that expected difference from triggering a hydration error. */}
+            <span className="text-[10px] font-mono opacity-70" suppressHydrationWarning>
+              {new Date().toLocaleDateString()}
+            </span>
           </div>
           <div className="p-5">
             <div className="font-bold text-slate-900 text-lg leading-tight">
@@ -202,7 +208,7 @@ export default function CheckoutSuccessPage() {
             event context, route line drawing from "you" to the venue,
             module strip, and the single primary CTA. */}
         <motion.div
-          className="relative overflow-hidden rounded-3xl text-white p-5 sm:p-6 mt-2"
+          className="relative overflow-hidden rounded-2xl text-white p-5 sm:p-6 mt-2"
           style={{
             background:
               'radial-gradient(circle at 75% 12%, rgba(167,139,250,0.30), transparent 55%),' +

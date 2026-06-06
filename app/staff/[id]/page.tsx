@@ -204,6 +204,14 @@ export default function StaffConsolePage() {
   const [toast, setToast] = useState<string | null>(null)
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [lastUpdated, setLastUpdated] = useState<string>('—')
+  // Live readiness prefs (so the AI explanation mirrors the fan's). Kept in
+  // state — NOT read inline during render — because loadReadiness() hits
+  // localStorage, which is empty on the server but populated on the client.
+  // Reading it in render made the server omit, and the client emit, the
+  // prefs-dependent markup → a structural hydration mismatch. Starting null
+  // (matching SSR) and filling it in refresh() after mount keeps hydration
+  // clean while staying live via the subscribe + heartbeat below.
+  const [livePrefs, setLivePrefs] = useState<ReturnType<typeof loadReadiness>>(null)
 
   // Incident creation form state
   const [showNewIncident, setShowNewIncident] = useState(false)
@@ -232,13 +240,14 @@ export default function StaffConsolePage() {
   const refresh = useCallback(() => {
     setSignals(getAllSignals())
     setIncidents(loadIncidents())
+    setLivePrefs(loadReadiness())
     setLastUpdated(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }))
   }, [])
 
   useEffect(() => {
     refresh()
     return subscribeToFanflowChanges(
-      ['fanflow:signals', 'fanflow:incidents'],
+      ['fanflow:signals', 'fanflow:incidents', 'fanflow:readiness'],
       refresh,
     )
   }, [refresh])
@@ -445,12 +454,6 @@ export default function StaffConsolePage() {
     () => computeOperationalAlerts(demoVenue, signals, incidents),
     [signals, incidents],
   )
-
-  // Live readiness — so the AI explanation reflects the same prefs the
-  // fan Hub does.
-  // Re-read readiness on every render — cheap localStorage read, and the
-  // dependency on signals was semantically wrong (readiness ≠ signals).
-  const livePrefs = loadReadiness()
 
   const handleExportSignals = () => {
     downloadCSV(timestampedFilename('signals'), signalsToCSV(signals))
